@@ -78,15 +78,30 @@ class Simulation:
         if len(self.places) == 0:
             raise ValueError("At least one place must be configured in 'places'.")
         
-        # Validate each place configuration
-        required_fields = ['name', 'type', 'center_x', 'center_y', 'half_size', 'capacity']
+        # Validate each place configuration. A place must specify its footprint
+        # either as `half_size` (square shorthand) or `half_size_x` + `half_size_y`
+        # (rectangle, feature 3).
+        base_required = ['name', 'type', 'center_x', 'center_y', 'capacity']
         for i, place in enumerate(self.places):
             if not isinstance(place, dict):
                 raise ValueError(f"Place at index {i} must be a dictionary.")
-            
-            for field in required_fields:
+
+            for field in base_required:
                 if field not in place:
                     raise ValueError(f"Place at index {i} is missing required field: '{field}'")
+
+            has_square = 'half_size' in place
+            has_rect = 'half_size_x' in place and 'half_size_y' in place
+            if not (has_square or has_rect):
+                raise ValueError(
+                    f"Place at index {i} ('{place.get('name')}') must specify either "
+                    f"'half_size' or both 'half_size_x' and 'half_size_y'."
+                )
+            # Normalise: always expose both rectangular half-sizes so downstream
+            # code can rely on place['half_size_x'] / place['half_size_y'].
+            if not has_rect:
+                place['half_size_x'] = place['half_size']
+                place['half_size_y'] = place['half_size']
         
         place_names = [place['name'] for place in self.places]
         place_types = [place['type'] for place in self.places]

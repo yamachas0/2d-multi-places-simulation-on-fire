@@ -81,61 +81,68 @@ class FireConfig(TypedDict, total=False):
     center_y: int  # Fire position Y (optional, random if omitted)
 
 
-class PlaceConfig(TypedDict):
-    """Type definition for place configuration"""
-    name: str  # Place name (required)
-    type: str  # Place type: bar, cafe, library, etc. (required)
-    center_x: int  # X coordinate of place center (required)
-    center_y: int  # Y coordinate of place center (required)
-    half_size: int  # Half size of the place (required)
-    capacity: int  # Maximum comfortable capacity of the place (required)
+class PlaceConfig(TypedDict, total=False):
+    """Type definition for place configuration.
+
+    A place is an axis-aligned rectangle. Its X extent is ±half_size_x from
+    center_x; its Y extent is ±half_size_y from center_y. For square places,
+    half_size can be supplied as a shorthand that populates both axes.
+    """
+    name: str  # required
+    type: str  # required (bar/cafe/station/...)
+    center_x: int  # required
+    center_y: int  # required
+    half_size: int      # square shorthand (populates half_size_x / half_size_y)
+    half_size_x: int    # rectangular extent along X
+    half_size_y: int    # rectangular extent along Y
+    capacity: int  # required
+
+
+def _resolve_half_sizes(place: Dict) -> Tuple[int, int]:
+    """Return (half_size_x, half_size_y) for a place, supporting legacy half_size."""
+    if 'half_size_x' in place or 'half_size_y' in place:
+        hx = place.get('half_size_x', place.get('half_size', 5))
+        hy = place.get('half_size_y', place.get('half_size', 5))
+        return int(hx), int(hy)
+    hs = place.get('half_size', 5)
+    return int(hs), int(hs)
 
 
 def is_position_in_place(
     position: Tuple[int, int],
-    half_size: int,
+    half_size=None,
     center_x: int = 0,
-    center_y: int = 0
+    center_y: int = 0,
+    half_size_x: Optional[int] = None,
+    half_size_y: Optional[int] = None,
 ) -> bool:
-    """
-    Check if a position is inside a place area.
-    Place is centered at (center_x, center_y).
+    """Check if a position is inside a rectangular place centered at (center_x, center_y).
 
-    Args:
-        position: (x, y) coordinates to check
-        half_size: Half size of the place (place covers -half_size to +half_size from center)
-        center_x: X coordinate of place center (default: 0)
-        center_y: Y coordinate of place center (default: 0)
-
-    Returns:
-        True if position is inside the place, False otherwise
+    Back-compat: if only `half_size` is supplied, the place is treated as a
+    square of that half-extent on both axes.
     """
     x, y = position
-    # Place covers -half_size to +half_size (inclusive on both ends) from center
-    return (center_x - half_size <= x <= center_x + half_size and
-            center_y - half_size <= y <= center_y + half_size)
+    if half_size_x is None:
+        half_size_x = half_size if half_size is not None else 5
+    if half_size_y is None:
+        half_size_y = half_size if half_size is not None else 5
+    return (center_x - half_size_x <= x <= center_x + half_size_x and
+            center_y - half_size_y <= y <= center_y + half_size_y)
 
 
 def get_place_at_position(
     position: Tuple[int, int],
     places: List[PlaceConfig]
 ) -> Optional[PlaceConfig]:
-    """
-    Get the place that contains the given position.
-
-    Args:
-        position: (x, y) coordinates to check
-        places: List of place configurations, each with 'center_x', 'center_y', 'half_size'
-
-    Returns:
-        Place dictionary if position is in a place, None otherwise
-    """
+    """Return the place containing the given position, or None."""
     for place in places:
+        hx, hy = _resolve_half_sizes(place)
         if is_position_in_place(
             position,
-            place['half_size'],
-            place['center_x'],
-            place['center_y']
+            center_x=place['center_x'],
+            center_y=place['center_y'],
+            half_size_x=hx,
+            half_size_y=hy,
         ):
             return place
     return None

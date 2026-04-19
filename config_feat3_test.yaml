@@ -1,22 +1,21 @@
-# Simulation Configuration — station-front urban district (150x150, ~5m per cell)
-
+# Feature 3 smoke test: rectangular places + place-type attributes (6 agents x 10 steps)
 simulation:
-  duration: 60              # 60 steps = 1 hour of wall-clock time
-  half_space_size: 75       # 150x150 grid, ~750m x 750m
-  half_place_size: 5        # default for legacy square places
+  duration: 10
+  half_space_size: 75
+  half_place_size: 5
   time_scale:
     step_duration_minutes: 1
     start_time: "08:00"
 
 agents:
-  num_agents: 20
+  num_agents: 6
   communication_radius: 10
   memory_limit: 20
   memory_size: 5
   message_history_limit: 10
   message_context_size: 3
   skip_probability: 0.2
-  parallel_workers: 20
+  parallel_workers: 6
   movement_speed:
     base_cells_per_step: 8
     variance: 2
@@ -27,26 +26,23 @@ agents:
       age: 42
       gender: "male"
       occupation: "IT会社員"
-      background: "最近転勤で引っ越してきた。知り合いがいない"
-      speech_style: "丁寧だが少し堅い。敬語多め。初対面には警戒気味"
+      background: "最近転勤で引っ越してきた"
+      speech_style: "丁寧だが少し堅い"
     - id: 1
       name: "鈴木美咲"
       age: 28
       gender: "female"
       occupation: "フリーランスデザイナー"
-      background: "この街に長く住んでいる。社交的で顔が広い"
-      speech_style: "カジュアルでフレンドリー。タメ口混じり"
+      background: "この街に長く住んでいる"
+      speech_style: "カジュアルでフレンドリー"
     - id: 2
       name: "佐藤太郎"
       age: 65
       gender: "male"
-      occupation: "定年退職したサラリーマン"
-      background: "毎日このあたりを散歩している常連"
-      speech_style: "のんびりした話し方。昔話を交えることが多い"
+      occupation: "定年退職"
+      background: "散歩が日課"
+      speech_style: "のんびりした話し方"
 
-# Place layout: station at the north edge, plaza in front, mixed venues spread
-# across the district. Rectangular places use half_size_x / half_size_y; square
-# places keep the legacy `half_size` shorthand.
 places:
   - name: "central_station"
     type: "station"
@@ -96,19 +92,13 @@ llm:
   temperature: 0.2
   max_tokens: 600
 
-fires:
-  - name: "fire_1"
-    start_step: 40
-    intensity: 0.8
-    radius: 25
-    center_x: 20
-    center_y: -45
+fires: []
 
 visualization:
-  save_frames: true
+  save_frames: false
   frame_interval: 1
-  output_dir: "output"
+  output_dir: "output_feat3_test"
 
 logging:
   level: "INFO"
-  log_file: "simulation.log"
+  log_file: "simulation_feat3_test.log"

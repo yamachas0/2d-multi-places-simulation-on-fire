@@ -8,6 +8,7 @@ import logging
 from typing import List, Tuple, Optional, Dict, TypedDict
 from claude_client import ClaudeClient
 from utils import is_position_in_place, get_place_at_position, PlaceConfig, generate_random_persona
+from place_types import get_place_type_spec
 
 logger = logging.getLogger(__name__)
 
@@ -293,10 +294,15 @@ class Agent:
         place_locations = []
         for place in self.places:
             place_type = place['type']
+            hx = place.get('half_size_x', place.get('half_size', 5))
+            hy = place.get('half_size_y', place.get('half_size', 5))
+            spec = get_place_type_spec(place_type)
             place_locations.append(
-                f"{place['name']} ({place_type}): center at ({place['center_x']}, {place['center_y']}), "
-                f"covers X from {place['center_x'] - place['half_size']} to {place['center_x'] + place['half_size']}, "
-                f"Y from {place['center_y'] - place['half_size']} to {place['center_y'] + place['half_size']}"
+                f"{place['name']} ({place_type} — {spec['atmosphere']}): "
+                f"center ({place['center_x']}, {place['center_y']}), "
+                f"covers X {place['center_x'] - hx} to {place['center_x'] + hx}, "
+                f"Y {place['center_y'] - hy} to {place['center_y'] + hy}, "
+                f"capacity {place.get('capacity', '?')}"
             )
         return "\n".join(place_locations)
 
@@ -308,12 +314,11 @@ class Agent:
         ax, ay = self.position
         for place in self.places:
             cx, cy = place['center_x'], place['center_y']
+            hx = place.get('half_size_x', place.get('half_size', 5))
+            hy = place.get('half_size_y', place.get('half_size', 5))
             dist = math.hypot(cx - ax, cy - ay)
             direction = self._position_to_rough_direction((cx, cy))
-            inside = (
-                abs(cx - ax) <= place.get('half_size', place.get('half_size_x', 5))
-                and abs(cy - ay) <= place.get('half_size', place.get('half_size_y', 5))
-            )
+            inside = abs(cx - ax) <= hx and abs(cy - ay) <= hy
             if inside:
                 marker = "[you are here]"
             elif dist <= self.movement_base_cells * 1.5:

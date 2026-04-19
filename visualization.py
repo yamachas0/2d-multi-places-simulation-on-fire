@@ -124,33 +124,34 @@ class Visualizer:
             'cafe': 'lightcoral',
             'library': 'lightgreen',
             'restaurant': 'lightyellow',
-            'park': 'lightpink'
+            'park': 'lightpink',
+            'station': 'khaki',
+            'plaza': 'lavender',
+            'road': 'lightgray',
         }
         # Fallback colors for unknown types
         default_colors = ['lightblue', 'lightcoral', 'lightgreen', 'lightyellow', 'lightpink']
         
         for i, place in enumerate(self.places):
-            half_size = place['half_size']
+            # Support both square (half_size) and rectangular (half_size_x/y) places.
+            half_size_x = place.get('half_size_x', place.get('half_size'))
+            half_size_y = place.get('half_size_y', place.get('half_size'))
             center_x = place['center_x']
             center_y = place['center_y']
             if 'name' not in place:
                 raise ValueError(f"Place at index {i} is missing required field: 'name'")
             place_name = place['name']
             place_type = place['type']
-            
-            # Choose color based on place type
+
             if place_type in place_type_colors:
                 face_color = place_type_colors[place_type]
             else:
                 face_color = default_colors[i % len(default_colors)]
-            
-            # Place covers -half_size to +half_size from center (inclusive)
-            # Rectangle width/height = 2 * half_size + 1 to cover all cells
-            place_width = 2 * half_size + 1
+
             place_rect = patches.Rectangle(
-                (center_x - half_size - 0.5, center_y - half_size - 0.5),  # Bottom-left corner
-                place_width,
-                place_width,
+                (center_x - half_size_x - 0.5, center_y - half_size_y - 0.5),
+                2 * half_size_x + 1,
+                2 * half_size_y + 1,
                 linewidth=BAR_LINEWIDTH,
                 edgecolor='blue',
                 facecolor=face_color,
