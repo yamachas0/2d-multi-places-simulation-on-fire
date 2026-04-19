@@ -17,6 +17,13 @@ FALLBACK_REASONING_LENGTH = 100
 MAX_MESSAGE_WORDS = 200
 MAX_RETRY_TOKENS = 1500  # Expanded max_tokens used when a response is detected as truncated.
 
+# Behavior layers (feature 4). Each step the agent is classified into one of
+# three layers and the layer gates how often we actually call the LLM.
+BEHAVIOR_LAYERS = ("transit", "dwelling", "interacting")
+# In transit, reuse the current intent for this many consecutive steps before
+# re-consulting the LLM. 1 = always call LLM (no caching).
+TRANSIT_LLM_INTERVAL = 5
+
 # Direction mappings (4 cardinal directions only)
 # Coordinate system: X increases from left to right, Y increases from bottom to top
 DIRECTION_MAP = {
@@ -115,6 +122,14 @@ class Agent:
         self.steps_in_place = 0
         self.steps_outside_place = 0
         self.total_moves = 0
+
+        # Behavior-layer state (feature 4).
+        # current_intent caches the last LLM-chosen action so transit steps can
+        # reuse it without another API call. transit_step_counter tracks how
+        # many consecutive transit steps have reused the cache.
+        self.behavior_layer: str = "dwelling"
+        self.current_intent: Optional[ActionDecision] = None
+        self.transit_step_counter: int = 0
 
     def is_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
@@ -956,6 +971,7 @@ them in memory and reasoning.
 Position: ({self.position[0]}, {self.position[1]})
 In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
+Behavior layer: {self.behavior_layer} (transit = walking through the district, dwelling = spending time in a place, interacting = with people around you)
 {place_section_text}
 {fire_section}
 === NEARBY PLACES ===
@@ -1128,6 +1144,47 @@ Step: {step}
             logger.error(f"Error in agent {self.id} message decision: {e}")
             return {"message": "", "reasoning": "Error occurred"}
 
+    def determine_behavior_layer(
+        self,
+        nearby_agents: List['Agent'],
+        has_outgoing_message: bool = False,
+    ) -> str:
+        """Classify the agent's current situation into a behavior layer.
+
+        - "interacting": in a place with other agents nearby, or about to send
+          or having just received a message. Call LLM every step.
+        - "dwelling": inside a place alone (or outside in a crowded spot with
+          no conversation in progress). Call LLM every step.
+        - "transit": walking through the district with no one nearby and no
+          active conversation. Safe to reuse the previous intent.
+        """
+        has_nearby = bool(nearby_agents)
+        has_recent_incoming = bool(self.received_messages)
+        if has_nearby and (self.in_place or has_outgoing_message or has_recent_incoming):
+            return "interacting"
+        if self.in_place:
+            return "dwelling"
+        return "transit"
+
+    def _reuse_cached_intent(self, step: int) -> ActionDecision:
+        """Return the cached intent as the current step's decision (no LLM call).
+
+        Writes a compact memory entry so the rolling buffer still reflects the
+        step, but keeps it distinct from the LLM-authored ones.
+        """
+        cached = dict(self.current_intent) if self.current_intent else {}
+        cached.setdefault("action_type", "stay")
+        cached.setdefault("target_place", None)
+        cached.setdefault("target_agent", None)
+        cached.setdefault("direction", None)
+        cached["memory"] = ""  # cached steps contribute no new LLM memory
+        cached["reasoning"] = "(continuing previous intent)"
+        cached["action"] = "stay" if cached["action_type"] == "stay" else "move"
+        self.memory.append(f"Step {step}: (transit continuing — {cached['action_type']})")
+        if len(self.memory) > self.memory_limit:
+            self.memory.pop(0)
+        return cached  # type: ignore[return-value]
+
     def decide_action(
         self,
         place_status: Optional[Dict],
@@ -1137,6 +1194,22 @@ Step: {step}
         fire_info: Optional[List[Dict]] = None
     ) -> ActionDecision:
         """Use LLM to decide next action (with position information and message content)"""
+        # Classify the current situation. Transit steps may reuse the cached
+        # intent for up to TRANSIT_LLM_INTERVAL-1 steps before re-asking.
+        layer = self.determine_behavior_layer(
+            nearby_agents, has_outgoing_message=bool(message_to_send)
+        )
+        self.behavior_layer = layer
+
+        if layer != "transit":
+            # Leaving transit invalidates the cache; reset counter.
+            self.transit_step_counter = 0
+        elif self.current_intent is not None and self.transit_step_counter < TRANSIT_LLM_INTERVAL - 1:
+            self.transit_step_counter += 1
+            return self._reuse_cached_intent(step)
+        else:
+            self.transit_step_counter = 0
+
         system_prompt, user_prompt = self.create_decision_prompts(
             place_status, nearby_agents, step, message_to_send, fire_info=fire_info
         )
@@ -1165,6 +1238,10 @@ Step: {step}
             self.memory.append(memory_entry)
             if len(self.memory) > self.memory_limit:
                 self.memory.pop(0)
+
+            # Cache the intent so transit steps can reuse it.
+            if decision.get('action_type') not in (None, 'stay'):
+                self.current_intent = dict(decision)  # type: ignore[assignment]
 
             return decision
         except Exception as e:
@@ -1335,11 +1412,19 @@ Step: {step}
         """Update agent state based on current position"""
         if places is None:
             places = self.places
-        
+
         place_at_position = get_place_at_position(self.position, places)
+        previous_in_place = self.in_place
         self.in_place = place_at_position is not None
         self.current_place = place_at_position['name'] if place_at_position else None
-        
+
+        # Crossing a place boundary invalidates the cached transit intent —
+        # whatever the agent was walking toward, they've either arrived or
+        # left a shelter and need to re-plan from scratch.
+        if previous_in_place != self.in_place:
+            self.current_intent = None
+            self.transit_step_counter = 0
+
         if self.in_place:
             self.steps_in_place += 1
         else:
