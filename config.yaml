@@ -1,0 +1,98 @@
+# Simulation Configuration
+
+# Simulation Parameters
+simulation:
+  duration: 50  # Number of simulation steps
+  half_space_size: 25  # Half of grid size (agents can move in range -25 to +25)
+  half_place_size: 5   # Half of place size (place covers -5 to +5)
+  
+# Agent Parameters
+agents:
+  num_agents: 20
+  communication_radius: 5  # Radius for agent communication
+  memory_limit: 20  # Maximum number of memory entries to store
+  memory_size: 5  # Number of recent memory entries used in LLM prompt
+  message_history_limit: 10  # Maximum number of received messages to store
+  message_context_size: 3  # Number of recent messages used in LLM prompt
+  skip_probability: 0.2  # Probability of skipping the LLM call in each phase (0.0 = no skip)
+  parallel_workers: 20  # Concurrent LLM calls per phase (1 = sequential)
+
+  # Optional minimal personas. Agents not listed here get a randomly generated persona.
+  # id must match the agent_id (0-indexed). gender is optional; omitted fields fall back
+  # to random values drawn from the pool in utils.py.
+  personas:
+    - id: 0
+      name: "田中健一"
+      age: 42
+      gender: "male"
+      occupation: "IT会社員"
+      background: "最近転勤で引っ越してきた。知り合いがいない"
+      speech_style: "丁寧だが少し堅い。敬語多め。初対面には警戒気味"
+    - id: 1
+      name: "鈴木美咲"
+      age: 28
+      gender: "female"
+      occupation: "フリーランスデザイナー"
+      background: "この街に長く住んでいる。社交的で顔が広い"
+      speech_style: "カジュアルでフレンドリー。タメ口混じり"
+    - id: 2
+      name: "佐藤太郎"
+      age: 65
+      gender: "male"
+      occupation: "定年退職したサラリーマン"
+      background: "毎日このあたりを散歩している常連"
+      speech_style: "のんびりした話し方。昔話を交えることが多い"
+
+
+# Place Parameters (multiple places)
+# Each place must have a type: "bar", "cafe", "library", etc.
+# type is a required field
+places:
+  - name: "left_bar"
+    type: "bar"  # Place type: bar, cafe, library, etc. (required)
+    center_x: -15  # Left side of field
+    center_y: 0
+    half_size: 5  # covers -5 to +5 from center
+    capacity: 12  # Maximum comfortable capacity of this place
+  - name: "right_bar"
+    type: "bar"  # Place type: bar, cafe, library, etc. (required)
+    center_x: 15  # Right side of field
+    center_y: 0
+    half_size: 5  # covers -5 to +5 from center
+    capacity: 10  # Maximum comfortable capacity of this place
+  
+# LLM Parameters (Anthropic Claude API)
+llm:
+  model: "claude-haiku-4-5-20251001"  # Claude model ID
+  base_url: "https://api.anthropic.com"
+  temperature: 0.2
+  max_tokens: 600  # Truncation-detected responses are retried once with max_tokens=1500.
+
+
+# Fire Event Parameters (multiple fires supported)
+# Each fire can specify center_x/center_y for fixed position, or omit for random position
+fires:
+  - name: "fire_1"
+    start_step: 35
+    intensity: 0.8
+    radius: 15
+    center_x: 15         # Fire position X (omit for random)
+    center_y: 10          # Fire position Y (omit for random)
+  - name: "fire_2"
+    start_step: 70
+    intensity: 0.5
+    radius: 8
+    center_x: -10
+    center_y: -10
+
+# Visualization Parameters
+visualization:
+  save_frames: true
+  frame_interval: 1  # Save frame every N steps
+  output_dir: "output"
+  
+# Logging
+logging:
+  level: "INFO"
+  log_file: "simulation.log"
+

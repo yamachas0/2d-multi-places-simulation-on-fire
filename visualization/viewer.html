@@ -1,0 +1,855 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>エージェント会話ムービービューア</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: #0f0f1a;
+            height: 100vh;
+            padding: 10px;
+            margin: 0;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .controls {
+            background: rgba(30, 30, 50, 0.95);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            padding: 15px;
+            margin-bottom: 10px;
+            box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+            align-items: center;
+            justify-content: center;
+            flex-shrink: 0;
+        }
+        .control-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        button {
+            background: linear-gradient(135deg, #6366f1, #8b5cf6);
+            color: white;
+            border: none;
+            padding: 10px 22px;
+            border-radius: 8px;
+            font-size: 0.95em;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.25s ease;
+            box-shadow: 0 2px 8px rgba(99, 102, 241, 0.3);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            letter-spacing: 0.02em;
+        }
+        button:hover {
+            background: linear-gradient(135deg, #818cf8, #a78bfa);
+            transform: translateY(-1px);
+            box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+        }
+        button:active {
+            transform: translateY(0);
+        }
+        button.pause {
+            background: linear-gradient(135deg, #ef4444, #f97316);
+            box-shadow: 0 2px 8px rgba(239, 68, 68, 0.3);
+        }
+        button.pause:hover {
+            background: linear-gradient(135deg, #f87171, #fb923c);
+            box-shadow: 0 4px 16px rgba(239, 68, 68, 0.4);
+        }
+        .speed-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .speed-control label {
+            font-weight: 600;
+            color: #a5b4fc;
+            font-size: 0.9em;
+        }
+        .speed-control input[type="range"] {
+            width: 150px;
+        }
+        input[type="range"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.12);
+            border-radius: 3px;
+            outline: none;
+        }
+        input[type="range"]::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            appearance: none;
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #a78bfa);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        input[type="range"]::-moz-range-thumb {
+            width: 16px;
+            height: 16px;
+            border-radius: 50%;
+            background: linear-gradient(135deg, #6366f1, #a78bfa);
+            cursor: pointer;
+            box-shadow: 0 0 8px rgba(99, 102, 241, 0.5);
+            border: 2px solid rgba(255, 255, 255, 0.2);
+        }
+        .speed-value {
+            min-width: 50px;
+            text-align: center;
+            font-weight: bold;
+            color: #c4b5fd;
+            font-size: 0.95em;
+        }
+        .step-info {
+            font-size: 1em;
+            font-weight: 600;
+            color: #e2e8f0;
+            min-width: 120px;
+            text-align: center;
+        }
+        .step-slider-container {
+            flex: 1;
+            min-width: 200px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .step-slider-container input[type="range"] {
+            flex: 1;
+        }
+        #stepContainer {
+            flex: 1;
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+            min-height: 0;
+        }
+        .step-section {
+            background: rgba(30, 30, 50, 0.9);
+            backdrop-filter: blur(12px);
+            border-radius: 12px;
+            box-shadow: 0 4px 30px rgba(0, 0, 0, 0.4);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            padding: 16px;
+            height: 100%;
+            display: flex;
+            flex-direction: column;
+        }
+        .step-section.hidden {
+            display: none;
+        }
+        .step-content {
+            display: flex;
+            gap: 16px;
+            align-items: stretch;
+            flex: 1;
+            min-height: 0;
+        }
+        .image-container {
+            flex: 1 1 70%;
+            background: rgba(15, 15, 30, 0.6);
+            border-radius: 10px;
+            padding: 10px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            min-width: 0;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            overflow: hidden;
+        }
+        .image-container img {
+            max-width: 100%;
+            max-height: 100%;
+            width: auto;
+            height: auto;
+            border-radius: 8px;
+            display: block;
+            object-fit: contain;
+        }
+        .right-panel {
+            flex: 0 0 30%;
+            min-width: 0;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        .panel-section {
+            flex: 1 1 50%;
+            min-height: 0;
+            overflow-y: auto;
+            padding-right: 8px;
+            display: flex;
+            flex-direction: column;
+            background: rgba(15, 15, 30, 0.3);
+            border-radius: 8px;
+            padding: 8px;
+        }
+        .panel-section-title {
+            font-size: 0.85em;
+            font-weight: 700;
+            color: #a5b4fc;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 8px;
+            padding-bottom: 6px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            flex-shrink: 0;
+        }
+        .panel-section::-webkit-scrollbar {
+            width: 6px;
+        }
+        .panel-section::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.04);
+            border-radius: 3px;
+        }
+        .panel-section::-webkit-scrollbar-thumb {
+            background: rgba(99, 102, 241, 0.4);
+            border-radius: 3px;
+        }
+        .panel-section::-webkit-scrollbar-thumb:hover {
+            background: rgba(99, 102, 241, 0.6);
+        }
+        .message-item {
+            background: rgba(255, 255, 255, 0.04);
+            border-left: 3px solid #6366f1;
+            padding: 16px;
+            margin-bottom: 12px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+            transition: background 0.2s ease;
+        }
+        .message-item:hover {
+            background: rgba(255, 255, 255, 0.07);
+        }
+        .message-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+            gap: 8px;
+        }
+        .agent-info {
+            font-weight: 600;
+            color: #e2e8f0;
+            font-size: 1.05em;
+        }
+        .agent-from {
+            color: #f472b6;
+        }
+        .agent-to {
+            color: #34d399;
+        }
+        .message-text {
+            color: #cbd5e1;
+            line-height: 1.7;
+            margin-bottom: 10px;
+            font-size: 0.98em;
+        }
+        .reasoning {
+            color: #64748b;
+            font-size: 0.9em;
+            font-style: italic;
+            padding-top: 10px;
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            margin-top: 10px;
+        }
+        .no-messages {
+            color: #64748b;
+            font-style: italic;
+            padding: 40px;
+            text-align: center;
+            font-size: 1.1em;
+        }
+        .reasoning-item {
+            background: rgba(255, 255, 255, 0.04);
+            border-left: 3px solid #f59e0b;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-radius: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        .reasoning-item .agent-id {
+            font-weight: 600;
+            color: #fbbf24;
+            font-size: 0.9em;
+            margin-bottom: 4px;
+        }
+        .reasoning-item .reasoning-text {
+            color: #cbd5e1;
+            font-size: 0.88em;
+            line-height: 1.5;
+        }
+        .reasoning-item .memory-text {
+            color: #94a3b8;
+            font-size: 0.82em;
+            font-style: italic;
+            margin-top: 6px;
+            padding-top: 6px;
+            border-top: 1px solid rgba(255, 255, 255, 0.06);
+        }
+        @media (max-width: 1024px) {
+            .step-content {
+                flex-direction: column;
+            }
+            .image-container {
+                flex: 1 1 auto;
+                max-width: 100%;
+            }
+            .right-panel {
+                flex: 1 1 auto;
+                max-width: 100%;
+            }
+            .controls {
+                flex-direction: column;
+            }
+            .control-group {
+                width: 100%;
+                justify-content: center;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="directorySelector" style="background: rgba(30, 30, 50, 0.95); backdrop-filter: blur(12px); border-radius: 12px; padding: 40px; margin-bottom: 20px; box-shadow: 0 4px 30px rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.08); text-align: center;">
+            <h2 style="margin-bottom: 20px; color: #e2e8f0; font-weight: 600;">データディレクトリを選択</h2>
+            <p style="margin-bottom: 24px; color: #94a3b8; font-size: 0.95em;">messages.jsonlファイルとPNGファイルが含まれるディレクトリを選択してください</p>
+            <button id="selectDirectoryBtn" style="padding: 14px 28px; font-size: 1.05em; margin-right: 12px;">📁 ディレクトリを選択（Chrome/Edge 推奨）</button>
+            <input type="file" id="fileInput" accept=".jsonl" style="display: none;">
+            <button id="selectFileBtn" style="background: linear-gradient(135deg, #475569, #64748b); padding: 14px 28px; font-size: 1.05em; box-shadow: 0 2px 8px rgba(71, 85, 105, 0.3);">📄 ファイルを選択（FirefoxやSafari 推奨）</button>
+            <div id="selectedPath" style="margin-top: 18px; color: #94a3b8; font-size: 0.9em;"></div>
+                </div>
+        
+        <div class="controls" style="display: none;" id="mainControls">
+            <div class="control-group">
+                <button id="playPauseBtn">▶ 再生</button>
+                <button id="prevBtn">⏮ 前へ</button>
+                <button id="nextBtn">⏭ 次へ</button>
+                            </div>
+            <div class="control-group speed-control">
+                <label>速度:</label>
+                <input type="range" id="speedSlider" min="0.5" max="3" step="0.1" value="1">
+                <span class="speed-value" id="speedValue">1.0x</span>
+                        </div>
+            <div class="control-group step-slider-container">
+                <span class="step-info">ステップ <span id="currentStep">2</span> / <span id="totalSteps">42</span></span>
+                <input type="range" id="stepSlider" min="0" max="0" value="0">
+            </div>
+        </div>
+
+        <div id="stepContainer"></div>
+                </div>
+    
+    <script>
+        let stepsData = [];
+        let directoryHandle = null;
+        let imageFiles = new Map(); // ステップ番号 -> Fileオブジェクト
+        let reasoningMap = new Map(); // ステップ番号 -> [{id, memory, reasoning}, ...]
+        
+        // ディレクトリを選択
+        async function selectDirectory() {
+            try {
+                if ('showDirectoryPicker' in window) {
+                    directoryHandle = await window.showDirectoryPicker();
+                    const pathDiv = document.getElementById('selectedPath');
+                    pathDiv.textContent = `選択: ${directoryHandle.name}`;
+                    await loadDataFromDirectory();
+                } else {
+                    alert('このブラウザではディレクトリ選択がサポートされていません。ファイル選択を使用してください。');
+                }
+            } catch (error) {
+                if (error.name !== 'AbortError') {
+                    console.error('ディレクトリ選択エラー:', error);
+                    alert('ディレクトリの選択に失敗しました: ' + error.message);
+                }
+            }
+        }
+        
+        // ファイルを選択（フォールバック）
+        async function selectFile() {
+            const fileInput = document.getElementById('fileInput');
+            fileInput.click();
+        }
+        
+        // ディレクトリからデータを読み込む
+        async function loadDataFromDirectory() {
+            try {
+                if (!directoryHandle) {
+                    throw new Error('ディレクトリが選択されていません');
+                }
+                
+                // messages.jsonlファイルを読み込む
+                let jsonlFile;
+                try {
+                    jsonlFile = await directoryHandle.getFileHandle('messages.jsonl');
+                } catch (e) {
+                    throw new Error('messages.jsonlファイルが見つかりません');
+                }
+                
+                const jsonlFileObj = await jsonlFile.getFile();
+                const text = await jsonlFileObj.text();
+                const lines = text.trim().split('\n').filter(line => line.trim());
+                
+                // ステップごとにメッセージをグループ化
+                const stepsMap = new Map();
+                
+                lines.forEach(line => {
+                    try {
+                        const data = JSON.parse(line);
+                        const step = data.step;
+                        if (!stepsMap.has(step)) {
+                            stepsMap.set(step, []);
+                        }
+                        stepsMap.get(step).push(data);
+                    } catch (e) {
+                        console.error('JSON解析エラー:', e, line);
+                    }
+                });
+                
+                // memory_reasoning.jsonlファイルを読み込む
+                reasoningMap.clear();
+                try {
+                    const reasoningFileHandle = await directoryHandle.getFileHandle('memory_reasoning.jsonl');
+                    const reasoningFileObj = await reasoningFileHandle.getFile();
+                    const reasoningText = await reasoningFileObj.text();
+                    const reasoningLines = reasoningText.trim().split('\n').filter(line => line.trim());
+                    reasoningLines.forEach(line => {
+                        try {
+                            const data = JSON.parse(line);
+                            const step = data.step;
+                            if (!reasoningMap.has(step)) {
+                                reasoningMap.set(step, []);
+                            }
+                            reasoningMap.get(step).push(data);
+                        } catch (e) {
+                            console.error('Reasoning JSON解析エラー:', e, line);
+                        }
+                    });
+                } catch (e) {
+                    console.warn('memory_reasoning.jsonlが見つかりません（行動理由パネルは空になります）');
+                }
+
+                // ディレクトリ内のすべてのPNGファイルを検出
+                imageFiles.clear();
+                const pngSteps = new Set();
+                
+                // ディレクトリ内のすべてのファイルを列挙
+                for await (const entry of directoryHandle.values()) {
+                    if (entry.kind === 'file') {
+                        const fileName = entry.name;
+                        // frame_XXXX.png形式のファイルを検出
+                        const match = fileName.match(/^frame_(\d+)\.png$/);
+                        if (match) {
+                            const step = parseInt(match[1], 10);
+                            try {
+                                const pngFileHandle = await directoryHandle.getFileHandle(fileName);
+                                const pngFile = await pngFileHandle.getFile();
+                                imageFiles.set(step, pngFile);
+                                pngSteps.add(step);
+                            } catch (e) {
+                                console.warn(`PNGファイルの読み込みエラー: ${fileName}`, e);
+                            }
+                        }
+                    }
+                }
+                
+                // PNGファイルが存在するすべてのステップを番号順にソート
+                const sortedSteps = Array.from(pngSteps).sort((a, b) => a - b);
+                
+                // ステップデータを構築（PNGファイルが存在するすべてのステップを含む）
+                stepsData = sortedSteps.map(step => {
+                    const pngFilename = `frame_${String(step).padStart(4, '0')}.png`;
+                    return {
+                        step: step,
+                        image: pngFilename,
+                        messages: stepsMap.get(step) || [],
+                        reasonings: reasoningMap.get(step) || []
+                    };
+                });
+                
+                // 初期化
+                if (stepsData.length > 0) {
+                    document.getElementById('directorySelector').style.display = 'none';
+                    document.getElementById('mainControls').style.display = 'flex';
+                    // totalStepsSpanを確実に更新
+                    if (totalStepsSpan) {
+                        totalStepsSpan.textContent = stepsData.length;
+                    }
+                    stepSlider.max = stepsData.length - 1;
+                    renderStep(0);
+                } else {
+                    stepContainer.innerHTML = '<div class="step-section"><div style="padding: 40px; text-align: center; color: #64748b;">データが見つかりません</div></div>';
+                }
+            } catch (error) {
+                console.error('データ読み込みエラー:', error);
+                stepContainer.innerHTML = `<div class="step-section"><div style="padding: 40px; text-align: center; color: #f87171;">エラー: ${error.message}</div></div>`;
+            }
+        }
+        
+        // ファイル入力からデータを読み込む（フォールバック）
+        // 注意: ファイル選択モードでは、PNGファイルは相対パスで読み込もうとしますが、
+        // file://プロトコルではセキュリティ制限により動作しない場合があります。
+        // ディレクトリ選択モード（Chrome/Edge推奨）を使用することをお勧めします。
+        async function loadDataFromFile(file) {
+            try {
+                const text = await file.text();
+                const lines = text.trim().split('\n').filter(line => line.trim());
+                
+                // ステップごとにメッセージをグループ化
+                const stepsMap = new Map();
+                
+                lines.forEach(line => {
+                    try {
+                        const data = JSON.parse(line);
+                        const step = data.step;
+                        if (!stepsMap.has(step)) {
+                            stepsMap.set(step, []);
+                        }
+                        stepsMap.get(step).push(data);
+                    } catch (e) {
+                        console.error('JSON解析エラー:', e, line);
+                    }
+                });
+                
+                // ステップ番号でソートして配列に変換
+                // 注意: ファイル選択モードでは、messages.jsonlに含まれるステップのみが表示されます
+                // PNGファイルが存在しても、messages.jsonlにデータがない場合は表示されません
+                const sortedSteps = Array.from(stepsMap.keys()).sort((a, b) => a - b);
+                stepsData = sortedSteps.map(step => {
+                    const pngFilename = `frame_${String(step).padStart(4, '0')}.png`;
+                    return {
+                        step: step,
+                        image: pngFilename,
+                        messages: stepsMap.get(step),
+                        reasonings: reasoningMap.get(step) || []
+                    };
+                });
+                
+                // 初期化
+                if (stepsData.length > 0) {
+                    document.getElementById('directorySelector').style.display = 'none';
+                    document.getElementById('mainControls').style.display = 'flex';
+                    totalStepsSpan.textContent = stepsData.length;
+                    stepSlider.max = stepsData.length - 1;
+                    renderStep(0);
+                    
+                    // 警告メッセージを表示（PNGファイルが読み込めない可能性がある場合）
+                    if (window.location.protocol === 'file:') {
+                        const warningDiv = document.createElement('div');
+                        warningDiv.style.cssText = 'background: rgba(251, 191, 36, 0.1); border: 1px solid rgba(251, 191, 36, 0.3); border-radius: 8px; padding: 10px; margin: 10px 0; color: #fbbf24;';
+                        warningDiv.textContent = '⚠️ ファイル選択モードでは、PNGファイルが読み込めない場合があります。ディレクトリ選択モード（Chrome/Edge推奨）の使用をお勧めします。';
+                        document.querySelector('.controls').insertBefore(warningDiv, document.querySelector('.controls').firstChild);
+                    }
+                } else {
+                    stepContainer.innerHTML = '<div class="step-section"><div style="padding: 40px; text-align: center; color: #64748b;">データが見つかりません</div></div>';
+                }
+            } catch (error) {
+                console.error('データ読み込みエラー:', error);
+                stepContainer.innerHTML = `<div class="step-section"><div style="padding: 40px; text-align: center; color: #f87171;">エラー: ${error.message}</div></div>`;
+            }
+        }
+        
+        // 初期化（データ読み込み前の変数定義）
+        let currentIndex = 0;
+        let isPlaying = false;
+        let playInterval = null;
+        let speed = 1.0;
+        
+        const stepContainer = document.getElementById('stepContainer');
+        const playPauseBtn = document.getElementById('playPauseBtn');
+        const prevBtn = document.getElementById('prevBtn');
+        const nextBtn = document.getElementById('nextBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const stepSlider = document.getElementById('stepSlider');
+        const currentStepSpan = document.getElementById('currentStep');
+        const totalStepsSpan = document.getElementById('totalSteps');
+        
+        // イベントリスナー
+        document.getElementById('selectDirectoryBtn').addEventListener('click', selectDirectory);
+        document.getElementById('selectFileBtn').addEventListener('click', selectFile);
+        document.getElementById('fileInput').addEventListener('change', async (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                const pathDiv = document.getElementById('selectedPath');
+                pathDiv.textContent = `選択: ${file.name}`;
+                await loadDataFromFile(file);
+            }
+        });
+        
+        function renderStep(index) {
+            if (index < 0 || index >= stepsData.length) return;
+
+            const stepData = stepsData[index];
+            currentIndex = index;
+
+            // Build messages HTML
+            let messagesHtml = '';
+            if (stepData.messages && stepData.messages.length > 0) {
+                stepData.messages.forEach((msg, idx) => {
+                    const fromAgent = msg.from || '?';
+                    const toAgent = msg.to || '?';
+                    const messageText = msg.message || '';
+                    const reasoning = msg.reasoning || '';
+
+                    messagesHtml += `
+                    <div class="message-item">
+                        <div class="message-header">
+                            <div class="agent-info">
+                                    <span class="agent-from">エージェント ${fromAgent}</span>
+                                <span> → </span>
+                                    <span class="agent-to">エージェント ${toAgent}</span>
+                            </div>
+                        </div>
+                            <div class="message-text">会話：${escapeHtml(messageText)}</div>
+                            <div class="reasoning">内省💭：${escapeHtml(reasoning)}</div>
+                    </div>
+                    `;
+                });
+            } else {
+                messagesHtml = '<div class="no-messages">このステップにはメッセージがありません</div>';
+            }
+
+            // Build reasoning HTML
+            let reasoningHtml = '';
+            if (stepData.reasonings && stepData.reasonings.length > 0) {
+                stepData.reasonings.forEach(r => {
+                    const agentId = r.id !== undefined ? r.id : '?';
+                    const reasoning = r.reasoning || '';
+                    const memory = r.memory || '';
+                    reasoningHtml += `
+                    <div class="reasoning-item">
+                        <div class="agent-id">Agent ${agentId}</div>
+                        <div class="reasoning-text">${escapeHtml(reasoning)}</div>
+                        ${memory ? `<div class="memory-text">Memory: ${escapeHtml(memory)}</div>` : ''}
+                    </div>
+                    `;
+                });
+            } else {
+                reasoningHtml = '<div class="no-messages">このステップには行動理由がありません</div>';
+            }
+
+            // 画像のURLを取得
+            let imageUrl = '';
+            if (imageFiles.has(stepData.step)) {
+                const imageFile = imageFiles.get(stepData.step);
+                imageUrl = URL.createObjectURL(imageFile);
+            } else {
+                imageUrl = stepData.image;
+            }
+
+            // 既存の要素を取得または作成
+            let stepSection = stepContainer.querySelector('.step-section');
+            let imageContainer = stepContainer.querySelector('.image-container');
+            let messagesPanel = stepContainer.querySelector('.messages-panel');
+            let reasoningPanel = stepContainer.querySelector('.reasoning-panel');
+            let imgElement = stepContainer.querySelector('.image-container img');
+
+            // 要素が存在しない場合は作成
+            if (!stepSection) {
+                stepContainer.innerHTML = `
+                    <div class="step-section">
+                        <div class="step-content">
+                            <div class="image-container"></div>
+                            <div class="right-panel">
+                                <div class="panel-section messages-panel">
+                                    <div class="panel-section-title">Messages</div>
+                                    <div class="messages-content"></div>
+                                </div>
+                                <div class="panel-section reasoning-panel">
+                                    <div class="panel-section-title">Action Reasoning</div>
+                                    <div class="reasoning-content"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                stepSection = stepContainer.querySelector('.step-section');
+                imageContainer = stepContainer.querySelector('.image-container');
+                messagesPanel = stepContainer.querySelector('.messages-panel');
+                reasoningPanel = stepContainer.querySelector('.reasoning-panel');
+            }
+
+            // メッセージと行動理由を更新
+            stepContainer.querySelector('.messages-content').innerHTML = messagesHtml;
+            stepContainer.querySelector('.reasoning-content').innerHTML = reasoningHtml;
+            
+            // 画像を事前に読み込んでから表示を切り替える
+            const newImg = new Image();
+            newImg.onload = () => {
+                // 画像の読み込みが完了したら表示を切り替え
+                if (imgElement) {
+                    // 既存の画像を置き換え
+                    imgElement.src = imageUrl;
+                    imgElement.alt = `ステップ ${stepData.step} の画像`;
+                } else {
+                    // 新しい画像要素を作成
+                    imgElement = document.createElement('img');
+                    imgElement.src = imageUrl;
+                    imgElement.alt = `ステップ ${stepData.step} の画像`;
+                    imgElement.style.maxWidth = '100%';
+                    imgElement.style.maxHeight = '100%';
+                    imgElement.style.width = 'auto';
+                    imgElement.style.height = 'auto';
+                    imgElement.style.borderRadius = '8px';
+                    imgElement.style.display = 'block';
+                    imgElement.style.objectFit = 'contain';
+                    imgElement.onerror = function() {
+                        this.style.display = 'none';
+                        this.parentElement.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">画像が見つかりません</div>';
+                    };
+                    imageContainer.innerHTML = '';
+                    imageContainer.appendChild(imgElement);
+                }
+            };
+            newImg.onerror = () => {
+                imageContainer.innerHTML = '<div style="padding: 20px; text-align: center; color: #64748b;">画像が見つかりません</div>';
+            };
+            newImg.src = imageUrl;
+            
+            currentStepSpan.textContent = stepData.step;
+            // totalStepsSpanも確実に更新（念のため）
+            if (totalStepsSpan && totalStepsSpan.textContent !== String(stepsData.length)) {
+                totalStepsSpan.textContent = stepsData.length;
+            }
+            stepSlider.value = index;
+        }
+        
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+        
+        function play() {
+            if (isPlaying) {
+                pause();
+                return;
+            }
+            
+            isPlaying = true;
+            playPauseBtn.textContent = '⏸ 停止';
+            playPauseBtn.classList.add('pause');
+            
+            const interval = () => {
+                if (currentIndex >= stepsData.length - 1) {
+                    pause();
+                    return;
+                }
+                nextStep();
+            };
+            
+            // スライダーの値を2倍して実際の速度に変換
+            // 理由: ユーザーの要望により、表示上の1倍速を実際の2倍速にするため
+            // （以前の2.5倍速を1倍速として扱う要望から、現在は2倍速を1倍速として設定）
+            const actualSpeed = speed * 2;
+            playInterval = setInterval(interval, 1000 / actualSpeed);
+        }
+        
+        function pause() {
+            isPlaying = false;
+            playPauseBtn.textContent = '▶ 再生';
+            playPauseBtn.classList.remove('pause');
+            if (playInterval) {
+                clearInterval(playInterval);
+                playInterval = null;
+            }
+        }
+        
+        function nextStep() {
+            if (currentIndex < stepsData.length - 1) {
+                renderStep(currentIndex + 1);
+            } else {
+                pause();
+            }
+        }
+        
+        function prevStep() {
+            if (currentIndex > 0) {
+                pause();
+                renderStep(currentIndex - 1);
+            }
+        }
+        
+        // イベントリスナー
+        playPauseBtn.addEventListener('click', () => {
+            if (isPlaying) {
+                pause();
+            } else {
+                play();
+            }
+        });
+        
+        prevBtn.addEventListener('click', () => {
+            pause();
+            prevStep();
+        });
+        
+        nextBtn.addEventListener('click', () => {
+            pause();
+            nextStep();
+        });
+        
+        speedSlider.addEventListener('input', (e) => {
+            speed = parseFloat(e.target.value);
+            speedValue.textContent = speed.toFixed(1) + 'x';
+            if (isPlaying) {
+                pause();
+                play();
+            }
+        });
+        
+        stepSlider.addEventListener('input', (e) => {
+            pause();
+            renderStep(parseInt(e.target.value));
+        });
+        
+        // キーボードショートカット
+        document.addEventListener('keydown', (e) => {
+            if (e.code === 'Space') {
+                e.preventDefault();
+                if (isPlaying) {
+                    pause();
+                } else {
+                    play();
+                }
+            } else if (e.code === 'ArrowLeft') {
+                e.preventDefault();
+                prevStep();
+            } else if (e.code === 'ArrowRight') {
+                e.preventDefault();
+                nextStep();
+            }
+        });
+        
+        // データ読み込み後に自動的に初期表示される
+    </script>
+</body>
+</html>
