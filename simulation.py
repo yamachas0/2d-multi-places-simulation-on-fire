@@ -463,7 +463,7 @@ class Simulation:
 
         # Phase 3: Collect action decisions from all agents (with position information and message content).
         # LLM calls are executed in parallel across agents (when parallel_workers > 1).
-        action_decisions: List[Tuple[Agent, Dict]] = [None] * len(message_decisions)
+        action_decisions: List[Tuple[Agent, Dict, List[Agent]]] = [None] * len(message_decisions)
         memory_reasoning_records: List[Optional[Dict]] = [None] * len(message_decisions)
         phase3_tasks: List[Tuple[int, Agent, List[Agent], Optional[Dict], str, Optional[List[Dict]]]] = []
         skipped_p3 = 0
@@ -471,12 +471,15 @@ class Simulation:
         for idx, (agent, message_decision, nearby_agents) in enumerate(message_decisions):
             if self.skip_probability > 0 and random.random() < self.skip_probability:
                 action_decision = {
-                    "action": "stay",
+                    "action_type": "stay",
+                    "target_place": None,
+                    "target_agent": None,
                     "direction": None,
                     "memory": "",
                     "reasoning": "Skipped (random)",
+                    "action": "stay",
                 }
-                action_decisions[idx] = (agent, action_decision)
+                action_decisions[idx] = (agent, action_decision, nearby_agents)
                 memory_reasoning_records[idx] = {
                     "step": self.step,
                     "id": agent.id,
@@ -501,16 +504,21 @@ class Simulation:
                     )
                     for _, ag, nb, ps, mc, fi in phase3_tasks
                 ]
-                for (idx, agent, _, _, _, _), fut in zip(phase3_tasks, futures):
+                for (idx, agent, nb, _, _, _), fut in zip(phase3_tasks, futures):
                     try:
                         decision = fut.result()
                     except Exception as e:
                         logger.error(f"Agent {agent.id} Phase 3 parallel execution failed: {e}")
                         decision = {
-                            "action": "stay", "direction": None,
-                            "memory": "", "reasoning": "Parallel execution error",
+                            "action_type": "stay",
+                            "target_place": None,
+                            "target_agent": None,
+                            "direction": None,
+                            "memory": "",
+                            "reasoning": "Parallel execution error",
+                            "action": "stay",
                         }
-                    action_decisions[idx] = (agent, decision)
+                    action_decisions[idx] = (agent, decision, nb)
                     memory_reasoning_records[idx] = {
                         "step": self.step,
                         "id": agent.id,
@@ -532,9 +540,8 @@ class Simulation:
         self._log_memory_reasoning_batch(memory_reasoning_records)
 
         # Phase 4: Execute movement (after messages are sent and actions are decided)
-        for agent, action_decision in action_decisions:
-            if action_decision['action'] == 'move' and action_decision['direction']:
-                agent.move(action_decision['direction'])
+        for agent, action_decision, nearby_agents in action_decisions:
+            agent.execute_intent(action_decision, nearby_agents=nearby_agents)
 
         # Update states after movement
         for agent in self.agents:

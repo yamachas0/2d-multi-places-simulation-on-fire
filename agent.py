@@ -32,12 +32,27 @@ class MessageDecision(TypedDict):
     reasoning: str  # Explanation of the message decision
 
 
-class ActionDecision(TypedDict):
-    """Type definition for agent action decision"""
-    action: str  # "move" or "stay"
-    direction: Optional[str]  # Direction to move (None if action is "stay")
-    memory: str  # What the agent wants to remember for the next step
-    reasoning: str  # Explanation of the decision
+class ActionDecision(TypedDict, total=False):
+    """Agent action decision (intent-based, feature 2).
+
+    action_type is one of:
+      - "walk_toward":  walk toward target_place (a place name)
+      - "walk_along":   walk one step in a cardinal direction
+      - "enter":        step into target_place (if close enough)
+      - "stay":         hold position
+      - "approach":     walk toward target_agent (a persona name or agent id)
+      - "wander":       short random step
+
+    Only the fields relevant to the chosen action_type need be populated.
+    """
+    action_type: str
+    target_place: Optional[str]
+    target_agent: Optional[str]
+    direction: Optional[str]
+    memory: str
+    reasoning: str
+    # Legacy compatibility: downstream code may still read "action".
+    action: str
 
 
 class Agent:
@@ -284,6 +299,31 @@ class Agent:
                 f"Y from {place['center_y'] - place['half_size']} to {place['center_y'] + place['half_size']}"
             )
         return "\n".join(place_locations)
+
+    def _build_nearby_places_context(self) -> str:
+        """Per-step text describing each place's distance and rough direction from the agent."""
+        if not self.places:
+            return "No places configured."
+        lines = []
+        ax, ay = self.position
+        for place in self.places:
+            cx, cy = place['center_x'], place['center_y']
+            dist = math.hypot(cx - ax, cy - ay)
+            direction = self._position_to_rough_direction((cx, cy))
+            inside = (
+                abs(cx - ax) <= place.get('half_size', place.get('half_size_x', 5))
+                and abs(cy - ay) <= place.get('half_size', place.get('half_size_y', 5))
+            )
+            if inside:
+                marker = "[you are here]"
+            elif dist <= self.movement_base_cells * 1.5:
+                marker = "[right next to you]"
+            else:
+                marker = ""
+            lines.append(
+                f"- {place['name']} ({place['type']}): {dist:.0f} cells away, {direction} {marker}".rstrip()
+            )
+        return "\n".join(lines)
 
     def _build_world_description(self) -> str:
         """Build short world description based on unique place types."""
@@ -641,21 +681,25 @@ You will receive strictly quantitative data: coordinates, distances, occupancy c
 There is no pre-defined goal and no reward function. You are not required to enter a place, avoid a place, stay away from fire, or follow any instruction from other agents. Your choices are yours alone; coherence across steps comes from your own memory.
 
 === AVAILABLE ACTIONS ===
-Each step you must choose exactly one action:
-- "stay": remain at your current position. Use this when you have no reason to move or when you want to observe.
-- "move" with one of four cardinal directions:
-  - "up":    Y increases by 1 (move toward larger Y)
-  - "down":  Y decreases by 1 (move toward smaller Y)
-  - "left":  X decreases by 1 (move toward smaller X)
-  - "right": X increases by 1 (move toward larger X)
-Diagonal movement is not available. Movements that would take you past the field boundary are clamped to the boundary automatically.
+Each step you must choose exactly one action_type. Think of each action as an intent a walking pedestrian can express, not a low-level keystroke. The system translates your intent into a ~{self.movement_base_cells}-cell step toward the appropriate target.
+
+- "walk_toward" with "target_place": head toward the named place. You don't need to be close yet; you'll walk one step (~{self.movement_base_cells} cells) in its direction this minute.
+- "walk_along" with "direction" ("up"/"down"/"left"/"right"): walk in a cardinal direction when you have no specific destination in mind (exploring, strolling, keeping your distance from something).
+- "enter" with "target_place": step into the named place. Only meaningful when you are already at or very near its boundary; otherwise prefer walk_toward first.
+- "stay": hold your position. Use this when observing, waiting in a place, continuing a conversation, or simply having no reason to move.
+- "approach" with "target_agent" (a person's name from the nearby_agents list): walk toward that specific person. Use this when you want to close distance to someone in particular rather than toward a place.
+- "wander": take a short, unfocused step in a random-ish direction (about half of your usual pace). Use when you have no clear intent but don't want to stand still.
+
+Movement is clamped to the field boundary automatically; heading past the edge is safe but wastes the step. Cardinal semantics: +y = north (up), -y = south (down), +x = east (right), -x = west (left).
 
 === RESPONSE FORMAT (日本語で回答すること) ===
 Respond with exactly one JSON object and nothing else. Do not include any prose, markdown fences, explanations, or blank lines before or after the JSON block. The JSON must be valid and parseable.
-The values of "action" and "direction" MUST remain in English exactly as shown (move / stay / up / down / left / right). The values of "memory" and "reasoning" MUST be written in Japanese (日本語).
+"action_type", "direction", "target_place", and "target_agent" MUST remain in English (action_type exactly as one of walk_toward / walk_along / enter / stay / approach / wander; direction exactly as up / down / left / right; target_place must match a place name from PLACE LOCATIONS; target_agent must match a name from nearby_agents). "memory" and "reasoning" MUST be written in Japanese (日本語).
 {{
-    "action": "move" or "stay",
-    "direction": "up", "down", "left", or "right" (only when action is "move"; otherwise omit or set to null),
+    "action_type": "walk_toward" | "walk_along" | "enter" | "stay" | "approach" | "wander",
+    "target_place": "<place name>" (only for walk_toward or enter; otherwise null),
+    "target_agent": "<person name>" (only for approach; otherwise null),
+    "direction": "up" | "down" | "left" | "right" (only for walk_along; otherwise null),
     "memory": "次のステップで覚えておきたいこと（自分の考え・観察・意図）を日本語で",
     "reasoning": "この判断をした理由を日本語で簡潔に"
 }}
@@ -712,7 +756,7 @@ The parser is strict. Any characters outside of the JSON object (including leadi
 === EXTENDED GUIDANCE FOR ACTION DECISIONS ===
 
 Walkthrough of a typical step.
-A typical step proceeds as follows. You receive your current state: where you are, whether you are in a place, which agents are nearby, the messages they sent, your past memory entries. You interpret this information in light of your own priorities, which you built up over prior steps. You then choose one of five atomic outputs: stay, or move up, move down, move left, or move right. Along with that choice, you write a short memory entry that records your interpretation of the current situation and your next intended step; this memory is visible to you on the following step.
+A typical step proceeds as follows. You receive your current state: where you are, whether you are in a place, which agents are nearby, the messages they sent, your past memory entries. You interpret this information in light of your own priorities, which you built up over prior steps. You then choose one action_type (walk_toward, walk_along, enter, stay, approach, or wander) and fill in its associated target/direction field. Along with that choice, you write a short memory entry that records your interpretation of the current situation and your next intended step; this memory is visible to you on the following step.
 
 How memory flows across steps.
 Each step appends one memory line to a rolling buffer. You see only the last few entries in the buffer (the size is controlled outside of the prompt). Entries are strings, prefixed with 'Step N:' by the system, followed by whatever Japanese text you wrote in the 'memory' field. Because the buffer is small, writing redundant or vague memory entries wastes slots. Write one informative sentence per step.
@@ -721,7 +765,7 @@ How occupancy interacts with decisions.
 When you are inside a place, the occupancy rate tells you how crowded the place is. For example, occupancy rate 0.5 means half of capacity is used. You may interpret a low occupancy rate as pleasant, crowded-preferred, or uninteresting; there is no externally imposed interpretation. Similarly a high occupancy rate can be interpreted as lively, uncomfortable, or indicative of a popular spot. Use your own reasoning and your memory to arrive at a consistent interpretation over time.
 
 How the place boundaries shape movement.
-Places are rectangular regions. To enter a place, your x and y need to enter the rectangle defined by (center_x - half_size) to (center_x + half_size) and similarly for y. Because you can move only one cell per step in one cardinal direction, entering a place usually takes multiple steps. The shortest path from a position outside a place is roughly: move in whichever axis reduces the larger of the two distances first, then fine-tune the other axis. The system does not enforce this; you decide the path.
+Places are rectangular regions. To be inside a place, your (x, y) must satisfy |x - cx| <= half_size_x and |y - cy| <= half_size_y. The cleanest way to get inside is to "walk_toward" the place across several steps, then "enter" it once you are at or right next to the boundary. If you prefer, you can stay on the walk_toward intent through the boundary; the system will still register you as inside once you cross it. There is no enforcement — you decide the path.
 
 Why fire matters, quantitatively.
 Fire events carry two numerical attributes: intensity (0.0 to 1.0) and radius. When a fire is active, the user message shows each fire's coordinates, intensity, radius, and your Euclidean distance to the fire. There is no mapping from these numbers to any qualitative label. You are free to treat a high-intensity short-radius fire differently from a low-intensity wide-radius one; you choose what the numbers mean. The simulation does not 'damage' or 'kill' agents; there is no game-over state. You are building a history of choices, not optimizing a score.
@@ -730,35 +774,71 @@ Interpreting nearby agents.
 The nearby_agents list shows other agents within your communication radius who are in the same area as you. Each entry includes the other agent's id, their gender, their position, and whether they are in a place. You do not see their memory, their personality, or their intentions; you only see their observable state. Any inference about motives comes from the messages they broadcast.
 
 Dealing with boundaries.
-Attempting to move beyond the field boundary is safe: the system clamps your resulting position to the valid range. So 'move up' at y = +{self.half_space_size} results in no change. If you believe you are already at the boundary in a direction, prefer a direction that actually changes your position.
+Attempting to move beyond the field boundary is safe: the system clamps your resulting position to the valid range. So "walk_along" with direction "up" at y = +{self.half_space_size} results in no change. If you are already at the boundary in a direction, prefer another direction or switch to walk_toward / approach / enter with a meaningful target.
 
-The 'stay' action.
-'stay' is a legitimate choice. Use it when observing, when waiting for messages, when you are already where you wanted to be, or when you have no basis for moving. It is not a failure mode; it is just another action.
+The 'stay' and 'wander' actions.
+"stay" is a legitimate choice. Use it when observing, when waiting for messages, when you are already where you wanted to be, or when you have no basis for moving. It is not a failure mode; it is just another action. "wander" is similar but involves a short, undirected step — use it when you feel like drifting but don't want to commit to a destination yet.
 
 === EXAMPLES OF WELL-FORMED JSON RESPONSES (for formatting reference only) ===
 
-Example A (moving toward a place):
+Example A (heading toward a named place):
 {{
-    "action": "move",
-    "direction": "left",
-    "memory": "左側にあるバーに向かって移動中。あと数ステップで到達できる見込み。",
-    "reasoning": "左バーの方向に進む必要があるため、左に1マス移動する。"
-}}
-
-Example B (staying in a place):
-{{
-    "action": "stay",
+    "action_type": "walk_toward",
+    "target_place": "left_bar",
+    "target_agent": null,
     "direction": null,
-    "memory": "右バーの中にいて、他の人と話しているところ。もう少しここにいたい。",
-    "reasoning": "会話が続いているので、今のステップは留まる。"
+    "memory": "left_barに向かって歩き始めた。数分で到着しそう。",
+    "reasoning": "静かに一杯飲みたいので左側のバーに向かう。"
 }}
 
-Example C (evacuating from fire):
+Example B (staying in a place during a conversation):
 {{
-    "action": "move",
+    "action_type": "stay",
+    "target_place": null,
+    "target_agent": null,
+    "direction": null,
+    "memory": "right_barで美咲さんと話している。もう少しここにいる。",
+    "reasoning": "会話が続いているので留まる。"
+}}
+
+Example C (stepping into a place you're right next to):
+{{
+    "action_type": "enter",
+    "target_place": "right_bar",
+    "target_agent": null,
+    "direction": null,
+    "memory": "right_barの入口に着いた。入って様子を見る。",
+    "reasoning": "目の前がright_barなので入店する。"
+}}
+
+Example D (closing the distance to a specific person):
+{{
+    "action_type": "approach",
+    "target_place": null,
+    "target_agent": "鈴木美咲",
+    "direction": null,
+    "memory": "美咲さんに近づいて声をかけたい。",
+    "reasoning": "顔見知りの美咲さんが近くにいるので合流する。"
+}}
+
+Example E (wandering without a clear destination):
+{{
+    "action_type": "wander",
+    "target_place": null,
+    "target_agent": null,
+    "direction": null,
+    "memory": "特に予定なし。少しぶらついて様子を見る。",
+    "reasoning": "やることがないので適当にぶらぶらする。"
+}}
+
+Example F (evacuating from fire by walking along a cardinal direction):
+{{
+    "action_type": "walk_along",
+    "target_place": null,
+    "target_agent": null,
     "direction": "down",
-    "memory": "火災が右上にあり、距離が近い。南方向へ逃げることにした。",
-    "reasoning": "火災から離れるため、下方向へ移動する。"
+    "memory": "火災が北東にあるので南方向へ離れる。",
+    "reasoning": "特定の目的地ではなく、とにかく火から遠ざかりたい。"
 }}
 
 These examples are structural references only. Your own response must reflect your own interpretation of the current situation, not these example scenarios.
@@ -778,7 +858,7 @@ No global view.
 You see only a local slice: your own state, nearby agents, recent messages, and your own memory. You do not see the full grid, the positions of agents outside your radius, or what is happening in other places. Do not pretend you have information you were not given.
 
 Respect the schema.
-Only the four fields 'action', 'direction', 'memory', 'reasoning' are recognized. Adding extra fields has no effect. Omitting 'direction' when action is 'stay' is fine (or set it to null). Omitting 'memory' or 'reasoning' is allowed but usually harmful, since it leaves you nothing to remember and no explanation of your choice.
+Only the fields 'action_type', 'target_place', 'target_agent', 'direction', 'memory', 'reasoning' are recognized. Adding extra fields has no effect. Set unused target/direction fields to null (for example, when action_type is "stay" or "wander", all of target_place/target_agent/direction should be null). Omitting 'memory' or 'reasoning' is allowed but usually harmful, since it leaves you nothing to remember and no explanation of your choice.
 
 Handling of truncation.
 If the model runs out of tokens mid-response, the downstream parser will attempt to recover, but the safest behavior is to keep the response concise so that the full JSON object fits comfortably within the max_tokens budget. One or two short Japanese sentences in the memory and reasoning fields are sufficient; there is no benefit to writing paragraphs.
@@ -834,6 +914,7 @@ them in memory and reasoning.
         )
 
         nearby_text = self._build_nearby_agents_context(nearby_agents)
+        nearby_places_text = self._build_nearby_places_context()
         memory_text = self._build_memory_context()
         messages_text = self._build_messages_context()
 
@@ -872,6 +953,9 @@ In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 {place_section_text}
 {fire_section}
+=== NEARBY PLACES ===
+{nearby_places_text}
+
 === NEARBY AGENTS ===
 {nearby_text}
 
@@ -922,22 +1006,6 @@ Step: {step}
 
         return None
 
-    def _extract_direction_from_text(self, text: str) -> Optional[str]:
-        """Extract direction from text using keyword matching (4 cardinal directions only)"""
-        text_lower = text.lower()
-
-        # Check cardinal directions only
-        if "up" in text_lower:
-            return "up"
-        elif "down" in text_lower:
-            return "down"
-        elif "left" in text_lower:
-            return "left"
-        elif "right" in text_lower:
-            return "right"
-
-        return None
-    
     def parse_message_response(self, response: str) -> MessageDecision:
         """Parse LLM response and extract message decision"""
         # Try to extract JSON from response using brace-matching
@@ -968,36 +1036,61 @@ Step: {step}
         }
     
     def parse_action_response(self, response: str) -> ActionDecision:
-        """Parse LLM response and extract action decision"""
-        # Try to extract JSON from response using brace-matching
+        """Parse LLM response into an intent-based ActionDecision.
+
+        Accepts both the new schema (action_type + target_place / target_agent / direction)
+        and, for safety, the legacy schema (action == "move" + direction) which is silently
+        translated to walk_along.
+        """
+        valid_action_types = {"walk_toward", "walk_along", "enter", "stay", "approach", "wander"}
+        valid_directions = {"up", "down", "left", "right"}
+
         json_str = self._extract_json_from_text(response)
         if json_str:
             try:
                 parsed = json.loads(json_str)
-                return {
-                    "action": parsed.get("action", "stay"),
-                    "direction": parsed.get("direction"),
-                    "memory": parsed.get("memory", ""),
-                    "reasoning": parsed.get("reasoning", "")
-                }
             except json.JSONDecodeError as e:
                 logger.debug(f"JSON parsing failed for response: {response[:100]}... Error: {e}")
+                parsed = None
+        else:
+            parsed = None
 
-        # Fallback: simple text parsing
-        action = "stay"
-        direction = None
-        memory = ""
-        reasoning = response[:FALLBACK_REASONING_LENGTH]
+        if parsed is not None:
+            action_type = parsed.get("action_type")
+            # Legacy compatibility: old "action" == "move" + "direction".
+            if action_type is None:
+                legacy_action = parsed.get("action")
+                if legacy_action == "move":
+                    action_type = "walk_along"
+                elif legacy_action == "stay":
+                    action_type = "stay"
+            if action_type not in valid_action_types:
+                action_type = "stay"
 
-        if "move" in response.lower():
-            action = "move"
-            direction = self._extract_direction_from_text(response)
+            direction = parsed.get("direction")
+            if direction not in valid_directions:
+                direction = None
 
+            decision: ActionDecision = {
+                "action_type": action_type,
+                "target_place": parsed.get("target_place"),
+                "target_agent": parsed.get("target_agent"),
+                "direction": direction,
+                "memory": parsed.get("memory", ""),
+                "reasoning": parsed.get("reasoning", ""),
+                "action": "move" if action_type != "stay" else "stay",  # legacy alias
+            }
+            return decision
+
+        # Fallback when JSON parsing fails: treat as stay.
         return {
-            "action": action,
-            "direction": direction,
-            "memory": memory,
-            "reasoning": reasoning
+            "action_type": "stay",
+            "target_place": None,
+            "target_agent": None,
+            "direction": None,
+            "memory": "",
+            "reasoning": response[:FALLBACK_REASONING_LENGTH],
+            "action": "stay",
         }
     
     def decide_message(
@@ -1071,31 +1164,139 @@ Step: {step}
             return decision
         except Exception as e:
             logger.error(f"Error in agent {self.id} action decision: {e}")
-            return {"action": "stay", "direction": None, "memory": "", "reasoning": "Error occurred"}
-    
-    def calculate_move_distance(self, action_type: str = "move") -> int:
-        """Return cells traveled this step for a movement action.
+            return {
+                "action_type": "stay",
+                "target_place": None,
+                "target_agent": None,
+                "direction": None,
+                "memory": "",
+                "reasoning": "Error occurred",
+                "action": "stay",
+            }
 
-        Current behavior (feature 1): returns base +/- uniform variance, with a
-        minimum of 1 cell. Later features override this per intent type.
+    def calculate_move_distance(self, action_type: str = "walk_toward") -> int:
+        """Return cells traveled this step for the given intent.
+
+        walk_toward / walk_along / enter / approach: full walking pace (base +/- variance).
+        wander: about half the walking pace.
+        stay / unknown: 0.
         """
         if action_type in (None, "stay"):
             return 0
         jitter = random.randint(-self.movement_variance, self.movement_variance) if self.movement_variance > 0 else 0
-        return max(1, self.movement_base_cells + jitter)
+        base = self.movement_base_cells
+        if action_type == "wander":
+            base = max(1, base // 2)
+        if action_type not in ("walk_toward", "walk_along", "enter", "approach", "wander"):
+            return 0
+        return max(1, base + jitter)
 
-    def move(self, direction: str) -> Tuple[int, int]:
-        """Move agent in specified direction (origin-centered coordinate system)"""
+    def _clamp_to_field(self, x: int, y: int) -> Tuple[int, int]:
+        return (
+            max(-self.half_space_size, min(self.half_space_size, x)),
+            max(-self.half_space_size, min(self.half_space_size, y)),
+        )
+
+    def _step_toward(self, target_x: int, target_y: int, distance: int) -> Tuple[int, int]:
+        """Take a `distance`-cell step from current position toward (target_x, target_y)."""
         x, y = self.position
-        dx, dy = DIRECTION_MAP.get(direction, (0, 0))
-        distance = self.calculate_move_distance("move")
+        dx = target_x - x
+        dy = target_y - y
+        norm = math.hypot(dx, dy)
+        if norm < 1e-6 or distance <= 0:
+            return self.position
+        step_x = dx / norm * distance
+        step_y = dy / norm * distance
+        new_x = int(round(x + step_x))
+        new_y = int(round(y + step_y))
+        return self._clamp_to_field(new_x, new_y)
 
-        # Boundaries: -half_space_size to +half_space_size
-        new_x = max(-self.half_space_size, min(self.half_space_size, x + dx * distance))
-        new_y = max(-self.half_space_size, min(self.half_space_size, y + dy * distance))
+    def _find_place_by_name(self, name: Optional[str]) -> Optional[PlaceConfig]:
+        if not name:
+            return None
+        for p in self.places:
+            if p['name'] == name:
+                return p
+        return None
 
-        self.position = (new_x, new_y)
-        self.total_moves += 1
+    def _find_nearby_agent_by_handle(
+        self, handle: Optional[str], nearby_agents: List['Agent']
+    ) -> Optional['Agent']:
+        """Resolve a target_agent value (persona name or id string) to an Agent instance."""
+        if not handle or not nearby_agents:
+            return None
+        handle_str = str(handle).strip().lower()
+        for a in nearby_agents:
+            name = a.persona.get('name', '') or ''
+            if name.lower() == handle_str:
+                return a
+            if handle_str == f"agent {a.id}".lower() or handle_str == str(a.id):
+                return a
+        # Substring fallback (e.g. "美咲" when full name is "鈴木美咲")
+        for a in nearby_agents:
+            name = a.persona.get('name', '') or ''
+            if handle_str and name and handle_str in name.lower():
+                return a
+        return None
+
+    def execute_intent(
+        self,
+        decision: ActionDecision,
+        nearby_agents: Optional[List['Agent']] = None,
+    ) -> Tuple[int, int]:
+        """Apply the chosen intent to the agent's position.
+
+        Returns the new position. Updates self.position and self.total_moves in place.
+        """
+        action_type = decision.get("action_type") or "stay"
+
+        if action_type == "stay":
+            return self.position
+
+        distance = self.calculate_move_distance(action_type)
+        x, y = self.position
+        new_pos = self.position
+
+        if action_type == "walk_along":
+            direction = decision.get("direction")
+            dx, dy = DIRECTION_MAP.get(direction, (0, 0))
+            if dx == 0 and dy == 0:
+                return self.position
+            new_pos = self._clamp_to_field(x + dx * distance, y + dy * distance)
+
+        elif action_type in ("walk_toward", "enter"):
+            place = self._find_place_by_name(decision.get("target_place"))
+            if place is None:
+                return self.position
+            target_x, target_y = place['center_x'], place['center_y']
+            # "enter" snaps into the place when within one step, so the agent
+            # doesn't overshoot the box.
+            dist_to_center = math.hypot(target_x - x, target_y - y)
+            if action_type == "enter" and dist_to_center <= distance:
+                new_pos = self._clamp_to_field(target_x, target_y)
+            else:
+                new_pos = self._step_toward(target_x, target_y, distance)
+
+        elif action_type == "approach":
+            target = self._find_nearby_agent_by_handle(
+                decision.get("target_agent"), nearby_agents or []
+            )
+            if target is None:
+                return self.position
+            new_pos = self._step_toward(target.position[0], target.position[1], distance)
+
+        elif action_type == "wander":
+            angle = random.uniform(0, 2 * math.pi)
+            dx = math.cos(angle) * distance
+            dy = math.sin(angle) * distance
+            new_pos = self._clamp_to_field(int(round(x + dx)), int(round(y + dy)))
+
+        else:
+            return self.position
+
+        if new_pos != self.position:
+            self.position = new_pos
+            self.total_moves += 1
         return self.position
     
     def receive_message(

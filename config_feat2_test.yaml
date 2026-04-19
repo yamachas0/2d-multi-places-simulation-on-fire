@@ -1,0 +1,75 @@
+# Feature 2 smoke test: intent-based actions (5 agents x 10 steps)
+simulation:
+  duration: 10
+  half_space_size: 75
+  half_place_size: 5
+  time_scale:
+    step_duration_minutes: 1
+    start_time: "08:00"
+
+agents:
+  num_agents: 5
+  communication_radius: 10
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 5
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+
+  personas:
+    - id: 0
+      name: "田中健一"
+      age: 42
+      gender: "male"
+      occupation: "IT会社員"
+      background: "最近転勤で引っ越してきた"
+      speech_style: "丁寧だが少し堅い"
+    - id: 1
+      name: "鈴木美咲"
+      age: 28
+      gender: "female"
+      occupation: "フリーランスデザイナー"
+      background: "この街に長く住んでいる"
+      speech_style: "カジュアルでフレンドリー"
+    - id: 2
+      name: "佐藤太郎"
+      age: 65
+      gender: "male"
+      occupation: "定年退職"
+      background: "散歩が日課の常連"
+      speech_style: "のんびりした話し方"
+
+places:
+  - name: "left_bar"
+    type: "bar"
+    center_x: -45
+    center_y: 0
+    half_size: 5
+    capacity: 12
+  - name: "right_bar"
+    type: "bar"
+    center_x: 45
+    center_y: 0
+    half_size: 5
+    capacity: 10
+
+llm:
+  model: "claude-haiku-4-5-20251001"
+  base_url: "https://api.anthropic.com"
+  temperature: 0.2
+  max_tokens: 600
+
+fires: []
+
+visualization:
+  save_frames: false
+  frame_interval: 1
+  output_dir: "output_feat2_test"
+
+logging:
+  level: "INFO"
+  log_file: "simulation_feat2_test.log"
