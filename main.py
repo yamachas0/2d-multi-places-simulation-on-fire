@@ -91,6 +91,9 @@ def handle_visualization(
     
     place_status = sim.get_place_status()
     
+    time_str = sim._current_time_str() if hasattr(sim, '_current_time_str') else None
+    step_messages = getattr(sim, 'last_step_messages', None)
+
     if should_save:
         save_path = os.path.join(output_dir, f"frame_{step:04d}.png")
         visualizer.visualize_step(
@@ -99,7 +102,9 @@ def handle_visualization(
             step,
             communication_radius=sim.communication_radius,
             save_path=save_path,
-            fire_states=sim.fire_states
+            fire_states=sim.fire_states,
+            time_str=time_str,
+            step_messages=step_messages,
         )
         logger.info(f"Saved frame: {save_path}")
     else:
@@ -111,7 +116,9 @@ def handle_visualization(
                 place_status,
                 step,
                 communication_radius=sim.communication_radius,
-                fire_states=sim.fire_states
+                fire_states=sim.fire_states,
+                time_str=time_str,
+                step_messages=step_messages,
             )
             time.sleep(VISUALIZATION_UPDATE_DELAY)
         except Exception as e:
@@ -198,10 +205,12 @@ def main():
     # Initialize visualizer if needed
     visualizer = None
     if should_visualize:
+        focus_agent_id = config.get('visualization', {}).get('focus_agent_id')
         visualizer = Visualizer(
             half_space_size=sim.half_space_size,
             places=sim.places,
-            num_agents=sim.num_agents
+            num_agents=sim.num_agents,
+            focus_agent_id=focus_agent_id,
         )
     
     # Run simulation

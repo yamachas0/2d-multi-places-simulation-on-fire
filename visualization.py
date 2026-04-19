@@ -29,6 +29,27 @@ COMMUNICATION_LINK_ALPHA = 0.3
 BAR_LINEWIDTH = 2
 BAR_ALPHA = 0.3
 
+# Per-type facecolor / edgecolor / linestyle. Feature 6 upgrade over the
+# previous flat blue-edge scheme. Unknown types fall back to DEFAULT_PLACE_STYLE.
+PLACE_STYLE = {
+    'bar':     {'face': 'lightblue',   'edge': 'steelblue',       'linestyle': '-'},
+    'cafe':    {'face': 'lightcoral',  'edge': 'darkred',         'linestyle': '-'},
+    'library': {'face': 'lightgreen',  'edge': 'darkgreen',       'linestyle': '-'},
+    'park':    {'face': 'lightpink',   'edge': 'mediumvioletred', 'linestyle': '--'},
+    'station': {'face': 'khaki',       'edge': 'saddlebrown',     'linestyle': '-'},
+    'plaza':   {'face': 'lavender',    'edge': 'indigo',          'linestyle': '-'},
+    'road':    {'face': 'lightgray',   'edge': 'dimgray',         'linestyle': ':'},
+}
+DEFAULT_PLACE_STYLE = {'face': 'lightyellow', 'edge': 'slategray', 'linestyle': '-'}
+
+# Feature 6: focus agent styling — highlight one agent's trail through the run.
+FOCUS_TRAIL_MAX_POINTS = 40
+FOCUS_TRAIL_COLOR = 'deepskyblue'
+FOCUS_MARKER_SIZE = 260
+CONVERSATION_LINK_COLOR = 'orangered'
+CONVERSATION_LINK_ALPHA = 0.55
+CONVERSATION_LINK_WIDTH = 1.8
+
 # Fire visualization constants
 FIRE_MARKER_SIZE = 200
 FIRE_CIRCLE_ALPHA = 0.15
@@ -90,13 +111,23 @@ logger = logging.getLogger(__name__)
 class Visualizer:
     """Visualization class for simulation"""
 
-    def __init__(self, half_space_size: int, places: List[Dict], num_agents: int = None):
+    def __init__(
+        self,
+        half_space_size: int,
+        places: List[Dict],
+        num_agents: int = None,
+        focus_agent_id: Optional[int] = None,
+    ):
         self.half_space_size = half_space_size
         self.places = places
         self.num_agents = num_agents
         self.fig = None
         self.ax = None
         self.figure_initialized = False
+        # Feature 6: focus agent tracking. The trail holds recent positions of
+        # the focus agent so the viewer can see where they've been moving.
+        self.focus_agent_id = focus_agent_id
+        self.focus_trail: List[Tuple[int, int]] = []
 
     def setup_figure(self, reuse_existing: bool = False):
         """Setup matplotlib figure"""
@@ -117,21 +148,7 @@ class Visualizer:
         self.ax.grid(True, alpha=0.3)
 
     def draw_bars(self):
-        """Draw all place areas (bars, cafes, libraries, etc.)"""
-        # Color palette for different place types
-        place_type_colors = {
-            'bar': 'lightblue',
-            'cafe': 'lightcoral',
-            'library': 'lightgreen',
-            'restaurant': 'lightyellow',
-            'park': 'lightpink',
-            'station': 'khaki',
-            'plaza': 'lavender',
-            'road': 'lightgray',
-        }
-        # Fallback colors for unknown types
-        default_colors = ['lightblue', 'lightcoral', 'lightgreen', 'lightyellow', 'lightpink']
-        
+        """Draw all place areas, styled per PLACE_STYLE (feature 6)."""
         for i, place in enumerate(self.places):
             # Support both square (half_size) and rectangular (half_size_x/y) places.
             half_size_x = place.get('half_size_x', place.get('half_size'))
@@ -143,24 +160,20 @@ class Visualizer:
             place_name = place['name']
             place_type = place['type']
 
-            if place_type in place_type_colors:
-                face_color = place_type_colors[place_type]
-            else:
-                face_color = default_colors[i % len(default_colors)]
-
+            style = PLACE_STYLE.get(place_type, DEFAULT_PLACE_STYLE)
             place_rect = patches.Rectangle(
                 (center_x - half_size_x - 0.5, center_y - half_size_y - 0.5),
                 2 * half_size_x + 1,
                 2 * half_size_y + 1,
                 linewidth=BAR_LINEWIDTH,
-                edgecolor='blue',
-                facecolor=face_color,
+                edgecolor=style['edge'],
+                facecolor=style['face'],
                 alpha=BAR_ALPHA,
-                label=f"{place_name} ({place_type})"
+                linestyle=style['linestyle'],
+                label=f"{place_name} ({place_type})",
             )
             self.ax.add_patch(place_rect)
-            
-            # Add place name and type label at center
+
             label_text = f"{place_name}\n({place_type})"
             self.ax.text(
                 center_x,
@@ -170,7 +183,7 @@ class Visualizer:
                 ha='center',
                 va='center',
                 weight='bold',
-                color='darkblue'
+                color=style['edge'],
             )
     
     def draw_fires(self, fire_states: List[Dict]):
@@ -232,29 +245,44 @@ class Visualizer:
         agents_by_place: Dict[str, List[int]],
         communication_links: List[Tuple[int, int]] = None
     ):
-        """Draw agents and communication links"""
-        # Draw communication links
+        """Draw agents. Communication-range links are drawn as faint grey edges;
+        actual-conversation edges for the current step are drawn separately by
+        _draw_conversations() so they stack above the in-range links.
+        """
+        # Build quick id->agent index once (roster may be dynamic after feature 5).
+        agents_by_id = {a.id: a for a in agents}
+
         if communication_links:
             for agent_id1, agent_id2 in communication_links:
-                agent1 = agents[agent_id1]
-                agent2 = agents[agent_id2]
+                agent1 = agents_by_id.get(agent_id1)
+                agent2 = agents_by_id.get(agent_id2)
+                if agent1 is None or agent2 is None:
+                    continue
                 self.ax.plot(
                     [agent1.position[0], agent2.position[0]],
                     [agent1.position[1], agent2.position[1]],
                     'gray',
                     alpha=COMMUNICATION_LINK_ALPHA,
-                    linewidth=1
+                    linewidth=1,
                 )
-        
-        # Draw agents: color by gender (male=blue, female=red), marker by location (in place=★, outside=●)
+
         for agent in agents:
             color = 'blue' if agent.gender == 'male' else 'red'
             if agent.in_place and agent.current_place:
-                marker = '*'  # Star for agents in a place
-                size = AGENT_SIZE_IN_BAR * 1.5  # Stars need larger size to be visible
+                marker = '*'
+                size = AGENT_SIZE_IN_BAR * 1.5
             else:
-                marker = 'o'  # Circle for agents outside places
+                marker = 'o'
                 size = AGENT_SIZE_OUTSIDE
+
+            is_focus = (self.focus_agent_id is not None and agent.id == self.focus_agent_id)
+            if is_focus:
+                size = FOCUS_MARKER_SIZE
+                edge = FOCUS_TRAIL_COLOR
+                edge_width = 2.5
+            else:
+                edge = 'black'
+                edge_width = 1
 
             self.ax.scatter(
                 agent.position[0],
@@ -263,17 +291,71 @@ class Visualizer:
                 s=size,
                 marker=marker,
                 alpha=AGENT_ALPHA,
-                edgecolors='black',
-                linewidths=1
+                edgecolors=edge,
+                linewidths=edge_width,
             )
-            
-            # Add agent ID label
-            self.ax.text(
-                agent.position[0] + 0.5,
-                agent.position[1] + 0.5,
-                str(agent.id),
-                fontsize=8,
-                ha='left'
+
+            if is_focus:
+                focus_name = agent.persona.get('name') or f"Agent {agent.id}"
+                self.ax.text(
+                    agent.position[0] + 0.5,
+                    agent.position[1] + 1.2,
+                    focus_name,
+                    fontsize=9,
+                    ha='left',
+                    color=FOCUS_TRAIL_COLOR,
+                    fontweight='bold',
+                )
+            else:
+                self.ax.text(
+                    agent.position[0] + 0.5,
+                    agent.position[1] + 0.5,
+                    str(agent.id),
+                    fontsize=8,
+                    ha='left',
+                )
+
+    def _draw_focus_trail(self):
+        """Draw the focus agent's recent path as a thin dashed line."""
+        if self.focus_agent_id is None or len(self.focus_trail) < 2:
+            return
+        xs = [p[0] for p in self.focus_trail]
+        ys = [p[1] for p in self.focus_trail]
+        self.ax.plot(
+            xs, ys,
+            color=FOCUS_TRAIL_COLOR,
+            linestyle='--',
+            linewidth=1.2,
+            alpha=0.7,
+            zorder=3,
+        )
+
+    def _draw_conversations(self, agents: List, step_messages: List[Tuple[int, int]]):
+        """Overlay message-flow edges for the just-ended step.
+
+        Each tuple is (from_id, to_id). Duplicate edges (A->B and B->A) share a
+        single rendered line so a two-way exchange doesn't plot twice.
+        """
+        if not step_messages:
+            return
+        agents_by_id = {a.id: a for a in agents}
+        drawn = set()
+        for fid, tid in step_messages:
+            key = (min(fid, tid), max(fid, tid))
+            if key in drawn:
+                continue
+            drawn.add(key)
+            a_from = agents_by_id.get(fid)
+            a_to = agents_by_id.get(tid)
+            if a_from is None or a_to is None:
+                continue
+            self.ax.plot(
+                [a_from.position[0], a_to.position[0]],
+                [a_from.position[1], a_to.position[1]],
+                color=CONVERSATION_LINK_COLOR,
+                alpha=CONVERSATION_LINK_ALPHA,
+                linewidth=CONVERSATION_LINK_WIDTH,
+                zorder=4,
             )
     
     def visualize_step(
@@ -283,15 +365,26 @@ class Visualizer:
         step: int,
         communication_radius: float = None,
         save_path: str = None,
-        fire_states: Optional[List[Dict]] = None
+        fire_states: Optional[List[Dict]] = None,
+        time_str: Optional[str] = None,
+        step_messages: Optional[List[Tuple[int, int]]] = None,
     ):
         """Visualize a single simulation step"""
+        # Update focus trail first so the dashed line includes the newest point.
+        if self.focus_agent_id is not None:
+            focus = next((a for a in agents if a.id == self.focus_agent_id), None)
+            if focus is not None:
+                self.focus_trail.append(tuple(focus.position))
+                if len(self.focus_trail) > FOCUS_TRAIL_MAX_POINTS:
+                    self.focus_trail.pop(0)
+
         # For saving frames, create new figure each time and close after saving
         # For interactive display, reuse existing figure
         reuse = save_path is None and self.figure_initialized
         self.setup_figure(reuse_existing=reuse)
         self.draw_bars()
         self.draw_fires(fire_states or [])
+        self._draw_focus_trail()
         
         # Get agents by place
         agents_by_place = {}
@@ -317,7 +410,12 @@ class Visualizer:
                         communication_links.append((agent1.id, agent2.id))
         
         self.draw_agents(agents, agents_by_place, communication_links)
-        
+        self._draw_conversations(agents, step_messages or [])
+
+        step_label = f"Step {step}"
+        if time_str:
+            step_label = f"Step {step} ({time_str})"
+
         # Build title with statistics for all places
         if 'places' in place_status:
             # Multiple places format
@@ -328,7 +426,7 @@ class Visualizer:
                     f"({status['occupancy_rate']:.0%})"
                 )
             title = (
-                f"Step {step} | "
+                f"{step_label} | "
                 f"Total in places: {place_status['agents_in_place']} "
                 f"({place_status['occupancy_rate']:.1%}) | "
                 f"{' | '.join(place_info)}"
@@ -336,7 +434,7 @@ class Visualizer:
         else:
             # Single place format
             title = (
-                f"Step {step} | "
+                f"{step_label} | "
                 f"Agents in place: {place_status['agents_in_place']}/{place_status['capacity']} "
                 f"({place_status['occupancy_rate']:.1%})"
             )

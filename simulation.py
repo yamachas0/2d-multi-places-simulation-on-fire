@@ -152,6 +152,9 @@ class Simulation:
         self.agents: List[Agent] = []
         self.step = 0
         self.history: List[Dict] = []
+        # Feature 6: per-step message edges as (from_id, to_id) tuples,
+        # recorded during Phase 2 and consumed by the visualizer.
+        self.last_step_messages: List[Tuple[int, int]] = []
         
         # Statistics - track per place
         self.stats = {
@@ -595,6 +598,7 @@ class Simulation:
         message_decisions: List[Tuple[Agent, Dict, List[Agent]]] = [r for r in phase1_results if r is not None]
 
         # Phase 2: Send messages (using decision-time nearby agents, before movement)
+        self.last_step_messages = []
         for agent, message_decision, nearby_agents in message_decisions:
             message_content = message_decision.get('message', '')
             if message_content and nearby_agents:
@@ -610,6 +614,7 @@ class Simulation:
                         step=self.step,
                         from_name=sender_name,
                     )
+                    self.last_step_messages.append((agent.id, other_agent.id))
                     # Log message to jsonl file
                     self._log_message(
                         from_agent_id=agent.id,
