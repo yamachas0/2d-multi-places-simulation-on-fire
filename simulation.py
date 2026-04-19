@@ -53,6 +53,17 @@ class Simulation:
         self.message_context_size = agent_config.get('message_context_size', 3)
         self.skip_probability = agent_config.get('skip_probability', 0.0)
         self.parallel_workers = agent_config.get('parallel_workers', 1)
+
+        # Walking speed (feature 1 / urban scale).
+        movement_cfg = agent_config.get('movement_speed', {}) or {}
+        self.movement_base_cells = int(movement_cfg.get('base_cells_per_step', 1))
+        self.movement_variance = int(movement_cfg.get('variance', 0))
+
+        # Time scale (feature 1 / urban scale). Stored here so later features can
+        # wire in wall-clock reasoning; feature 1 only uses it for logging.
+        time_cfg = sim_config.get('time_scale', {}) or {}
+        self.step_duration_minutes = int(time_cfg.get('step_duration_minutes', 1))
+        self.start_time_str = str(time_cfg.get('start_time', '08:00'))
         
         # Place parameters - support multiple places
         if 'places' not in self.config:
@@ -258,6 +269,8 @@ class Simulation:
                 message_history_limit=self.message_history_limit,
                 message_context_size=self.message_context_size,
                 persona=persona,
+                movement_base_cells=self.movement_base_cells,
+                movement_variance=self.movement_variance,
             )
             agent.update_state()
             self.agents.append(agent)

@@ -3,6 +3,7 @@ LLM-based agent in 2D worlds with multiple places.
 """
 import json
 import math
+import random
 import logging
 from typing import List, Tuple, Optional, Dict, TypedDict
 from claude_client import ClaudeClient
@@ -57,6 +58,8 @@ class Agent:
         message_history_limit: int = 10,
         message_context_size: int = 3,
         persona: Optional[Dict] = None,
+        movement_base_cells: int = 1,
+        movement_variance: int = 0,
     ):
         self.id = agent_id
         self.position = initial_position
@@ -66,6 +69,11 @@ class Agent:
         self.places = places
         self.num_agents = num_agents
         self.gender = gender
+
+        # Movement speed (cells per "move" action). Actual distance per step is
+        # base + uniform(-variance, +variance), clamped to >= 1.
+        self.movement_base_cells = max(1, int(movement_base_cells))
+        self.movement_variance = max(0, int(movement_variance))
 
         # Minimal persona (name, age, occupation, background, speech_style).
         # Kept as a flat dict so the second-stage expansion can add fields
@@ -301,9 +309,10 @@ class Agent:
         system_prompt = f"""You are an autonomous agent in {world_description}. Right now you are deciding what message, if any, to broadcast to the nearby agents you can currently communicate with. Your decision should emerge from your current state, your accumulated memory, and the ongoing conversational context.
 
 === WORLD STRUCTURE ===
-The world is a 2D grid with origin at (0, 0).
+The world is a 2D grid modeling a small urban district. Origin (0, 0) is roughly the center.
 Field boundaries: X and Y both range from -{self.half_space_size} to +{self.half_space_size} inclusive.
-Places are special rectangular regions (bars, cafes, libraries, etc.) where agents can gather; each has a name, a type, and a capacity. An agent is either inside exactly one place or outside all places at any given moment.
+Scale: 1 cell ≈ 5 meters, so the full map spans roughly {self.half_space_size * 2 * 5} meters on each side. 1 simulation step ≈ 1 real minute. At a typical walking pace of ~{self.movement_base_cells} cells/step (~{self.movement_base_cells * 5 * 60 / 1000:.1f} km/h), crossing the map on foot takes on the order of {self.half_space_size * 2 // max(1, self.movement_base_cells)} steps.
+Places are rectangular regions (bars, cafes, stations, etc.) where agents can gather; each has a name, a type, and a capacity. An agent is either inside exactly one place or outside all places at any given moment.
 
 Communication radius: {self.communication_radius} cells (Euclidean distance).
 Communication rules (important, applied strictly):
@@ -609,9 +618,10 @@ Step: {step}
         system_prompt = f"""You are an autonomous agent in {world_description}. You make decisions based on the current situation, your accumulated memory, and the communication you exchange with nearby agents. Your behavior should emerge organically from your own judgment rather than from any externally defined 'correct' policy.
 
 === WORLD STRUCTURE ===
-The world is a 2D grid with origin at (0, 0).
+The world is a 2D grid modeling a small urban district. Origin (0, 0) is roughly the center.
 Field boundaries: X and Y both range from -{self.half_space_size} to +{self.half_space_size} inclusive.
-Every position outside of any place is 'open ground'. Places are special rectangular regions where agents can gather; they have a name, a type (such as bar, cafe, library) and a fixed capacity.
+Scale: 1 cell ≈ 5 meters, so the full map spans roughly {self.half_space_size * 2 * 5} meters on each side. 1 simulation step ≈ 1 real minute, and a single "move" action covers ~{self.movement_base_cells} cells (~{self.movement_base_cells * 5} m), matching a relaxed walking pace of ~{self.movement_base_cells * 5 * 60 / 1000:.1f} km/h. Crossing the full map on foot takes on the order of {self.half_space_size * 2 // max(1, self.movement_base_cells)} steps.
+Every position outside of any place is 'open ground' (streets, sidewalks, plazas). Places are rectangular regions where agents can gather; they have a name, a type (such as bar, cafe, station) and a fixed capacity.
 An agent is 'in a place' when its (x, y) coordinates fall inside that place's rectangle, and 'outside' otherwise. State transitions between inside and outside happen automatically when the agent moves across a place boundary.
 
 Communication radius: {self.communication_radius} cells (Euclidean distance).
@@ -662,7 +672,7 @@ Use memory as a scratchpad to maintain coherent intentions across steps. If you 
 === DETAILED SEMANTICS ===
 
 Positions and movement.
-Your position is the integer pair (x, y). 'up' adds +1 to y, 'down' subtracts 1 from y, 'left' subtracts 1 from x, 'right' adds +1 to x. The coordinate system is origin-centered: (0, 0) is the middle of the field. Negative x is the left half of the field, positive x is the right half. Negative y is the bottom half, positive y is the top half. Only one cell of movement per step is possible; reaching a distant location requires several consecutive steps.
+Your position is the integer pair (x, y). 'up' increases y (north), 'down' decreases y (south), 'left' decreases x (west), 'right' increases x (east). The coordinate system is origin-centered: (0, 0) is the middle of the district. Negative x is the west half, positive x is the east half. Negative y is the south half, positive y is the north half. Each "move" action covers roughly {self.movement_base_cells} cells (~{self.movement_base_cells * 5} meters, about one block of walking); reaching a distant location still requires multiple consecutive steps.
 
 Being inside a place.
 A place is defined by a center (cx, cy) and a half-size h. You are 'inside' a place when both |x - cx| <= h and |y - cy| <= h. The boundary is inclusive. When you are inside, you will additionally receive that place's occupancy statistics in the user message. When you are outside every place, you receive no place-level statistics; you only see nearby agents and the general world state.
@@ -777,7 +787,7 @@ Determinism and randomness.
 The sampling temperature is set externally (typically low). You may produce slightly different outputs for similar inputs; that is expected. Do not aim for robotic consistency, and do not aim for exaggerated variety either. Aim for plausible, situation-appropriate choices.
 
 On the scale of the grid.
-The grid is small. With the boundary roughly at +/- {self.half_space_size} and a place half-size typically around 5, the interior of the world is on the order of tens of cells across. A single cell step is a meaningful unit of distance; ten cells is a significant traversal. Plan your paths with this scale in mind.
+The grid models an urban district. With the boundary at +/- {self.half_space_size} cells (~{self.half_space_size * 5} m each way) and typical place half-sizes around 5 cells (~25 m), the district spans hundreds of meters end-to-end. A single "move" action covers ~{self.movement_base_cells} cells (~{self.movement_base_cells * 5} m), roughly one block of walking. Plan paths in terms of several-step legs, not individual cells.
 
 On when to prefer stay.
 Preferring 'stay' over 'move' is reasonable in many situations: you just arrived somewhere and want to observe, a conversation is active and moving would take you out of range, the local state is ambiguous and you want another step of information before committing, or you have already reached your intended location. Excessive movement without a reason produces noisy, jittery behavior that is less interesting than thoughtful stillness.
@@ -1063,14 +1073,26 @@ Step: {step}
             logger.error(f"Error in agent {self.id} action decision: {e}")
             return {"action": "stay", "direction": None, "memory": "", "reasoning": "Error occurred"}
     
+    def calculate_move_distance(self, action_type: str = "move") -> int:
+        """Return cells traveled this step for a movement action.
+
+        Current behavior (feature 1): returns base +/- uniform variance, with a
+        minimum of 1 cell. Later features override this per intent type.
+        """
+        if action_type in (None, "stay"):
+            return 0
+        jitter = random.randint(-self.movement_variance, self.movement_variance) if self.movement_variance > 0 else 0
+        return max(1, self.movement_base_cells + jitter)
+
     def move(self, direction: str) -> Tuple[int, int]:
         """Move agent in specified direction (origin-centered coordinate system)"""
         x, y = self.position
         dx, dy = DIRECTION_MAP.get(direction, (0, 0))
+        distance = self.calculate_move_distance("move")
 
         # Boundaries: -half_space_size to +half_space_size
-        new_x = max(-self.half_space_size, min(self.half_space_size, x + dx))
-        new_y = max(-self.half_space_size, min(self.half_space_size, y + dy))
+        new_x = max(-self.half_space_size, min(self.half_space_size, x + dx * distance))
+        new_y = max(-self.half_space_size, min(self.half_space_size, y + dy * distance))
 
         self.position = (new_x, new_y)
         self.total_moves += 1

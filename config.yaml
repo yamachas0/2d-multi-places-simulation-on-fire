@@ -2,20 +2,29 @@
 
 # Simulation Parameters
 simulation:
-  duration: 50  # Number of simulation steps
-  half_space_size: 25  # Half of grid size (agents can move in range -25 to +25)
-  half_place_size: 5   # Half of place size (place covers -5 to +5)
-  
+  duration: 60  # Number of simulation steps (60 steps = 1 hour at 1 step = 1 minute)
+  half_space_size: 75  # Half of grid size (150x150 = 750m x 750m at 5m per cell)
+  half_place_size: 5   # Default half of place size (legacy; individual places can override)
+  # Time scale: each simulation step represents this many real-world minutes
+  time_scale:
+    step_duration_minutes: 1
+    start_time: "08:00"
+
 # Agent Parameters
 agents:
   num_agents: 20
-  communication_radius: 5  # Radius for agent communication
+  communication_radius: 10  # Radius for agent communication (cells, ~50m)
   memory_limit: 20  # Maximum number of memory entries to store
   memory_size: 5  # Number of recent memory entries used in LLM prompt
   message_history_limit: 10  # Maximum number of received messages to store
   message_context_size: 3  # Number of recent messages used in LLM prompt
   skip_probability: 0.2  # Probability of skipping the LLM call in each phase (0.0 = no skip)
   parallel_workers: 20  # Concurrent LLM calls per phase (1 = sequential)
+  # Walking speed: cells moved per step when action is "move".
+  # 1 cell = 5m, 1 step = 1 min, so 8 cells/min ≈ 2.4 km/h (relaxed urban walking pace).
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2  # Actual speed = base + uniform(-variance, +variance)
 
   # Optional minimal personas. Agents not listed here get a randomly generated persona.
   # id must match the agent_id (0-indexed). gender is optional; omitted fields fall back
@@ -49,18 +58,18 @@ agents:
 # type is a required field
 places:
   - name: "left_bar"
-    type: "bar"  # Place type: bar, cafe, library, etc. (required)
-    center_x: -15  # Left side of field
+    type: "bar"
+    center_x: -45  # Left side of larger field
     center_y: 0
-    half_size: 5  # covers -5 to +5 from center
-    capacity: 12  # Maximum comfortable capacity of this place
+    half_size: 5
+    capacity: 12
   - name: "right_bar"
-    type: "bar"  # Place type: bar, cafe, library, etc. (required)
-    center_x: 15  # Right side of field
+    type: "bar"
+    center_x: 45  # Right side of larger field
     center_y: 0
-    half_size: 5  # covers -5 to +5 from center
-    capacity: 10  # Maximum comfortable capacity of this place
-  
+    half_size: 5
+    capacity: 10
+
 # LLM Parameters (Anthropic Claude API)
 llm:
   model: "claude-haiku-4-5-20251001"  # Claude model ID
@@ -75,24 +84,23 @@ fires:
   - name: "fire_1"
     start_step: 35
     intensity: 0.8
-    radius: 15
-    center_x: 15         # Fire position X (omit for random)
-    center_y: 10          # Fire position Y (omit for random)
+    radius: 30
+    center_x: 45
+    center_y: 30
   - name: "fire_2"
     start_step: 70
     intensity: 0.5
-    radius: 8
-    center_x: -10
-    center_y: -10
+    radius: 20
+    center_x: -30
+    center_y: -30
 
 # Visualization Parameters
 visualization:
   save_frames: true
   frame_interval: 1  # Save frame every N steps
   output_dir: "output"
-  
+
 # Logging
 logging:
   level: "INFO"
   log_file: "simulation.log"
-
