@@ -131,6 +131,13 @@ class Agent:
         self.current_intent: Optional[ActionDecision] = None
         self.transit_step_counter: int = 0
 
+        # Time + goal context (feature 5). Simulation updates these each step
+        # before calling decide_message / decide_action, so prompts can show
+        # the agent a plausible wall-clock time and a time-of-day mood.
+        self.current_time_str: str = ""
+        self.current_context: str = ""
+        self.current_goal: str = ""
+
     def is_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
         return get_place_at_position(position, self.places) is not None
@@ -344,6 +351,23 @@ class Agent:
                 f"- {place['name']} ({place['type']}): {dist:.0f} cells away, {direction} {marker}".rstrip()
             )
         return "\n".join(lines)
+
+    def _build_time_context_section(self) -> str:
+        """Compose a TIME & CONTEXT block for the user prompt (feature 5).
+
+        Empty string when simulation never set any time context — keeps the
+        block out of the prompt for configs without time_patterns.
+        """
+        if not (self.current_time_str or self.current_context or self.current_goal):
+            return ""
+        lines = ["=== TIME & CONTEXT ==="]
+        if self.current_time_str:
+            lines.append(f"Current time (approx): {self.current_time_str}")
+        if self.current_context:
+            lines.append(f"Neighborhood mood: {self.current_context}")
+        if self.current_goal:
+            lines.append(f"What people around here are typically doing now: {self.current_goal}")
+        return "\n".join(lines) + "\n"
 
     def _build_world_description(self) -> str:
         """Build short world description based on unique place types."""
@@ -638,6 +662,7 @@ never announce 'I'm at (-9, 13)' in a conversation.
             place_section_text = ""
 
         fire_section = self._build_fire_section(fire_info)
+        time_section = self._build_time_context_section()
 
         user_prompt = f"""{persona_section}You are {persona_name} in this 2D world.
 
@@ -646,7 +671,7 @@ In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 {place_section_text}
 {fire_section}
-=== NEARBY AGENTS (you can communicate with these people) ===
+{time_section}=== NEARBY AGENTS (you can communicate with these people) ===
 {nearby_text}
 
 === PREVIOUS MEMORY ===
@@ -964,6 +989,7 @@ them in memory and reasoning.
             message_section = f"\n=== MESSAGE YOU DECIDED TO SEND ===\n{message_to_send}\n"
 
         fire_section = self._build_fire_section(fire_info)
+        time_section = self._build_time_context_section()
 
         user_prompt = f"""{persona_section}You are {persona_name} in this 2D world.
 
@@ -974,7 +1000,7 @@ In place: {"Yes" if self.in_place else "No"}
 Behavior layer: {self.behavior_layer} (transit = walking through the district, dwelling = spending time in a place, interacting = with people around you)
 {place_section_text}
 {fire_section}
-=== NEARBY PLACES ===
+{time_section}=== NEARBY PLACES ===
 {nearby_places_text}
 
 === NEARBY AGENTS ===

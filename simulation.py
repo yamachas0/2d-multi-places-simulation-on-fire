@@ -7,10 +7,12 @@ import random
 import yaml
 import logging
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Set, Optional
 import numpy as np
 from agent import Agent
 from claude_client import ClaudeClient
+from place_types import get_place_type_spec
 from utils import (
     is_position_in_place,
     get_place_at_position,
@@ -59,11 +61,20 @@ class Simulation:
         self.movement_base_cells = int(movement_cfg.get('base_cells_per_step', 1))
         self.movement_variance = int(movement_cfg.get('variance', 0))
 
-        # Time scale (feature 1 / urban scale). Stored here so later features can
-        # wire in wall-clock reasoning; feature 1 only uses it for logging.
+        # Time scale (feature 1 / urban scale, extended in feature 5).
+        # `patterns` (optional): list of hour-bucket dicts driving station
+        # spawn/despawn probabilities and neighborhood mood strings.
         time_cfg = sim_config.get('time_scale', {}) or {}
         self.step_duration_minutes = int(time_cfg.get('step_duration_minutes', 1))
         self.start_time_str = str(time_cfg.get('start_time', '08:00'))
+        self.time_patterns: List[Dict] = list(time_cfg.get('patterns', []) or [])
+        self._initialize_time()
+
+        # Dynamic agent pool (feature 5). Spawns respect max_agents; despawns
+        # remove agents that are currently inside a station.
+        self.max_agents = int(agent_config.get('max_agents', max(self.num_agents * 2, self.num_agents + 10)))
+        self.spawn_enabled = bool(agent_config.get('spawn_enabled', bool(self.time_patterns)))
+        self.next_agent_id = self.num_agents
         
         # Place parameters - support multiple places
         if 'places' not in self.config:
@@ -155,6 +166,129 @@ class Simulation:
             'agents_in_fire_radius': [],  # Total agents in any fire radius
         }
         
+    def _initialize_time(self) -> None:
+        """Parse start_time (HH:MM) into a datetime anchor for wall-clock tracking."""
+        try:
+            hh, mm = self.start_time_str.split(":")
+            start_time = datetime(2000, 1, 1, int(hh), int(mm))
+        except Exception as e:
+            logger.warning(f"Invalid start_time '{self.start_time_str}', defaulting to 08:00. ({e})")
+            start_time = datetime(2000, 1, 1, 8, 0)
+        self.start_datetime = start_time
+        self.current_datetime = start_time
+
+    def _advance_time(self) -> None:
+        """Advance wall-clock by step_duration_minutes."""
+        self.current_datetime = self.current_datetime + timedelta(minutes=self.step_duration_minutes)
+
+    def _current_time_str(self) -> str:
+        return self.current_datetime.strftime("%H:%M")
+
+    def _get_time_pattern(self) -> Optional[Dict]:
+        """Return the time_patterns entry whose `hours` list includes current hour, if any."""
+        if not self.time_patterns:
+            return None
+        hour = self.current_datetime.hour
+        for pattern in self.time_patterns:
+            hours = pattern.get('hours', []) or []
+            if hour in hours:
+                return pattern
+        return None
+
+    def _find_spawn_places(self) -> List[Dict]:
+        """Places flagged as is_spawn_point by their place-type (e.g. stations)."""
+        spawn_places: List[Dict] = []
+        for place in self.places:
+            spec = get_place_type_spec(place.get('type', ''))
+            if spec.get('is_spawn_point'):
+                spawn_places.append(place)
+        return spawn_places
+
+    def _spawn_agent_at(self, station: Dict) -> Optional[Agent]:
+        """Create a new agent positioned at the station's center."""
+        if len(self.agents) >= self.max_agents:
+            return None
+        agent_id = self.next_agent_id
+        self.next_agent_id += 1
+        gender = random.choice(["male", "female"])
+        persona = generate_random_persona(agent_id, gender)
+        position = (int(station['center_x']), int(station['center_y']))
+        new_agent = Agent(
+            agent_id=agent_id,
+            initial_position=position,
+            llm_client=self.llm_client,
+            communication_radius=self.communication_radius,
+            half_space_size=self.half_space_size,
+            places=self.places,
+            num_agents=len(self.agents) + 1,
+            gender=gender,
+            memory_limit=self.memory_limit,
+            memory_size=self.memory_size,
+            message_history_limit=self.message_history_limit,
+            message_context_size=self.message_context_size,
+            persona=persona,
+            movement_base_cells=self.movement_base_cells,
+            movement_variance=self.movement_variance,
+        )
+        new_agent.update_state(self.places)
+        self.agents.append(new_agent)
+        logger.info(
+            f"Step {self.step} {self._current_time_str()}: SPAWN agent {agent_id} "
+            f"({persona.get('name', '?')}) at {station['name']}"
+        )
+        return new_agent
+
+    def _despawn_one_at_station(self) -> Optional[Agent]:
+        """Pick one agent currently inside any spawn-point place and remove them."""
+        spawn_names = {p['name'] for p in self._find_spawn_places()}
+        if not spawn_names:
+            return None
+        candidates = [a for a in self.agents if a.current_place in spawn_names]
+        if not candidates:
+            return None
+        victim = random.choice(candidates)
+        self.agents.remove(victim)
+        logger.info(
+            f"Step {self.step} {self._current_time_str()}: DESPAWN agent {victim.id} "
+            f"({victim.persona.get('name', '?')}) from {victim.current_place}"
+        )
+        return victim
+
+    def _handle_agent_spawning(self) -> None:
+        """Apply time-pattern spawn/despawn probabilities for this step."""
+        if not self.spawn_enabled:
+            return
+        pattern = self._get_time_pattern()
+        if pattern is None:
+            return
+        spawn_places = self._find_spawn_places()
+        if not spawn_places:
+            return
+
+        enter_p = float(pattern.get('enter_per_step', 0.0))
+        exit_p = float(pattern.get('exit_per_step', 0.0))
+
+        if enter_p > 0 and random.random() < enter_p and len(self.agents) < self.max_agents:
+            station = random.choice(spawn_places)
+            self._spawn_agent_at(station)
+
+        if exit_p > 0 and random.random() < exit_p:
+            self._despawn_one_at_station()
+
+    def _apply_time_context_to_agents(self) -> None:
+        """Push current time string and neighborhood mood into each agent before the LLM phase."""
+        time_str = self._current_time_str()
+        pattern = self._get_time_pattern()
+        mood = pattern.get('neighborhood_mood', '') if pattern else ''
+        default_goal = pattern.get('default_goal', '') if pattern else ''
+        for agent in self.agents:
+            agent.current_time_str = time_str
+            agent.current_context = mood
+            # Only override current_goal when pattern provides one; persona-level
+            # goals stay untouched otherwise.
+            if default_goal:
+                agent.current_goal = default_goal
+
     def _is_position_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
         return get_place_at_position(position, self.places) is not None
@@ -321,9 +455,11 @@ class Simulation:
                 "occupancy_rate": occupancy_rate,
             }
         else:
-            # Get overall status (all places combined)
+            # Get overall status (all places combined). Denominator uses the
+            # current roster so spawn/despawn doesn't break the ratio.
             agents_in_place = len(self.get_agents_in_place())
-            occupancy_rate = agents_in_place / self.num_agents
+            total_agents = max(1, len(self.agents))
+            occupancy_rate = agents_in_place / total_agents
             
             # Get per-place status (optimized: calculate directly instead of recursive calls)
             place_statuses = {}
@@ -380,6 +516,12 @@ class Simulation:
         4. Agents move to new positions
         """
         self.step += 1
+        # Advance wall-clock and (optionally) spawn/despawn agents at stations
+        # before any agent reasoning occurs, so the new arrivals see the same
+        # step the rest of the population sees.
+        self._advance_time()
+        self._handle_agent_spawning()
+        self._apply_time_context_to_agents()
 
         # Fire activation check (multiple fires)
         active_names = {f['name'] for f in self.fire_states}
@@ -567,7 +709,7 @@ class Simulation:
         overall_status = self.get_place_status()
         self.stats['place_occupancy'].append(overall_status['occupancy_rate'])
         self.stats['agents_in_place'].append(agents_in_place)
-        self.stats['agents_outside_place'].append(self.num_agents - agents_in_place)
+        self.stats['agents_outside_place'].append(len(self.agents) - agents_in_place)
         
         # Record per-place statistics
         for place in self.places:
