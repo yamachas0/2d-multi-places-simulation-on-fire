@@ -1,9 +1,12 @@
-# Simulation Configuration — station-front urban district (150x150, ~5m per cell)
-
+# Stage A precheck: 10 agents x 10 steps with ALL six features enabled.
+# Purpose: catch integration bugs before the full 30x60 Stage A run.
+# Mirrors config.yaml exactly except for scale, output paths, and fire
+# (fire at step 40 won't activate in a 10-step run — we keep it disabled
+# explicitly so the precheck focuses on day-mode behavior).
 simulation:
-  duration: 60              # 60 steps = 1 hour of wall-clock time
-  half_space_size: 75       # 150x150 grid, ~750m x 750m
-  half_place_size: 5        # default for legacy square places
+  duration: 10
+  half_space_size: 75
+  half_place_size: 5
   time_scale:
     step_duration_minutes: 1
     start_time: "08:00"
@@ -18,27 +21,17 @@ simulation:
         exit_per_step: 0.08
         neighborhood_mood: "ラッシュが落ち着き、街に人が残り始める時間帯"
         default_goal: "朝のひと仕事・散歩・買い物"
-      - hours: [12, 13]
-        enter_per_step: 0.08
-        exit_per_step: 0.08
-        neighborhood_mood: "昼休みで駅前の人通りが増えている"
-        default_goal: "昼休み・ランチ"
-      - hours: [17, 18, 19]
-        enter_per_step: 0.10
-        exit_per_step: 0.20
-        neighborhood_mood: "帰宅ラッシュで駅に人が集まる"
-        default_goal: "帰宅途中・一杯寄り道"
 
 agents:
-  num_agents: 30
-  max_agents: 40
+  num_agents: 10
+  max_agents: 15
   communication_radius: 10
   memory_limit: 20
   memory_size: 5
   message_history_limit: 10
   message_context_size: 3
   skip_probability: 0.2
-  parallel_workers: 3
+  parallel_workers: 10
   movement_speed:
     base_cells_per_step: 8
     variance: 2
@@ -66,9 +59,6 @@ agents:
       background: "毎日このあたりを散歩している常連"
       speech_style: "のんびりした話し方。昔話を交えることが多い"
 
-# Place layout: station at the north edge, plaza in front, mixed venues spread
-# across the district. Rectangular places use half_size_x / half_size_y; square
-# places keep the legacy `half_size` shorthand.
 places:
   - name: "central_station"
     type: "station"
@@ -118,20 +108,14 @@ llm:
   temperature: 0.2
   max_tokens: 600
 
-fires:
-  - name: "fire_1"
-    start_step: 40
-    intensity: 0.8
-    radius: 25
-    center_x: 20
-    center_y: -45
+fires: []
 
 visualization:
   save_frames: true
   frame_interval: 1
-  output_dir: "output"
-  focus_agent_id: 1          # 鈴木美咲を主人公として追跡
+  output_dir: "output_stage_a_precheck"
+  focus_agent_id: 1
 
 logging:
   level: "INFO"
-  log_file: "simulation.log"
+  log_file: "simulation_stage_a_precheck.log"
