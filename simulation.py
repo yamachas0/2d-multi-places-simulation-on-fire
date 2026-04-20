@@ -305,25 +305,29 @@ class Simulation:
 
     def _log_message(
         self,
-        from_agent_id: int,
-        to_agent_id: int,
+        from_agent: Agent,
+        to_agent: Agent,
         message: str,
         reasoning: str = ""
     ) -> None:
-        """Log a message to messages.jsonl file"""
+        """Log a message to messages.jsonl file (feature 4)."""
         if not self.output_dir:
             return
 
-        # Ensure output directory exists
         os.makedirs(self.output_dir, exist_ok=True)
 
         messages_file = os.path.join(self.output_dir, "messages.jsonl")
+        relationship = round(from_agent.get_relationship(to_agent.id), 2)
         record = {
             "step": self.step,
-            "from": from_agent_id,
-            "to": to_agent_id,
+            "time": self._current_time_str(),
+            "from": from_agent.id,
+            "from_name": from_agent.persona.get('name', f"Agent {from_agent.id}"),
+            "to": to_agent.id,
+            "to_name": to_agent.persona.get('name', f"Agent {to_agent.id}"),
+            "relationship": relationship,
             "message": message,
-            "reasoning": reasoning
+            "reasoning": reasoning,
         }
 
         with open(messages_file, 'a', encoding='utf-8') as f:
@@ -358,51 +362,132 @@ class Simulation:
             random.randint(-self.half_space_size, self.half_space_size)
         )
     
-    def _generate_initial_positions(self, avoid_places: bool = True) -> List[Tuple[int, int]]:
-        """Generate initial positions for agents"""
-        positions: List[Tuple[int, int]] = []
+    def _generate_initial_positions(
+        self,
+        avoid_places: bool = True,
+        personas_by_id: Optional[Dict[int, Dict]] = None,
+    ) -> List[Tuple[int, int]]:
+        """Generate initial positions for agents.
+
+        If a persona defines `initial_place: <name>`, the corresponding
+        agent is spawned at a random cell **inside** that place. All other
+        agents keep the legacy random-avoid-places behaviour.
+        """
+        personas_by_id = personas_by_id or {}
+        place_by_name = {p['name']: p for p in self.places}
+
+        positions: List[Optional[Tuple[int, int]]] = [None] * self.num_agents
         used_positions: Set[Tuple[int, int]] = set()
+
+        for i in range(self.num_agents):
+            persona = personas_by_id.get(i)
+            if not persona:
+                continue
+            place_name = persona.get('initial_place')
+            if not place_name:
+                continue
+            place = place_by_name.get(place_name)
+            if not place:
+                logger.warning(
+                    f"Agent {i}: initial_place '{place_name}' not found — "
+                    "falling back to random spawn"
+                )
+                continue
+            pos = self._sample_position_in_place(place, used_positions)
+            if pos is None:
+                logger.warning(
+                    f"Agent {i}: could not spawn inside '{place_name}' — "
+                    "falling back to random spawn"
+                )
+                continue
+            positions[i] = pos
+            used_positions.add(pos)
+
+        remaining = [i for i, p in enumerate(positions) if p is None]
         attempts = 0
-        
-        while len(positions) < self.num_agents and attempts < MAX_POSITION_ATTEMPTS:
+        while remaining and attempts < MAX_POSITION_ATTEMPTS:
             position = self._generate_random_position()
-            
-            # Skip if position is already used
             if position in used_positions:
                 attempts += 1
                 continue
-            
-            # Skip if position is in any place and we want to avoid it
             if avoid_places and self._is_position_in_place(position):
                 attempts += 1
                 continue
-            
-            positions.append(position)
+            positions[remaining.pop(0)] = position
             used_positions.add(position)
             attempts += 1
-        
-        # If we couldn't generate enough positions avoiding places, fill remaining
-        if len(positions) < self.num_agents:
+
+        if remaining:
             logger.warning(
-                f"Could only generate {len(positions)} unique positions avoiding places. "
-                "Using all available space."
+                f"Could only generate positions for "
+                f"{self.num_agents - len(remaining)} / {self.num_agents} agents "
+                "while avoiding places. Filling the rest anywhere."
             )
-            while len(positions) < self.num_agents:
+            while remaining:
                 position = self._generate_random_position()
-                if position not in used_positions:
-                    positions.append(position)
-                    used_positions.add(position)
-        
-        return positions
+                if position in used_positions:
+                    continue
+                positions[remaining.pop(0)] = position
+                used_positions.add(position)
+
+        return [p for p in positions if p is not None]
+
+    def _sample_position_in_place(
+        self,
+        place: Dict,
+        used_positions: Set[Tuple[int, int]],
+    ) -> Optional[Tuple[int, int]]:
+        """Return a random integer cell strictly inside the given place, or None."""
+        cx = int(place.get('center_x', 0))
+        cy = int(place.get('center_y', 0))
+        hx = int(place.get('half_size_x', place.get('half_size', self.half_place_size)))
+        hy = int(place.get('half_size_y', place.get('half_size', self.half_place_size)))
+        for _ in range(200):
+            x = random.randint(cx - hx, cx + hx)
+            y = random.randint(cy - hy, cy + hy)
+            pos = (x, y)
+            if pos not in used_positions:
+                return pos
+        return None
     
+    def _initialize_relationships(
+        self, personas_by_id: Dict[int, Dict]
+    ) -> Dict[int, Dict[int, float]]:
+        """Build per-agent relationship dicts from config (feature 2).
+
+        For each persona:
+        - start with its declared `initial_relationships`
+        - boost anyone listed under a `social_identities.member_ids` to at least 0.5
+          (same-group coworkers/family), so configs don't have to repeat
+          both the identity and the numeric relationship.
+        Agents without a persona entry (or without these fields) get an empty
+        dict → everyone defaults to the 0.05 stranger baseline.
+        """
+        out: Dict[int, Dict[int, float]] = {}
+        for pid, persona in personas_by_id.items():
+            rel: Dict[int, float] = {}
+            for k, v in (persona.get('initial_relationships') or {}).items():
+                rel[int(k)] = float(v)
+            for identity in (persona.get('social_identities') or []):
+                for member_id in (identity.get('member_ids') or []):
+                    mid = int(member_id)
+                    rel[mid] = max(0.5, rel.get(mid, 0.0))
+            rel.pop(pid, None)  # no self-relationship
+            out[pid] = rel
+        return out
+
     def initialize_agents(self):
         """Initialize agents at random positions, attaching a persona to each."""
         logger.info(f"Initializing {self.num_agents} agents...")
 
-        positions = self._generate_initial_positions(avoid_places=True)
-
         personas_config = self.config.get('agents', {}).get('personas', []) or []
         personas_by_id = {p['id']: p for p in personas_config if 'id' in p}
+
+        positions = self._generate_initial_positions(
+            avoid_places=True, personas_by_id=personas_by_id,
+        )
+
+        relationships_by_id = self._initialize_relationships(personas_by_id)
 
         for i in range(self.num_agents):
             if i in personas_by_id:
@@ -430,6 +515,7 @@ class Simulation:
                 persona=persona,
                 movement_base_cells=self.movement_base_cells,
                 movement_variance=self.movement_variance,
+                initial_relationships=relationships_by_id.get(i, {}),
             )
             agent.update_state()
             self.agents.append(agent)
@@ -516,6 +602,219 @@ class Simulation:
                 })
         return perceived if perceived else None
 
+    def _update_relationships(self) -> None:
+        """Feature 2 dynamic update: conversation +, proximity +, slow decay.
+
+        Parameters are intentionally small so the graph evolves over tens of
+        steps, not within a single conversation. Floor is 0.05 (stranger).
+        """
+        PER_CONVERSATION = 0.02
+        PER_PROXIMITY = 0.005
+        DECAY = 0.001
+        FLOOR = 0.05
+
+        # Build a name→agent lookup once for the symmetric bumps below.
+        agents_by_id = {a.id: a for a in self.agents}
+
+        # Bidirectional conversation bump: for every sender→receiver edge this
+        # step, both sides of the pair move closer. Using last_step_messages
+        # keeps this aligned with Phase 2 broadcast edges.
+        for from_id, to_id in self.last_step_messages:
+            for left_id, right_id in ((from_id, to_id), (to_id, from_id)):
+                left = agents_by_id.get(left_id)
+                if left is None or left_id == right_id:
+                    continue
+                current = left.relationships.get(right_id, FLOOR)
+                left.relationships[right_id] = min(1.0, current + PER_CONVERSATION)
+
+        for agent in self.agents:
+
+            # Anyone co-located in the same place — micro-bump.
+            if agent.in_place and agent.current_place:
+                for other in self.agents:
+                    if other.id == agent.id:
+                        continue
+                    if other.in_place and other.current_place == agent.current_place:
+                        current = agent.relationships.get(other.id, FLOOR)
+                        agent.relationships[other.id] = min(1.0, current + PER_PROXIMITY)
+
+            # Decay anyone already in the graph.
+            for other_id in list(agent.relationships.keys()):
+                decayed = agent.relationships[other_id] - DECAY
+                agent.relationships[other_id] = max(FLOOR, decayed)
+
+    def _update_internal_states(self) -> None:
+        """Advance each agent's internal_state (energy/hunger/social_fatigue)."""
+        for agent in self.agents:
+            nearby_count = len(agent.get_nearby_agents(self.agents))
+            place_type: Optional[str] = None
+            if agent.in_place and agent.current_place:
+                p = next((pl for pl in self.places if pl['name'] == agent.current_place), None)
+                if p:
+                    place_type = p.get('type')
+            agent.update_internal_state(nearby_count, place_type)
+
+    def _infer_talkativeness(self, agent: Agent) -> float:
+        """Fallback talkativeness from speech_style when persona lacks the field."""
+        t = agent.persona.get('talkativeness')
+        if t is not None:
+            return float(t)
+        style = str(agent.persona.get('speech_style', ''))
+        if '陽気' in style or 'カジュアル' in style:
+            return 0.4
+        if '人見知り' in style or '無愛想' in style:
+            return 0.1
+        if '丁寧' in style or '堅い' in style:
+            return 0.2
+        return 0.25
+
+    def _fires_near(self, agent: Agent, multiplier: float = 2.0) -> bool:
+        """True if any active fire is within `multiplier × radius` of the agent."""
+        for fire in self.fire_states:
+            if not fire.get('active'):
+                continue
+            dist = agent.distance_to(fire['position'])
+            if dist <= fire['radius'] * multiplier:
+                return True
+        return False
+
+    def should_speak(
+        self,
+        agent: Agent,
+        nearby_agents: List[Agent],
+        place_config: Optional[Dict],
+    ) -> Optional[int]:
+        """Decide (before any LLM call) whether the agent speaks this step.
+
+        Returns the target agent's id if yes, None if silent.
+        Formula: p_speak = talkativeness × social_likelihood × relationship × proximity_factor,
+        attenuated by social_fatigue, 3× boosted when a fire is within view.
+        Also emits one record per call to output/should_speak_log.jsonl so the
+        gate is auditable independent of whether it fired.
+        """
+        if not nearby_agents:
+            return None
+
+        talkativeness = self._infer_talkativeness(agent)
+
+        if place_config is not None:
+            social_likelihood = float(place_config.get('social_likelihood', 0.05) or 0.05)
+        else:
+            # Outside any place → open street; use a low default rather than 0
+            # so a chance greeting between friends still fires.
+            social_likelihood = 0.1
+
+        fatigue = float(agent.internal_state.get('social_fatigue', 0.0))
+        fatigue_factor = max(0.2, 1.0 - fatigue / 200.0)
+        effective_talk = talkativeness * fatigue_factor
+
+        emergency_boost = 3.0 if self._fires_near(agent, multiplier=2.0) else 1.0
+
+        candidates: List[Dict] = []
+        best_prob = 0.0
+        best_partner_id: Optional[int] = None
+        for other in nearby_agents:
+            relationship = agent.get_relationship(other.id)
+            dist = agent.distance_to(other.position)
+            if dist <= 2:
+                proximity_factor = 1.0
+            elif dist <= 4:
+                proximity_factor = 0.4
+            else:
+                proximity_factor = 0.1
+
+            p_raw = effective_talk * social_likelihood * relationship * proximity_factor
+            p = min(1.0, p_raw * emergency_boost)
+            candidates.append({
+                "partner_id": other.id,
+                "partner_name": other.persona.get('name', f"Agent {other.id}"),
+                "relationship": round(relationship, 4),
+                "talkativeness": round(effective_talk, 4),
+                "social_likelihood": round(social_likelihood, 4),
+                "proximity_factor": proximity_factor,
+                "emergency_boost": emergency_boost,
+                "p_speak": round(p, 6),
+            })
+            if p > best_prob:
+                best_prob = p
+                best_partner_id = other.id
+
+        selected_partner_id: Optional[int] = None
+        if best_partner_id is not None and random.random() < best_prob:
+            selected_partner_id = best_partner_id
+
+        self._log_should_speak(agent, nearby_agents, candidates, selected_partner_id)
+        return selected_partner_id
+
+    def _log_relationships_snapshot(self) -> None:
+        """Append one snapshot of every stored relationship edge to
+        output/relationships_timeline.jsonl (1 line = 1 step).
+        Edges are directional (`from_id → to_id`) because the relationships
+        dict is per-agent; downstream analysis can symmetrize if needed."""
+        if not self.output_dir:
+            return
+        os.makedirs(self.output_dir, exist_ok=True)
+
+        agents_by_id = {a.id: a for a in self.agents}
+        edges: List[Dict] = []
+        for agent in self.agents:
+            from_name = agent.persona.get('name', f"Agent {agent.id}")
+            for other_id, value in agent.relationships.items():
+                other = agents_by_id.get(other_id)
+                to_name = (
+                    other.persona.get('name', f"Agent {other_id}") if other is not None
+                    else f"Agent {other_id}"
+                )
+                edges.append({
+                    "from_id": agent.id,
+                    "from_name": from_name,
+                    "to_id": other_id,
+                    "to_name": to_name,
+                    "value": round(float(value), 4),
+                })
+
+        record = {
+            "step": self.step,
+            "time": self._current_time_str(),
+            "relationships": edges,
+        }
+        path = os.path.join(self.output_dir, "relationships_timeline.jsonl")
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+
+    def _log_should_speak(
+        self,
+        agent: Agent,
+        nearby_agents: List[Agent],
+        candidates: List[Dict],
+        selected_partner_id: Optional[int],
+    ) -> None:
+        """Append one should_speak invocation to output/should_speak_log.jsonl."""
+        if not self.output_dir:
+            return
+        os.makedirs(self.output_dir, exist_ok=True)
+        record = {
+            "step": self.step,
+            "time": self._current_time_str(),
+            "agent_id": agent.id,
+            "agent_name": agent.persona.get('name', f"Agent {agent.id}"),
+            "nearby_count": len(nearby_agents),
+            "candidates": candidates,
+            "decision": "speak" if selected_partner_id is not None else "skip",
+            "selected_partner_id": selected_partner_id,
+        }
+        path = os.path.join(self.output_dir, "should_speak_log.jsonl")
+        with open(path, 'a', encoding='utf-8') as f:
+            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+
+    def _get_agent_layer_jp(self, agent: Agent) -> str:
+        """Map behavior_layer string to Japanese label used in logs."""
+        return {
+            "transit": "通過中",
+            "dwelling": "滞在中",
+            "interacting": "交流中",
+        }.get(agent.behavior_layer, agent.behavior_layer or "?")
+
     def step_simulation(self):
         """Execute one simulation step
 
@@ -558,11 +857,19 @@ class Simulation:
         # Update agent states
         for agent in self.agents:
             agent.update_state(self.places)
+        # Feature 2: refresh internal_state before LLM phases so prompts see
+        # the current energy/hunger/social_fatigue values.
+        self._update_internal_states()
 
         # Phase 1: Collect message decisions from all agents (without position information).
         # LLM calls are executed in parallel across agents (when parallel_workers > 1).
+        # Feature 3: system-level should_speak gate runs BEFORE any LLM call,
+        # so most agents skip the message LLM entirely. We keep BOTH the full
+        # nearby list (for Phase 3 action + Phase 2 broadcast) and the
+        # targeted_nearby (single partner) that is passed to the message LLM.
         skipped_p1 = 0
-        phase1_tasks: List[Tuple[Agent, List[Agent], Optional[Dict], Optional[List[Dict]]]] = []
+        gated_p1 = 0
+        phase1_tasks: List[Tuple[Agent, List[Agent], List[Agent], Optional[Dict], Optional[List[Dict]]]] = []
         phase1_results: List[Optional[Tuple[Agent, Dict, List[Agent]]]] = [None] * len(self.agents)
         for idx, agent in enumerate(self.agents):
             nearby_agents = agent.get_nearby_agents(self.agents)
@@ -570,11 +877,32 @@ class Simulation:
                 phase1_results[idx] = (agent, {"message": "", "reasoning": "Skipped (random)"}, nearby_agents)
                 skipped_p1 += 1
                 continue
+
+            # Feature 3 gate: figure out target partner, or fall through to silence.
+            current_place_config: Optional[Dict] = None
+            if agent.in_place and agent.current_place:
+                current_place_config = next(
+                    (p for p in self.places if p['name'] == agent.current_place), None
+                )
+            partner_id = self.should_speak(agent, nearby_agents, current_place_config)
+
+            if partner_id is None:
+                phase1_results[idx] = (
+                    agent,
+                    {"message": "", "reasoning": "should_speak=False"},
+                    nearby_agents,
+                )
+                gated_p1 += 1
+                continue
+
+            partner = next((a for a in nearby_agents if a.id == partner_id), None)
+            targeted_nearby = [partner] if partner is not None else nearby_agents
+
             agent_place_status = None
             if agent.in_place and agent.current_place:
                 agent_place_status = self.get_place_status(agent.current_place)
             fire_info = self.get_fire_info_for_agent(agent)
-            phase1_tasks.append((agent, nearby_agents, agent_place_status, fire_info))
+            phase1_tasks.append((agent, targeted_nearby, nearby_agents, agent_place_status, fire_info))
             # Reserve slot — filled in after the executor returns.
             phase1_results[idx] = None
 
@@ -583,18 +911,20 @@ class Simulation:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = [
                     executor.submit(
-                        ag.decide_message, ps, nb, self.step, fire_info=fi
+                        ag.decide_message, ps, targ_nb, self.step, fire_info=fi
                     )
-                    for ag, nb, ps, fi in phase1_tasks
+                    for ag, targ_nb, _full_nb, ps, fi in phase1_tasks
                 ]
                 task_results = []
-                for (ag, nb, _, _), fut in zip(phase1_tasks, futures):
+                for (ag, _targ_nb, full_nb, _, _), fut in zip(phase1_tasks, futures):
                     try:
                         decision = fut.result()
                     except Exception as e:
                         logger.error(f"Agent {ag.id} Phase 1 parallel execution failed: {e}")
                         decision = {"message": "", "reasoning": "Parallel execution error"}
-                    task_results.append((ag, decision, nb))
+                    # Store FULL nearby for Phase 2/3; the targeted_nearby was
+                    # only used to shape the message-LLM prompt.
+                    task_results.append((ag, decision, full_nb))
 
             # Merge task_results back into phase1_results in original agent order.
             result_iter = iter(task_results)
@@ -622,10 +952,10 @@ class Simulation:
                         from_name=sender_name,
                     )
                     self.last_step_messages.append((agent.id, other_agent.id))
-                    # Log message to jsonl file
+                    # Log message to jsonl file (feature 4: persona names + time + relationship)
                     self._log_message(
-                        from_agent_id=agent.id,
-                        to_agent_id=other_agent.id,
+                        from_agent=agent,
+                        to_agent=other_agent,
                         message=message_content,
                         reasoning=message_decision.get('reasoning', '')
                     )
@@ -651,7 +981,10 @@ class Simulation:
                 action_decisions[idx] = (agent, action_decision, nearby_agents)
                 memory_reasoning_records[idx] = {
                     "step": self.step,
+                    "time": self._current_time_str(),
                     "id": agent.id,
+                    "name": agent.persona.get('name', f"Agent {agent.id}"),
+                    "layer": self._get_agent_layer_jp(agent),
                     "memory": "",
                     "reasoning": "Skipped (random)",
                 }
@@ -690,7 +1023,10 @@ class Simulation:
                     action_decisions[idx] = (agent, decision, nb)
                     memory_reasoning_records[idx] = {
                         "step": self.step,
+                        "time": self._current_time_str(),
                         "id": agent.id,
+                        "name": agent.persona.get('name', f"Agent {agent.id}"),
+                        "layer": self._get_agent_layer_jp(agent),
                         "memory": decision.get('memory', ''),
                         "reasoning": decision.get('reasoning', ''),
                     }
@@ -715,7 +1051,13 @@ class Simulation:
         # Update states after movement
         for agent in self.agents:
             agent.update_state(self.places)
-        
+
+        # Feature 2: evolve the relationship graph once per step, after all
+        # messages for this step have been delivered (last_step_messages is
+        # populated in Phase 2).
+        self._update_relationships()
+        self._log_relationships_snapshot()
+
         # Record statistics
         agents_in_place = len(self.get_agents_in_place())
         overall_status = self.get_place_status()

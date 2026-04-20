@@ -46,3 +46,9 @@ _inspect_*.py
 _inspect_*.txt
 compare_samples.txt
 fire_aware_samples.txt
+
+# Ad-hoc smoke run artifacts (configs + outputs). `_validation_smoke.yaml` is
+# intentionally NOT matched (different prefix) so the validation recipe stays
+# version-controlled.
+_cmp_*
+_validation_out/

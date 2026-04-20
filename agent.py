@@ -24,6 +24,21 @@ BEHAVIOR_LAYERS = ("transit", "dwelling", "interacting")
 # re-consulting the LLM. 1 = always call LLM (no caching).
 TRANSIT_LLM_INTERVAL = 5
 
+# Feature 2: semantic labels for the 0.0-1.0 relationship scale. These are
+# fed into prompts so the LLM can infer how formal/intimate a message should
+# be. Five buckets match the config-side documentation.
+def relationship_label(level: float) -> str:
+    if level < 0.1:
+        return "stranger"
+    if level < 0.3:
+        return "face familiar"
+    if level < 0.6:
+        return "acquaintance"
+    if level < 0.9:
+        return "friend/colleague"
+    return "close family/friend"
+
+
 # Direction mappings (4 cardinal directions only)
 # Coordinate system: X increases from left to right, Y increases from bottom to top
 DIRECTION_MAP = {
@@ -83,6 +98,7 @@ class Agent:
         persona: Optional[Dict] = None,
         movement_base_cells: int = 1,
         movement_variance: int = 0,
+        initial_relationships: Optional[Dict[int, float]] = None,
     ):
         self.id = agent_id
         self.position = initial_position
@@ -137,6 +153,20 @@ class Agent:
         self.current_time_str: str = ""
         self.current_context: str = ""
         self.current_goal: str = ""
+
+        # Feature 2: relationship graph, internal state, social identities.
+        # Initial state follows the "healthy commuter" baseline. Simulation
+        # refreshes these each step before the LLM phases.
+        self.internal_state: Dict[str, float] = {
+            "energy": 80.0,
+            "hunger": 20.0,
+            "social_fatigue": 0.0,
+            "mood": 0.0,
+        }
+        # Relationships are keyed by the other agent's id. 0.05 is the implicit
+        # baseline for any id not present in the dict (first-meeting level).
+        self.relationships: Dict[int, float] = dict(initial_relationships) if initial_relationships else {}
+        self.social_identities: List[Dict] = list(self.persona.get('social_identities', []) or [])
 
     def is_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
@@ -229,14 +259,16 @@ class Agent:
             else:
                 status = "is outside the places"
 
+            rel_level = self.get_relationship(agent.id)
+            rel_tag = f"{relationship_label(rel_level)} ({rel_level:.2f})"
             if include_position:
                 direction = self._position_to_rough_direction(agent.position)
                 nearby_info.append(
-                    f"{name} ({age}, {agent.gender}, {occupation}) {status}, roughly {direction}"
+                    f"{name} ({age}, {agent.gender}, {occupation}) — {rel_tag} — {status}, roughly {direction}"
                 )
             else:
                 nearby_info.append(
-                    f"{name} ({age}, {agent.gender}, {occupation}) {status}"
+                    f"{name} ({age}, {agent.gender}, {occupation}) — {rel_tag} — {status}"
                 )
         return "\n".join(nearby_info)
     
@@ -352,6 +384,73 @@ class Agent:
             )
         return "\n".join(lines)
 
+    def _build_persona_section(self) -> str:
+        """WHO YOU ARE block — persona name/age/occupation/background/speech + biases + goal.
+
+        Kept in user_prompt (not system_prompt) so the per-agent variation
+        doesn't break prompt-cache boundaries.
+        """
+        p = self.persona
+        name = p.get('name', f"Person {self.id}")
+        age = p.get('age', '?')
+        gender = p.get('gender', self.gender)
+        occupation = p.get('occupation', '?')
+        background = p.get('background', '')
+        speech = p.get('speech_style', '')
+        goal = p.get('current_goal', '') or self.current_goal
+        biases = p.get('cognitive_biases', []) or []
+
+        lines = [
+            "=== WHO YOU ARE ===",
+            f"Name: {name}",
+            f"Age: {age}, Gender: {gender}, Occupation: {occupation}",
+        ]
+        if background:
+            lines.append(f"Background: {background}")
+        if speech:
+            lines.append(f"Speech style: {speech}")
+        if goal:
+            lines.append(f"Current goal: {goal}")
+        if biases:
+            lines.append("Cognitive tendencies:")
+            for b in biases:
+                lines.append(f"  - {b}")
+        lines.append(
+            "Act according to this identity. Other people around you know you by name, not by ID."
+        )
+        return "\n".join(lines) + "\n"
+
+    def _build_internal_state_section(self) -> str:
+        s = self.internal_state
+        return (
+            "=== YOUR INTERNAL STATE ===\n"
+            f"Energy: {int(s.get('energy', 0))}/100, "
+            f"Hunger: {int(s.get('hunger', 0))}/100, "
+            f"Social fatigue: {int(s.get('social_fatigue', 0))}/100\n"
+        )
+
+    def _build_group_identities_section(self) -> str:
+        """ACTIVE GROUP IDENTITIES — list high-salience groups only.
+
+        Salience threshold 0.4 so trivial group memberships don't clutter.
+        """
+        if not self.social_identities:
+            return ""
+        active = [
+            g for g in self.social_identities
+            if float(g.get('base_salience', 0.0) or 0.0) >= 0.4
+        ]
+        if not active:
+            return ""
+        lines = ["=== ACTIVE GROUP IDENTITIES ==="]
+        for g in active:
+            group = g.get('group_name', '?')
+            sal = float(g.get('base_salience', 0.0) or 0.0)
+            norms = g.get('norms', '')
+            extra = f": {norms}" if norms else ""
+            lines.append(f"{group} (salience: {sal:.1f}){extra}")
+        return "\n".join(lines) + "\n"
+
     def _build_time_context_section(self) -> str:
         """Compose a TIME & CONTEXT block for the user prompt (feature 5).
 
@@ -419,6 +518,24 @@ You will receive strictly quantitative data: coordinates, distances, occupancy c
 - Keep messages human and relevant. Share observations about the situation, reactions to messages you received, or intentions about what you are planning to do. Avoid mechanical content such as repeating your ID, enumerating coordinates, or issuing logistics-style orders.
 - If you have nothing worth saying this step, return an empty string "" for "message". Silence is a valid choice.
 - Respect a soft limit of roughly 200 words per message. Shorter is usually better.
+
+=== CONVERSATION PRINCIPLES (IMPORTANT) ===
+In Japanese urban settings, conversations between strangers are RARE:
+- Strangers do NOT initiate deep conversations at stations or plazas.
+- Initial conversations are BRIEF and PRACTICAL (directions, weather, brief greetings).
+- Emotional or philosophical conversations happen only between acquaintances or closer.
+- Silence and non-verbal acknowledgment are the norm in public spaces.
+
+The relationship label shown next to each nearby person determines your tone:
+- stranger (0.0-0.1) → brief greeting or practical question only (or say nothing)
+- face familiar (0.1-0.3) → light acknowledgment, weather, small pleasantries
+- acquaintance (0.3-0.6) → casual small talk, light opinions
+- friend/colleague (0.6-0.9) → personal topics, genuine opinions
+- close family/friend (0.9-1.0) → deep topics, private matters
+
+Emergency override: if a fire or disaster is nearby, warning strangers is natural and appropriate regardless of relationship level.
+
+When in doubt, shorter is better. Silence is often more natural than speech.
 
 === RESPONSE FORMAT (日本語で回答すること) ===
 Respond with exactly one JSON object and nothing else. Do not include any prose, markdown fences, explanations, or blank lines before or after the JSON block. The JSON must be valid and parseable.
@@ -619,22 +736,9 @@ never announce 'I'm at (-9, 13)' in a conversation.
 """
 
         persona_name = self.persona.get('name', f"Person {self.id}")
-        persona_age = self.persona.get('age', '?')
-        persona_gender = self.persona.get('gender', self.gender)
-        persona_occupation = self.persona.get('occupation', '?')
-        persona_background = self.persona.get('background', '')
-        persona_speech_style = self.persona.get('speech_style', '')
-
-        persona_section = (
-            f"=== WHO YOU ARE ===\n"
-            f"Name: {persona_name}\n"
-            f"Age: {persona_age}\n"
-            f"Gender: {persona_gender}\n"
-            f"Occupation: {persona_occupation}\n"
-            f"Background: {persona_background}\n"
-            f"Speech style: {persona_speech_style}\n\n"
-            f"Speak and act according to this identity. Other people around you know you by name, not by ID.\n\n"
-        )
+        persona_section = self._build_persona_section()
+        internal_state_section = self._build_internal_state_section()
+        group_identities_section = self._build_group_identities_section()
 
         nearby_text = self._build_nearby_agents_context(nearby_agents, include_position=False)
         memory_text = self._build_memory_context()
@@ -664,14 +768,14 @@ never announce 'I'm at (-9, 13)' in a conversation.
         fire_section = self._build_fire_section(fire_info)
         time_section = self._build_time_context_section()
 
-        user_prompt = f"""{persona_section}You are {persona_name} in this 2D world.
-
-=== YOUR CURRENT STATE ===
+        user_prompt = f"""{persona_section}
+{internal_state_section}
+{group_identities_section}{time_section}=== YOUR CURRENT STATE ===
 In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 {place_section_text}
 {fire_section}
-{time_section}=== NEARBY AGENTS (you can communicate with these people) ===
+=== NEARBY PEOPLE (you can communicate with these people) ===
 {nearby_text}
 
 === PREVIOUS MEMORY ===
@@ -941,22 +1045,9 @@ them in memory and reasoning.
 """
 
         persona_name = self.persona.get('name', f"Person {self.id}")
-        persona_age = self.persona.get('age', '?')
-        persona_gender = self.persona.get('gender', self.gender)
-        persona_occupation = self.persona.get('occupation', '?')
-        persona_background = self.persona.get('background', '')
-        persona_speech_style = self.persona.get('speech_style', '')
-
-        persona_section = (
-            f"=== WHO YOU ARE ===\n"
-            f"Name: {persona_name}\n"
-            f"Age: {persona_age}\n"
-            f"Gender: {persona_gender}\n"
-            f"Occupation: {persona_occupation}\n"
-            f"Background: {persona_background}\n"
-            f"Speech style: {persona_speech_style}\n\n"
-            f"Think and act according to this identity. Other people around you know you by name, not by ID.\n\n"
-        )
+        persona_section = self._build_persona_section()
+        internal_state_section = self._build_internal_state_section()
+        group_identities_section = self._build_group_identities_section()
 
         nearby_text = self._build_nearby_agents_context(nearby_agents)
         nearby_places_text = self._build_nearby_places_context()
@@ -991,19 +1082,19 @@ them in memory and reasoning.
         fire_section = self._build_fire_section(fire_info)
         time_section = self._build_time_context_section()
 
-        user_prompt = f"""{persona_section}You are {persona_name} in this 2D world.
-
-=== YOUR CURRENT STATE ===
+        user_prompt = f"""{persona_section}
+{internal_state_section}
+{group_identities_section}{time_section}=== YOUR CURRENT STATE ===
 Position: ({self.position[0]}, {self.position[1]})
 In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 Behavior layer: {self.behavior_layer} (transit = walking through the district, dwelling = spending time in a place, interacting = with people around you)
 {place_section_text}
 {fire_section}
-{time_section}=== NEARBY PLACES ===
+=== NEARBY PLACES ===
 {nearby_places_text}
 
-=== NEARBY AGENTS ===
+=== NEARBY PEOPLE ===
 {nearby_text}
 
 === PREVIOUS MEMORY ===
@@ -1407,6 +1498,34 @@ Step: {step}
             self.total_moves += 1
         return self.position
     
+    def get_relationship(self, other_id: int) -> float:
+        """Return relationship level with `other_id` (default 0.05 = stranger)."""
+        return float(self.relationships.get(other_id, 0.05))
+
+    def update_internal_state(self, num_nearby: int, place_type: Optional[str]) -> None:
+        """Advance internal_state by one step (feature 2).
+
+        Energy drains by 1/step, recovers in relaxing places (cafe/park/plaza/library).
+        Hunger increases by 1/step, drops in eating/drinking places.
+        Social fatigue rises in crowds (3+ nearby), decays when alone.
+        """
+        energy = float(self.internal_state.get("energy", 80.0)) - 1.0
+        if place_type in ("cafe", "park", "plaza", "library", "office_lobby"):
+            energy += 2.0
+        self.internal_state["energy"] = max(0.0, min(100.0, energy))
+
+        hunger = float(self.internal_state.get("hunger", 20.0)) + 1.0
+        if place_type in ("cafe", "restaurant", "bar"):
+            hunger -= 3.0
+        self.internal_state["hunger"] = max(0.0, min(100.0, hunger))
+
+        fatigue = float(self.internal_state.get("social_fatigue", 0.0))
+        if num_nearby >= 3:
+            fatigue += 2.0
+        elif num_nearby == 0:
+            fatigue -= 1.0
+        self.internal_state["social_fatigue"] = max(0.0, min(100.0, fatigue))
+
     def receive_message(
         self,
         from_agent_id: int,

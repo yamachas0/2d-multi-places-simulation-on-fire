@@ -1,0 +1,209 @@
+# Validation smoke for features 2/3/4
+#
+# Objective: in one 20-step run, observe
+#   - relationship-based speaking (田中夫婦 / 山田-佐藤)
+#   - stranger suppression (鈴木-高橋, 対照群)
+#   - bidirectional relationship bumps
+#   - full should_speak gate telemetry (per-call)
+#
+# Placement: each pair starts inside the same place via `initial_place`.
+
+simulation:
+  duration: 20
+  half_space_size: 75
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: "08:00"
+    patterns:
+      - hours: [7, 8]
+        enter_per_step: 0.0   # freeze station-based spawn/despawn during validation
+        exit_per_step: 0.0
+        neighborhood_mood: "朝のラッシュ時間帯。通勤客が駅から街に吐き出されてくる"
+        default_goal: "通勤・通学中"
+
+agents:
+  num_agents: 6
+  max_agents: 6
+  communication_radius: 10
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 15
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+
+  personas:
+    # --- Pair A: 田中夫婦 (rel=0.95) — spawn inside north_cafe ---
+    - id: 0
+      name: "田中健一"
+      age: 42
+      gender: "male"
+      occupation: "IT会社員"
+      background: "最近この街に引っ越してきた。妻の美咲と暮らしている"
+      speech_style: "丁寧だが少し堅い。敬語多め"
+      current_goal: "妻とカフェで朝食を楽しむ"
+      talkativeness: 0.2
+      initial_place: "north_cafe"
+      cognitive_biases:
+        - "人見知りで初対面は警戒"
+      social_identities:
+        - group_name: "田中家"
+          scale: "micro"
+          base_salience: 0.9
+          norms: "家族を大切にする"
+          member_ids: [1]
+          in_group_bias: 0.95
+      initial_relationships:
+        1: 0.95
+
+    - id: 1
+      name: "田中美咲"
+      age: 38
+      gender: "female"
+      occupation: "フリーランスデザイナー"
+      background: "この街に長く住んでいる。夫の健一と暮らしている"
+      speech_style: "カジュアルでフレンドリー"
+      current_goal: "夫とカフェで朝食を楽しむ"
+      talkativeness: 0.5
+      initial_place: "north_cafe"
+      cognitive_biases:
+        - "社交的"
+      social_identities:
+        - group_name: "田中家"
+          scale: "micro"
+          base_salience: 0.9
+          norms: "家族を大切にする"
+          member_ids: [0]
+          in_group_bias: 0.95
+      initial_relationships:
+        0: 0.95
+
+    # --- Pair B: 山田-佐藤 同僚 (rel=0.65) — spawn inside south_bar ---
+    - id: 2
+      name: "山田太郎"
+      age: 35
+      gender: "male"
+      occupation: "商社マン"
+      background: "駅前のオフィスに勤めて10年。佐藤と親しい同僚"
+      speech_style: "明るく社交的"
+      current_goal: "同僚と軽く雑談"
+      talkativeness: 0.4
+      initial_place: "south_bar"
+      cognitive_biases:
+        - "仲間意識が強い"
+      social_identities:
+        - group_name: "株式会社テックビジョン"
+          scale: "meso"
+          base_salience: 0.7
+          norms: "同僚と協力"
+          member_ids: [3]
+          in_group_bias: 0.65
+      initial_relationships:
+        3: 0.65
+
+    - id: 3
+      name: "佐藤次郎"
+      age: 40
+      gender: "male"
+      occupation: "商社マン"
+      background: "山田と同じ会社の同僚。落ち着いた人"
+      speech_style: "丁寧な敬語"
+      current_goal: "同僚と軽く雑談"
+      talkativeness: 0.25
+      initial_place: "south_bar"
+      cognitive_biases:
+        - "物静か"
+      social_identities:
+        - group_name: "株式会社テックビジョン"
+          scale: "meso"
+          base_salience: 0.7
+          norms: "同僚と協力"
+          member_ids: [2]
+          in_group_bias: 0.65
+      initial_relationships:
+        2: 0.65
+
+    # --- Pair C (control): 鈴木-高橋 初対面 (rel=0.05 floor) — spawn inside station_plaza ---
+    - id: 4
+      name: "鈴木三郎"
+      age: 33
+      gender: "female"
+      occupation: "商社マン"
+      background: "通勤途中、今朝は駅前広場で一息ついている"
+      speech_style: "カジュアルで明るい"
+      current_goal: "一息ついて出勤する"
+      talkativeness: 0.5
+      initial_place: "station_plaza"
+      cognitive_biases:
+        - "好奇心旺盛"
+      # No social_identities and no initial_relationships →
+      # relationship to everyone defaults to the 0.05 stranger floor.
+
+    - id: 5
+      name: "高橋四郎"
+      age: 65
+      gender: "male"
+      occupation: "定年退職したサラリーマン"
+      background: "毎日このあたりを散歩している常連。特に仲の良い相手はいない"
+      speech_style: "のんびりした話し方"
+      current_goal: "駅前広場で朝の雰囲気を楽しむ"
+      talkativeness: 0.2
+      initial_place: "station_plaza"
+      cognitive_biases:
+        - "人は好きだが自分から深く話しかけはしない"
+      # No social_identities / initial_relationships.
+
+places:
+  - name: "central_station"
+    type: "station"
+    center_x: 0
+    center_y: 60
+    half_size_x: 15
+    half_size_y: 6
+    capacity: 40
+    social_likelihood: 0.05
+  - name: "station_plaza"
+    type: "plaza"
+    center_x: 0
+    center_y: 35
+    half_size_x: 10
+    half_size_y: 6
+    capacity: 25
+    social_likelihood: 0.2
+  - name: "north_cafe"
+    type: "cafe"
+    center_x: -30
+    center_y: 15
+    half_size_x: 6
+    half_size_y: 5
+    capacity: 15
+    social_likelihood: 0.35
+  - name: "south_bar"
+    type: "bar"
+    center_x: 40
+    center_y: -10
+    half_size: 5
+    capacity: 12
+    social_likelihood: 0.7
+
+llm:
+  provider: "google"
+  model: "gemini-3.1-flash-lite-preview"
+  base_url: "https://generativelanguage.googleapis.com"
+  temperature: 0.2
+  max_tokens: 400
+
+fires: []
+
+visualization:
+  save_frames: false
+  output_dir: "_validation_out"
+
+logging:
+  level: "INFO"
+  log_file: "_validation.log"
