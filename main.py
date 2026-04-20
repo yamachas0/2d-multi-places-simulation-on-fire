@@ -23,16 +23,16 @@ from reporter import build_report
 DEFAULT_FRAME_INTERVAL_INTERACTIVE = 10
 DEFAULT_FRAME_INTERVAL_CONFIG = 50
 VISUALIZATION_UPDATE_DELAY = 0.2
-OUTPUTS_ROOT = "outputs"
+SIMULATIONS_ROOT = "simulations"
 
 
-def _next_run_sequence(outputs_root: str) -> int:
-    """Scan outputs/ for existing `{date}_{NN}_...` dirs and return the next NN."""
-    if not os.path.isdir(outputs_root):
+def _next_run_sequence(simulations_root: str) -> int:
+    """Scan simulations/ for existing `{date}_{NN}_...` dirs and return the next NN."""
+    if not os.path.isdir(simulations_root):
         return 1
     max_seq = 0
     pat = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_(\d{2,})_")
-    for name in os.listdir(outputs_root):
+    for name in os.listdir(simulations_root):
         m = pat.match(name)
         if m:
             max_seq = max(max_seq, int(m.group(1)))
@@ -62,10 +62,10 @@ def resolve_run_dir(config_path: str, config: dict) -> Tuple[str, str]:
         return output_dir, os.path.basename(os.path.normpath(output_dir))
 
     dt_str = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
-    seq = _next_run_sequence(OUTPUTS_ROOT)
+    seq = _next_run_sequence(SIMULATIONS_ROOT)
     name = _derive_run_name(config_path, config)
     folder = f"{dt_str}_{seq:02d}_{name}"
-    output_dir = os.path.join(OUTPUTS_ROOT, folder)
+    output_dir = os.path.join(SIMULATIONS_ROOT, folder)
     return output_dir, folder
 
 
@@ -253,6 +253,11 @@ def main():
     if args.save_frames or config_save_frames:
         os.makedirs(output_dir, exist_ok=True)
         logger.info(f"Output directory: {output_dir}")
+        # Freeze the config used for this run alongside its outputs.
+        try:
+            shutil.copy2(args.config, os.path.join(output_dir, "config.yaml"))
+        except Exception as e:
+            logger.warning(f"Could not copy config into run dir: {e}")
     
     # Initialize simulation
     sim = Simulation(config_path=args.config, output_dir=output_dir, seed=args.seed)

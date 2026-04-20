@@ -1,4 +1,8 @@
-"""Retrofit existing output directories into the new `outputs/` structure.
+"""Retrofit existing output directories into the `simulations/` structure.
+
+NOTE: one-shot migration — the directories it used to move are gone.
+Kept in-tree as a historical record of how the `simulations/` layout
+was seeded.
 
 New layout per run:
   outputs/{YYYY-MM-DD_HHMM}_{NN}_{name}/
@@ -20,7 +24,7 @@ import shutil
 import datetime
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
-OUTPUTS = os.path.join(ROOT, "outputs")
+OUTPUTS = os.path.join(ROOT, "simulations")
 
 # (source_dir, new_name, validation_report_src_path-or-None)
 MAPPING = [
