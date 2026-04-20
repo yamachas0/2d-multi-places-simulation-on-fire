@@ -52,3 +52,5 @@ fire_aware_samples.txt
 # version-controlled.
 _cmp_*
 _validation_out/
+_phase1_*
+_urban_v2_out/
