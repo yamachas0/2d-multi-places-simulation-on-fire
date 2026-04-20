@@ -7,6 +7,12 @@ import time
 import logging
 from typing import List, Dict, Tuple, Optional
 
+# Japanese font: Windows-bundled Yu Gothic / Meiryo silences the DejaVu Sans
+# glyph warnings for Japanese place names. japanize-matplotlib 1.1.3 is broken
+# on Python 3.13 (uses distutils), so we rely on the system fonts directly.
+matplotlib.rcParams['font.family'] = ['Yu Gothic', 'Meiryo', 'sans-serif']
+matplotlib.rcParams['axes.unicode_minus'] = False
+
 # Set backend for compatibility (Mac, Linux, WSL)
 GUI_BACKENDS = ['TkAgg', 'Qt5Agg', 'MacOSX', 'Qt4Agg']
 NON_GUI_BACKENDS = ['agg', 'pdf', 'svg', 'ps']
