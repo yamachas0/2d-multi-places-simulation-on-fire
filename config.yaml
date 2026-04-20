@@ -38,7 +38,7 @@ agents:
   message_history_limit: 10
   message_context_size: 3
   skip_probability: 0.2
-  parallel_workers: 3
+  parallel_workers: 10
   movement_speed:
     base_cells_per_step: 8
     variance: 2
@@ -113,10 +113,11 @@ places:
     capacity: 40
 
 llm:
-  model: "claude-haiku-4-5-20251001"
-  base_url: "https://api.anthropic.com"
+  provider: "google"
+  model: "gemini-3.1-flash-lite-preview"
+  base_url: "https://generativelanguage.googleapis.com"
   temperature: 0.2
-  max_tokens: 600
+  max_tokens: 400
 
 fires:
   - name: "fire_1"
