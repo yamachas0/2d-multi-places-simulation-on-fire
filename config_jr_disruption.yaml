@@ -1,0 +1,783 @@
+# === Phase 2 検証用 — JR運休シナリオ (機能4.5) ===
+#
+# config_urban_v2.yaml をベースに、火災 (fires:) の代わりに
+# 機能4.5 の transit_disruption イベントを仕込んだ構成。
+# 同じ30人 × 60step、同じ都市構造・同じペルソナ・同じ seed で、
+# 火災なし・JR運休ありの動線変化を観測する目的の config。
+
+simulation:
+  duration: 60
+  half_space_size: 75
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: "08:00"
+    patterns:
+      - hours: [7, 8]
+        enter_per_step: 0.25
+        exit_per_step: 0.05
+        neighborhood_mood: "朝のラッシュ時間帯。通勤客が駅から街に吐き出されてくる"
+        default_goal: "通勤・通学中"
+      - hours: [9, 10, 11]
+        enter_per_step: 0.10
+        exit_per_step: 0.08
+        neighborhood_mood: "ラッシュが落ち着き、街に人が残り始める時間帯"
+        default_goal: "朝のひと仕事・散歩・買い物"
+
+agents:
+  num_agents: 30
+  max_agents: 40
+  communication_radius: 10
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 15
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+
+  personas:
+    # === 夫婦ペア A (rel 0.95) — スターバックス駅前店 で朝食 ===
+    - id: 0
+      name: "田中健一"
+      age: 42
+      gender: "male"
+      occupation: "IT会社員"
+      background: "最近この街に引っ越してきた。妻の美咲と暮らしている"
+      speech_style: "丁寧だが少し堅い。敬語多め"
+      current_goal: "妻とスターバックスで朝食をとってから出社"
+      talkativeness: 0.25
+      initial_place: "スターバックス駅前店"
+      cognitive_biases:
+        - "人見知りで初対面は警戒"
+      social_identities:
+        - group_name: "田中家"
+          scale: "micro"
+          base_salience: 0.9
+          norms: "家族を大切にする"
+          member_ids: [1]
+          in_group_bias: 0.95
+      initial_relationships:
+        1: 0.95
+
+    - id: 1
+      name: "田中美咲"
+      age: 38
+      gender: "female"
+      occupation: "フリーランスデザイナー"
+      background: "この街に長く住んでいる。夫の健一と暮らしている"
+      speech_style: "カジュアルでフレンドリー"
+      current_goal: "夫と朝食を楽しんでから仕事場へ"
+      talkativeness: 0.5
+      initial_place: "スターバックス駅前店"
+      social_identities:
+        - group_name: "田中家"
+          scale: "micro"
+          base_salience: 0.9
+          norms: "家族を大切にする"
+          member_ids: [0]
+          in_group_bias: 0.95
+      initial_relationships:
+        0: 0.95
+
+    # === 夫婦ペア B (rel 0.90) — タリーズコーヒー ===
+    - id: 2
+      name: "鈴木健太"
+      age: 50
+      gender: "male"
+      occupation: "銀行員"
+      background: "品川勤務20年のベテラン。妻と駅前で朝コーヒー"
+      speech_style: "落ち着いた丁寧語"
+      current_goal: "妻と朝コーヒーを飲んでから銀行へ出社"
+      talkativeness: 0.3
+      initial_place: "タリーズコーヒー"
+      social_identities:
+        - group_name: "鈴木家"
+          scale: "micro"
+          base_salience: 0.85
+          norms: "家族を大切にする"
+          member_ids: [3]
+          in_group_bias: 0.9
+      initial_relationships:
+        3: 0.90
+
+    - id: 3
+      name: "鈴木優子"
+      age: 47
+      gender: "female"
+      occupation: "看護師"
+      background: "健太の妻。同じ病院で勤続15年"
+      speech_style: "柔らかい敬語、でも家族には砕けた話し方"
+      current_goal: "夫と朝コーヒーを楽しみ、出勤する"
+      talkativeness: 0.4
+      initial_place: "タリーズコーヒー"
+      social_identities:
+        - group_name: "鈴木家"
+          scale: "micro"
+          base_salience: 0.85
+          norms: "家族を大切にする"
+          member_ids: [2]
+          in_group_bias: 0.9
+      initial_relationships:
+        2: 0.90
+
+    # === 夫婦ペア C (rel 0.95) — 駅前広場で待ち合わせ ===
+    - id: 4
+      name: "佐々木和夫"
+      age: 35
+      gender: "male"
+      occupation: "広告代理店勤務"
+      background: "新婚。妻のさくらと駅前広場で朝の待ち合わせ"
+      speech_style: "優しくフレンドリー"
+      current_goal: "さくらと合流して一緒に朝食"
+      talkativeness: 0.45
+      initial_place: "駅前広場"
+      social_identities:
+        - group_name: "佐々木家"
+          scale: "micro"
+          base_salience: 0.92
+          norms: "家族を大切にする"
+          member_ids: [5]
+          in_group_bias: 0.95
+      initial_relationships:
+        5: 0.95
+
+    - id: 5
+      name: "佐々木さくら"
+      age: 32
+      gender: "female"
+      occupation: "グラフィックデザイナー"
+      background: "新婚。夫の和夫と駅前で待ち合わせ"
+      speech_style: "明るく親しみやすい"
+      current_goal: "和夫と合流して朝食"
+      talkativeness: 0.5
+      initial_place: "駅前広場"
+      social_identities:
+        - group_name: "佐々木家"
+          scale: "micro"
+          base_salience: 0.92
+          norms: "家族を大切にする"
+          member_ids: [4]
+          in_group_bias: 0.95
+      initial_relationships:
+        4: 0.95
+
+    # === 同僚3人組 A (株式会社テックビジョン, rel 0.55-0.65) — 品川第一ビル ロビー ===
+    - id: 6
+      name: "山田太郎"
+      age: 35
+      gender: "male"
+      occupation: "商社マン"
+      background: "テックビジョンで10年。佐藤・鈴木三郎の同僚"
+      speech_style: "明るく社交的"
+      current_goal: "同僚と合流して朝コーヒー、それから始業"
+      talkativeness: 0.4
+      initial_place: "品川第一ビル ロビー"
+      social_identities:
+        - group_name: "株式会社テックビジョン"
+          scale: "meso"
+          base_salience: 0.7
+          norms: "同僚と協力"
+          member_ids: [7, 8]
+          in_group_bias: 0.65
+      initial_relationships:
+        7: 0.65
+        8: 0.55
+
+    - id: 7
+      name: "佐藤次郎"
+      age: 40
+      gender: "male"
+      occupation: "商社マン"
+      background: "山田・鈴木三郎と同じ会社。落ち着いた人"
+      speech_style: "丁寧な敬語"
+      current_goal: "同僚と朝の打ち合わせ"
+      talkativeness: 0.25
+      initial_place: "品川第一ビル ロビー"
+      social_identities:
+        - group_name: "株式会社テックビジョン"
+          scale: "meso"
+          base_salience: 0.7
+          norms: "同僚と協力"
+          member_ids: [6, 8]
+          in_group_bias: 0.65
+      initial_relationships:
+        6: 0.65
+        8: 0.60
+
+    - id: 8
+      name: "鈴木三郎"
+      age: 33
+      gender: "female"
+      occupation: "商社マン"
+      background: "山田・佐藤の後輩、若手でよく喋る"
+      speech_style: "カジュアルで明るい"
+      current_goal: "同僚と朝のひととき"
+      talkativeness: 0.5
+      initial_place: "品川第一ビル ロビー"
+      social_identities:
+        - group_name: "株式会社テックビジョン"
+          scale: "meso"
+          base_salience: 0.7
+          norms: "同僚と協力"
+          member_ids: [6, 7]
+          in_group_bias: 0.65
+      initial_relationships:
+        6: 0.55
+        7: 0.60
+
+    # === 同僚3人組 B (グローバル商事) — 品川第二ビル ロビー ===
+    - id: 9
+      name: "中村健"
+      age: 45
+      gender: "male"
+      occupation: "営業部長"
+      background: "グローバル商事の古株。若手を育てるのが好き"
+      speech_style: "落ち着いた上司口調"
+      current_goal: "部下と朝ミーティング"
+      talkativeness: 0.35
+      initial_place: "品川第二ビル ロビー"
+      social_identities:
+        - group_name: "グローバル商事"
+          scale: "meso"
+          base_salience: 0.75
+          norms: "チームで目標達成"
+          member_ids: [10, 11]
+          in_group_bias: 0.7
+      initial_relationships:
+        10: 0.6
+        11: 0.6
+
+    - id: 10
+      name: "小林由美"
+      age: 29
+      gender: "female"
+      occupation: "営業"
+      background: "中村の部下。3年目で中堅に差し掛かる"
+      speech_style: "明るく丁寧"
+      current_goal: "上司・同僚と朝のすり合わせ"
+      talkativeness: 0.45
+      initial_place: "品川第二ビル ロビー"
+      social_identities:
+        - group_name: "グローバル商事"
+          scale: "meso"
+          base_salience: 0.75
+          norms: "チームで目標達成"
+          member_ids: [9, 11]
+          in_group_bias: 0.7
+      initial_relationships:
+        9: 0.6
+        11: 0.55
+
+    - id: 11
+      name: "加藤直樹"
+      age: 27
+      gender: "male"
+      occupation: "営業"
+      background: "新卒2年目。中村・小林と同じチーム"
+      speech_style: "元気で、やや体育会系"
+      current_goal: "チームに追いつくべく頑張る"
+      talkativeness: 0.5
+      initial_place: "品川第二ビル ロビー"
+      social_identities:
+        - group_name: "グローバル商事"
+          scale: "meso"
+          base_salience: 0.75
+          norms: "チームで目標達成"
+          member_ids: [9, 10]
+          in_group_bias: 0.7
+      initial_relationships:
+        9: 0.6
+        10: 0.55
+
+    # === 大学生グループ (友人 3人, rel 0.65) — 中央公園 ===
+    - id: 12
+      name: "松田翼"
+      age: 21
+      gender: "male"
+      occupation: "大学生"
+      background: "品川キャンパスの3年生。朝は公園でランニング仲間と待ち合わせ"
+      speech_style: "カジュアルでタメ口"
+      current_goal: "友達と公園で朝ランニング"
+      talkativeness: 0.55
+      initial_place: "中央公園"
+      social_identities:
+        - group_name: "品川大ランニング部"
+          scale: "meso"
+          base_salience: 0.6
+          norms: "練習後に一緒にカフェへ"
+          member_ids: [13, 14]
+          in_group_bias: 0.7
+      initial_relationships:
+        13: 0.65
+        14: 0.65
+
+    - id: 13
+      name: "橋本亜紀"
+      age: 22
+      gender: "female"
+      occupation: "大学生"
+      background: "翼・拓海の同期。公園ランナー"
+      speech_style: "明るくて元気"
+      current_goal: "ラン後の朝食会議"
+      talkativeness: 0.6
+      initial_place: "中央公園"
+      social_identities:
+        - group_name: "品川大ランニング部"
+          scale: "meso"
+          base_salience: 0.6
+          norms: "練習後に一緒にカフェへ"
+          member_ids: [12, 14]
+          in_group_bias: 0.7
+      initial_relationships:
+        12: 0.65
+        14: 0.65
+
+    - id: 14
+      name: "井上拓海"
+      age: 21
+      gender: "male"
+      occupation: "大学生"
+      background: "翼・亜紀の同期。朝ラン後は授業"
+      speech_style: "軽快でジョーク好き"
+      current_goal: "友達と運動してから授業"
+      talkativeness: 0.55
+      initial_place: "中央公園"
+      social_identities:
+        - group_name: "品川大ランニング部"
+          scale: "meso"
+          base_salience: 0.6
+          norms: "練習後に一緒にカフェへ"
+          member_ids: [12, 13]
+          in_group_bias: 0.7
+      initial_relationships:
+        12: 0.65
+        13: 0.65
+
+    # === 兄弟ペア (rel 0.85) — 居酒屋 本町 (前夜から居残り) ===
+    - id: 15
+      name: "高橋隼人"
+      age: 30
+      gender: "male"
+      occupation: "フリーランスライター"
+      background: "昨夜から妹と飲み続け、朝まで残っている"
+      speech_style: "気だるい砕けた口調"
+      current_goal: "朝まで付き合わされて、そろそろ帰りたい"
+      talkativeness: 0.35
+      initial_place: "居酒屋 本町"
+      social_identities:
+        - group_name: "高橋兄妹"
+          scale: "micro"
+          base_salience: 0.8
+          norms: "困ったら頼り合う"
+          member_ids: [16]
+          in_group_bias: 0.85
+      initial_relationships:
+        16: 0.85
+
+    - id: 16
+      name: "高橋舞"
+      age: 26
+      gender: "female"
+      occupation: "看護師 (夜勤明け)"
+      background: "夜勤明けで兄と一杯やっている"
+      speech_style: "兄にはタメ口、疲れ気味"
+      current_goal: "朝ごはんを食べて家で寝る"
+      talkativeness: 0.4
+      initial_place: "居酒屋 本町"
+      social_identities:
+        - group_name: "高橋兄妹"
+          scale: "micro"
+          base_salience: 0.8
+          norms: "困ったら頼り合う"
+          member_ids: [15]
+          in_group_bias: 0.85
+      initial_relationships:
+        15: 0.85
+
+    # === ソロ通勤者 (相互面識なし) ===
+    - id: 17
+      name: "石川裕子"
+      age: 34
+      gender: "female"
+      occupation: "経理担当"
+      background: "毎朝 JR で通勤。誰とも関わらないのが日常"
+      speech_style: "ビジネスライクな敬語"
+      current_goal: "オフィスへ急ぐ"
+      talkativeness: 0.15
+      initial_place: "JR品川駅"
+      cognitive_biases:
+        - "朝は他人と関わりたくない"
+
+    - id: 18
+      name: "山本修"
+      age: 58
+      gender: "male"
+      occupation: "ベテラン営業マン"
+      background: "毎日 JR 利用の古参。新聞を読みながら歩く"
+      speech_style: "落ち着いた世代言葉"
+      current_goal: "いつものオフィスへ"
+      talkativeness: 0.2
+      initial_place: "JR品川駅"
+
+    - id: 19
+      name: "森田健一"
+      age: 41
+      gender: "male"
+      occupation: "システムエンジニア"
+      background: "地下鉄A駅から通勤。音楽を聴いて歩く"
+      speech_style: "簡潔"
+      current_goal: "静かに出勤"
+      talkativeness: 0.1
+      initial_place: "地下鉄A駅"
+
+    - id: 20
+      name: "田村美由紀"
+      age: 38
+      gender: "female"
+      occupation: "マーケター"
+      background: "地下鉄B駅を使う。朝のメールチェックが日課"
+      speech_style: "テキパキした口調"
+      current_goal: "オフィスでミーティング"
+      talkativeness: 0.2
+      initial_place: "地下鉄B駅"
+
+    - id: 21
+      name: "岩田伸吾"
+      age: 52
+      gender: "male"
+      occupation: "建築士"
+      background: "駅前プロムナードを歩いて出勤するのが習慣"
+      speech_style: "穏やかで観察的"
+      current_goal: "散策しながら事務所へ"
+      talkativeness: 0.2
+      initial_place: "駅前プロムナード"
+
+    # === 地域住民・高齢者・学生・観光客 (ソロ系) ===
+    - id: 22
+      name: "斎藤義男"
+      age: 72
+      gender: "male"
+      occupation: "定年退職"
+      background: "毎朝この辺りを散歩している常連"
+      speech_style: "のんびりした昔言葉"
+      current_goal: "いつもの散歩コースを回る"
+      talkativeness: 0.25
+      initial_place: "中央公園"
+      cognitive_biases:
+        - "顔見知りには話すが初対面には控えめ"
+
+    - id: 23
+      name: "中田千代"
+      age: 55
+      gender: "female"
+      occupation: "主婦"
+      background: "デパートに朝一番で買い物にきた"
+      speech_style: "気さくな下町言葉"
+      current_goal: "生鮮食品を買って帰る"
+      talkativeness: 0.35
+      initial_place: "駅前デパート"
+
+    - id: 24
+      name: "岡田誠"
+      age: 28
+      gender: "male"
+      occupation: "観光客 (大阪から)"
+      background: "出張の合間にこの街を観光"
+      speech_style: "関西弁"
+      current_goal: "朝のうちに街を歩いて回る"
+      talkativeness: 0.45
+      initial_place: "駅前広場"
+
+    - id: 25
+      name: "西村理香"
+      age: 24
+      gender: "female"
+      occupation: "観光客 (大学生)"
+      background: "友人と旅行中だがはぐれた。駅前で合流待ち"
+      speech_style: "明るく、困ったら人に聞くタイプ"
+      current_goal: "友達と合流する"
+      talkativeness: 0.5
+      initial_place: "駅前広場"
+
+    - id: 26
+      name: "上田学"
+      age: 45
+      gender: "male"
+      occupation: "公務員"
+      background: "市役所への出勤前、コンビニで新聞を買う"
+      speech_style: "丁寧で硬め"
+      current_goal: "コンビニで朝食を買って出勤"
+      talkativeness: 0.15
+      initial_place: "駅前コンビニ"
+
+    - id: 27
+      name: "伊藤祐子"
+      age: 36
+      gender: "female"
+      occupation: "デパート店員"
+      background: "駅前デパートの化粧品売場で働く。開店前準備中"
+      speech_style: "接客トーンの丁寧語"
+      current_goal: "開店準備を済ませる"
+      talkativeness: 0.3
+      initial_place: "駅前デパート"
+
+    - id: 28
+      name: "三木健"
+      age: 48
+      gender: "male"
+      occupation: "図書館司書"
+      background: "品川中央図書館の司書。朝の開館前にチェック"
+      speech_style: "静かで落ち着いた敬語"
+      current_goal: "開館準備"
+      talkativeness: 0.15
+      initial_place: "品川中央図書館"
+
+    - id: 29
+      name: "藤原美咲"
+      age: 25
+      gender: "female"
+      occupation: "レストランのホール担当"
+      background: "イタリアンレストランで開店準備中"
+      speech_style: "元気で明るい"
+      current_goal: "ランチ営業の仕込み"
+      talkativeness: 0.4
+      initial_place: "イタリアンレストラン"
+
+# === Layer 3 階層的 places: 道路 / 広場 / 施設 ===
+places:
+  # --- Layer 3: 駅 (spawn point) ---
+  - name: "JR品川駅"
+    type: "jr_station"
+    center_x: 0
+    center_y: -60
+    half_size_x: 18
+    half_size_y: 5
+    capacity: 50
+    social_likelihood: 0.05
+    spawn_role: "primary"
+
+  - name: "地下鉄A駅"
+    type: "subway_station"
+    center_x: -55
+    center_y: 0
+    half_size_x: 8
+    half_size_y: 5
+    capacity: 30
+    social_likelihood: 0.08
+    spawn_role: "secondary"
+
+  - name: "地下鉄B駅"
+    type: "subway_station"
+    center_x: 55
+    center_y: 0
+    half_size_x: 8
+    half_size_y: 5
+    capacity: 30
+    social_likelihood: 0.08
+    spawn_role: "secondary"
+
+  # --- Layer 2: 広場・公園 ---
+  - name: "駅前広場"
+    type: "plaza"
+    center_x: 0
+    center_y: -45
+    half_size_x: 10
+    half_size_y: 5
+    capacity: 30
+    social_likelihood: 0.2
+
+  - name: "中央公園"
+    type: "park"
+    center_x: 25
+    center_y: 30
+    half_size_x: 12
+    half_size_y: 10
+    capacity: 40
+    social_likelihood: 0.3
+
+  # --- Layer 1: 道路ネットワーク ---
+  - name: "駅前大通り"
+    type: "wide_street"
+    center_x: 0
+    center_y: -35
+    half_size_x: 70
+    half_size_y: 3
+    capacity: 120
+    social_likelihood: 0.08
+    road_direction: "east_west"
+    lanes: 6
+
+  - name: "中央通り"
+    type: "wide_street"
+    center_x: 0
+    center_y: 10
+    half_size_x: 3
+    half_size_y: 45
+    capacity: 100
+    social_likelihood: 0.08
+    road_direction: "north_south"
+    lanes: 4
+
+  - name: "駅前プロムナード"
+    type: "pedestrian_street"
+    center_x: 0
+    center_y: -52
+    half_size_x: 3
+    half_size_y: 5
+    capacity: 40
+    social_likelihood: 0.2
+    road_direction: "north_south"
+    lanes: 0
+
+  - name: "北町路地"
+    type: "narrow_street"
+    center_x: -25
+    center_y: 40
+    half_size_x: 2
+    half_size_y: 15
+    capacity: 40
+    social_likelihood: 0.1
+    road_direction: "north_south"
+    lanes: 2
+
+  - name: "南町路地"
+    type: "narrow_street"
+    center_x: 35
+    center_y: -10
+    half_size_x: 2
+    half_size_y: 15
+    capacity: 40
+    social_likelihood: 0.1
+    road_direction: "north_south"
+    lanes: 2
+
+  # --- Layer 3: 施設 (飲食・商業・公共・オフィス) ---
+  - name: "スターバックス駅前店"
+    type: "cafe"
+    center_x: -20
+    center_y: -25
+    half_size_x: 5
+    half_size_y: 4
+    capacity: 15
+    social_likelihood: 0.4
+
+  - name: "タリーズコーヒー"
+    type: "cafe"
+    center_x: 20
+    center_y: -25
+    half_size_x: 5
+    half_size_y: 4
+    capacity: 15
+    social_likelihood: 0.4
+
+  - name: "駅前コンビニ"
+    type: "convenience_store"
+    center_x: 10
+    center_y: -22
+    half_size_x: 4
+    half_size_y: 3
+    capacity: 12
+    social_likelihood: 0.15
+
+  - name: "駅前デパート"
+    type: "department_store"
+    center_x: -35
+    center_y: -20
+    half_size_x: 8
+    half_size_y: 6
+    capacity: 40
+    social_likelihood: 0.2
+
+  - name: "居酒屋 本町"
+    type: "izakaya"
+    center_x: -50
+    center_y: -30
+    half_size_x: 5
+    half_size_y: 4
+    capacity: 15
+    social_likelihood: 0.7
+
+  - name: "イタリアンレストラン"
+    type: "restaurant"
+    center_x: 50
+    center_y: -30
+    half_size_x: 5
+    half_size_y: 4
+    capacity: 20
+    social_likelihood: 0.3
+
+  - name: "品川第一ビル ロビー"
+    type: "office_lobby"
+    center_x: 40
+    center_y: 45
+    half_size_x: 6
+    half_size_y: 4
+    capacity: 50
+    social_likelihood: 0.2
+
+  - name: "品川第二ビル ロビー"
+    type: "office_lobby"
+    center_x: -40
+    center_y: 45
+    half_size_x: 6
+    half_size_y: 4
+    capacity: 50
+    social_likelihood: 0.2
+
+  - name: "品川中央図書館"
+    type: "library"
+    center_x: 0
+    center_y: 60
+    half_size_x: 8
+    half_size_y: 5
+    capacity: 25
+    social_likelihood: 0.05
+
+llm:
+  provider: "google"
+  model: "gemini-3.1-flash-lite-preview"
+  base_url: "https://generativelanguage.googleapis.com"
+  temperature: 0.2
+  max_tokens: 400
+
+# Phase 2 用: 火災は無効。代わりに transit_disruption イベントを仕込む。
+fires: []
+
+events:
+  - name: "jr_shinagawa_outage"
+    type: "transit_disruption"
+    start_step: 30
+    end_step: 60
+    affected_place: "JR品川駅"
+    description: "JR品川駅 人身事故により山手線・京浜東北線が運転見合わせ。振替輸送は地下鉄A駅・B駅を案内中。"
+    effects:
+      # JR品川駅 からの新規 spawn を停止。
+      block_spawn_at: ["JR品川駅"]
+      # 代替として地下鉄A/B駅へスポーン加重。multiplier > 1 で
+      # random.choices の重みが増え、同時に effective_enter_p も
+      # sum(weights)/len(weights) 倍される設計 (_handle_agent_spawning 参照)。
+      boost_spawn_at:
+        - place: "地下鉄A駅"
+          multiplier: 2.0
+        - place: "地下鉄B駅"
+          multiplier: 2.0
+      # JR品川駅 から半径 25 以内の既存エージェントに直接認識を付与。
+      notify_agents_within_radius: 25
+    # 通勤系 identity の salience を +0.2 して「遅刻やばい」文脈を強める。
+    salience_boost_targets:
+      - "株式会社テックビジョン"
+      - "グローバル商事"
+
+visualization:
+  save_frames: true
+  frame_interval: 2
+  output_dir: "_jr_disruption_out"
+  focus_agent_id: 17            # 石川裕子 (JR通勤の典型、運休の影響を正面から受ける)
+
+logging:
+  level: "INFO"
+  log_file: "_jr_disruption.log"

@@ -167,6 +167,9 @@ class Agent:
         # baseline for any id not present in the dict (first-meeting level).
         self.relationships: Dict[int, float] = dict(initial_relationships) if initial_relationships else {}
         self.social_identities: List[Dict] = list(self.persona.get('social_identities', []) or [])
+        # Feature 4.5: events this agent has learned about (direct proximity or
+        # conversation keyword). Simulation fills this in each step.
+        self.known_events: set = set()
 
     def is_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
@@ -311,6 +314,33 @@ class Agent:
                 f"  Radius: {fi['radius']}\n"
                 f"  Your distance: {fi['agent_distance']}"
             )
+        return "\n".join(lines) + "\n"
+
+    def _build_events_section(self, events_info: Optional[List[Dict]]) -> str:
+        """Build CURRENT EVENTS section for the user prompt (feature 4.5).
+
+        Only emits events the simulation has already filtered for this agent
+        (i.e. events the agent is aware of). The list of possible reactions is
+        included so the LLM sees the option space but is NOT told which to pick.
+        """
+        if not events_info:
+            return ""
+        lines = ["\n=== CURRENT EVENTS ==="]
+        for ev in events_info:
+            if ev.get('description'):
+                lines.append(ev['description'])
+            if ev.get('affected_place'):
+                lines.append(
+                    f"Affected place: {ev['affected_place']}. "
+                    "You are aware of this disruption."
+                )
+        lines.append(
+            "\nConsider your options (no option is recommended):\n"
+            "- Walk to an alternative station (e.g. 地下鉄A駅 or 地下鉄B駅)\n"
+            "- Wait it out at a cafe/restaurant nearby\n"
+            "- Go home or to your destination on foot\n"
+            "- Stay with companions at the plaza"
+        )
         return "\n".join(lines) + "\n"
 
     def _is_truncated_response(self, raw_response: str) -> bool:
@@ -479,7 +509,8 @@ class Agent:
         place_status: Optional[Dict],
         nearby_agents: List['Agent'],
         step: int,
-        fire_info: Optional[List[Dict]] = None
+        fire_info: Optional[List[Dict]] = None,
+        events_info: Optional[List[Dict]] = None,
     ) -> Tuple[str, str]:
         """Create (system_prompt, user_prompt) tuple for LLM message decision.
 
@@ -534,6 +565,15 @@ The relationship label shown next to each nearby person determines your tone:
 - close family/friend (0.9-1.0) → deep topics, private matters
 
 Emergency override: if a fire or disaster is nearby, warning strangers is natural and appropriate regardless of relationship level.
+
+=== WHEN TRANSIT IS DISRUPTED ===
+If you learn that your usual train line is disrupted:
+- Consider the reliability and availability of alternative routes.
+- Think about your actual goal (commuting, returning home, meeting someone).
+- Factor in the time cost (walking to a subway vs waiting).
+- Some people adapt calmly, others seek alternatives quickly.
+- In Japan, people often accept delays stoically but efficiently seek alternatives.
+- You may discuss options with companions, but may also act independently.
 
 When in doubt, shorter is better. Silence is often more natural than speech.
 
@@ -766,6 +806,7 @@ never announce 'I'm at (-9, 13)' in a conversation.
             place_section_text = ""
 
         fire_section = self._build_fire_section(fire_info)
+        events_section = self._build_events_section(events_info)
         time_section = self._build_time_context_section()
 
         user_prompt = f"""{persona_section}
@@ -774,7 +815,7 @@ never announce 'I'm at (-9, 13)' in a conversation.
 In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 {place_section_text}
-{fire_section}
+{fire_section}{events_section}
 === NEARBY PEOPLE (you can communicate with these people) ===
 {nearby_text}
 
@@ -794,7 +835,8 @@ Step: {step}
         nearby_agents: List['Agent'],
         step: int,
         message_to_send: str = "",
-        fire_info: Optional[List[Dict]] = None
+        fire_info: Optional[List[Dict]] = None,
+        events_info: Optional[List[Dict]] = None,
     ) -> Tuple[str, str]:
         """Create (system_prompt, user_prompt) tuple for LLM action decision.
 
@@ -881,6 +923,9 @@ You are given the most recent messages broadcast to you by nearby agents. You do
 
 Fire events.
 The world can experience one or more fire events. When a fire is active and within relevant range, the user message will include a FIRE EVENT section listing each active fire with its name, position, intensity (a real number from 0.0 to 1.0), radius, and your current distance to the fire's center. Intensity and radius are raw numbers; there is no rule that tells you what they mean, and no instruction telling you to evacuate or to ignore the fire. As with everything else, interpretation is up to you.
+
+Transit disruption events.
+The world can also experience transit disruptions (for example, a train stoppage at a station). When one is active AND you are aware of it (either you are near the affected station, or you heard about it from another agent), the user message will include a CURRENT EVENTS section describing the disruption. Example options to consider (not prescriptions): walk to an alternative station, wait at a cafe/restaurant, go home or to your destination on foot, stay with companions at a plaza. Choose what fits your actual goal; nothing instructs you to pick any specific option.
 
 Step counter.
 The 'Step' value in the user message is a monotonically increasing integer indicating the current simulation step. It allows you to situate your memory entries in time. Your memory entries from prior steps are prefixed with the step number so you can reconstruct the sequence of events.
@@ -1080,6 +1125,7 @@ them in memory and reasoning.
             message_section = f"\n=== MESSAGE YOU DECIDED TO SEND ===\n{message_to_send}\n"
 
         fire_section = self._build_fire_section(fire_info)
+        events_section = self._build_events_section(events_info)
         time_section = self._build_time_context_section()
 
         user_prompt = f"""{persona_section}
@@ -1090,7 +1136,7 @@ In place: {"Yes" if self.in_place else "No"}
 {"Current place: " + self.current_place if self.in_place else ""}
 Behavior layer: {self.behavior_layer} (transit = walking through the district, dwelling = spending time in a place, interacting = with people around you)
 {place_section_text}
-{fire_section}
+{fire_section}{events_section}
 === NEARBY PLACES ===
 {nearby_places_text}
 
@@ -1236,11 +1282,12 @@ Step: {step}
         place_status: Optional[Dict],
         nearby_agents: List['Agent'],
         step: int,
-        fire_info: Optional[List[Dict]] = None
+        fire_info: Optional[List[Dict]] = None,
+        events_info: Optional[List[Dict]] = None,
     ) -> MessageDecision:
         """Use LLM to decide what message to send (without position information)"""
         system_prompt, user_prompt = self.create_message_prompts(
-            place_status, nearby_agents, step, fire_info=fire_info
+            place_status, nearby_agents, step, fire_info=fire_info, events_info=events_info
         )
 
         try:
@@ -1308,7 +1355,8 @@ Step: {step}
         nearby_agents: List['Agent'],
         step: int,
         message_to_send: str = "",
-        fire_info: Optional[List[Dict]] = None
+        fire_info: Optional[List[Dict]] = None,
+        events_info: Optional[List[Dict]] = None,
     ) -> ActionDecision:
         """Use LLM to decide next action (with position information and message content)"""
         # Classify the current situation. Transit steps may reuse the cached
@@ -1328,7 +1376,8 @@ Step: {step}
             self.transit_step_counter = 0
 
         system_prompt, user_prompt = self.create_decision_prompts(
-            place_status, nearby_agents, step, message_to_send, fire_info=fire_info
+            place_status, nearby_agents, step, message_to_send,
+            fire_info=fire_info, events_info=events_info
         )
 
         try:

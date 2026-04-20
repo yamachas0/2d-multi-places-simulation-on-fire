@@ -161,6 +161,49 @@ class Simulation:
             )
         self.fire_states: List[Dict] = []  # Active fires
 
+        # Generic events (feature 4.5). Currently supports type:transit_disruption
+        # (JR運休). Fires stay on the legacy `fires:` key; transit events live
+        # under `events:` so both can run in parallel without touching each other.
+        self.event_configs: List[Dict] = []
+        for i, ec in enumerate(self.config.get('events', []) or []):
+            if ec.get('type') != 'transit_disruption':
+                logger.warning(
+                    f"Event #{i} '{ec.get('name')}' has unsupported type "
+                    f"'{ec.get('type')}' — skipping."
+                )
+                continue
+            effects = ec.get('effects', {}) or {}
+            self.event_configs.append({
+                'name': ec.get('name', f'event_{i}'),
+                'type': 'transit_disruption',
+                'start_step': int(ec['start_step']),
+                'end_step': int(ec.get('end_step', 10**9)),
+                'affected_place': ec.get('affected_place'),
+                'description': ec.get('description', ''),
+                'block_spawn_at': list(effects.get('block_spawn_at', []) or []),
+                'boost_spawn_at': list(effects.get('boost_spawn_at', []) or []),
+                'notify_radius': float(effects.get('notify_agents_within_radius', 0) or 0),
+                'salience_boost_targets': list(ec.get('salience_boost_targets', []) or []),
+            })
+            logger.info(
+                f"Event '{self.event_configs[-1]['name']}' configured: "
+                f"type=transit_disruption, start={ec['start_step']}, "
+                f"end={ec.get('end_step','inf')}, affected={ec.get('affected_place')}"
+            )
+        # Active events (mirrors fire_states). Items have the same keys as
+        # event_configs plus 'active' bool and 'place_position' resolved from
+        # the affected_place.
+        self.event_states: List[Dict] = []
+
+        # Keywords that indicate transit disruption in a received message —
+        # used by the 2nd propagation path (conversation-based awareness).
+        self._transit_keywords = [
+            '運休', '止まって', '止まった', '電車', '事故', '山手線',
+            '京浜東北', '地下鉄', '歩いて', '振替', '運転見合わせ',
+        ]
+        # Extra log sink for event awareness snapshots.
+        self._log_locks['event_awareness'] = threading.Lock()
+
         # LLM parameters — factory selects provider (anthropic/openai/google)
         llm_config = self.config['llm']
         self.llm_client = create_llm_client(llm_config)
@@ -275,7 +318,9 @@ class Simulation:
         return victim
 
     def _handle_agent_spawning(self) -> None:
-        """Apply time-pattern spawn/despawn probabilities for this step."""
+        """Apply time-pattern spawn/despawn probabilities for this step.
+        Active transit-disruption events can block specific spawn places and
+        boost others via a per-place multiplier (feature 4.5)."""
         if not self.spawn_enabled:
             return
         pattern = self._get_time_pattern()
@@ -285,12 +330,32 @@ class Simulation:
         if not spawn_places:
             return
 
+        # Apply transit-event spawn effects.
+        blocked: set = set()
+        multipliers: Dict[str, float] = {}
+        for ev in self._active_transit_events():
+            for name in ev.get('block_spawn_at', []):
+                blocked.add(name)
+            for entry in ev.get('boost_spawn_at', []):
+                name = entry.get('place') if isinstance(entry, dict) else None
+                mult = float(entry.get('multiplier', 1.0)) if isinstance(entry, dict) else 1.0
+                if name:
+                    multipliers[name] = multipliers.get(name, 1.0) * mult
+
+        allowed_places = [p for p in spawn_places if p['name'] not in blocked]
+        if not allowed_places:
+            # Everything is blocked — skip entering but still allow exits.
+            allowed_places = []
+
         enter_p = float(pattern.get('enter_per_step', 0.0))
         exit_p = float(pattern.get('exit_per_step', 0.0))
 
-        if enter_p > 0 and random.random() < enter_p and len(self.agents) < self.max_agents:
-            station = random.choice(spawn_places)
-            self._spawn_agent_at(station)
+        if allowed_places and enter_p > 0 and len(self.agents) < self.max_agents:
+            weights = [multipliers.get(p['name'], 1.0) for p in allowed_places]
+            effective_enter_p = min(1.0, enter_p * (sum(weights) / len(weights)))
+            if random.random() < effective_enter_p:
+                station = random.choices(allowed_places, weights=weights, k=1)[0]
+                self._spawn_agent_at(station)
 
         if exit_p > 0 and random.random() < exit_p:
             self._despawn_one_at_station()
@@ -690,6 +755,153 @@ class Simulation:
                 return True
         return False
 
+    # ---- Feature 4.5: transit disruption events ------------------------------
+
+    def _place_center(self, place_name: str) -> Optional[Tuple[float, float]]:
+        """Return (x, y) center of a place by name, or None if not found."""
+        for p in self.places:
+            if p['name'] == place_name:
+                return (float(p.get('center_x', 0.0)), float(p.get('center_y', 0.0)))
+        return None
+
+    def _update_event_states(self) -> None:
+        """Activate events whose start_step has arrived, deactivate past end_step."""
+        active_names = {e['name'] for e in self.event_states if e.get('active')}
+        for ec in self.event_configs:
+            if ec['name'] in active_names:
+                continue
+            if not (ec['start_step'] <= self.step <= ec['end_step']):
+                continue
+            pos = self._place_center(ec['affected_place']) if ec['affected_place'] else None
+            if pos is None:
+                logger.warning(
+                    f"Event '{ec['name']}' affected_place '{ec['affected_place']}' "
+                    f"not found — event will still fire but without a position anchor."
+                )
+            state = dict(ec)
+            state['place_position'] = pos
+            state['active'] = True
+            self.event_states.append(state)
+            logger.info(
+                f"EVENT '{ec['name']}' activated at step {self.step} "
+                f"(type={ec['type']}, affected={ec['affected_place']}, pos={pos})"
+            )
+        for st in self.event_states:
+            if st.get('active') and self.step > st['end_step']:
+                st['active'] = False
+                logger.info(f"EVENT '{st['name']}' deactivated at step {self.step}")
+
+    def _active_transit_events(self) -> List[Dict]:
+        return [e for e in self.event_states
+                if e.get('active') and e.get('type') == 'transit_disruption']
+
+    def _transit_disruption_near(self, agent: Agent) -> bool:
+        """True if agent sits within the notify radius of any active transit event.
+        Used to extend the emergency_boost to transit disruptions."""
+        for ev in self._active_transit_events():
+            pos = ev.get('place_position')
+            if pos is None or ev.get('notify_radius', 0) <= 0:
+                continue
+            if agent.distance_to(pos) <= ev['notify_radius']:
+                return True
+        return False
+
+    def _propagate_direct_event_awareness(self) -> None:
+        """Path 1: agents inside notify_radius of an active event auto-learn it."""
+        events = self._active_transit_events()
+        if not events:
+            return
+        for ev in events:
+            pos = ev.get('place_position')
+            if pos is None or ev.get('notify_radius', 0) <= 0:
+                continue
+            for agent in self.agents:
+                if agent.distance_to(pos) <= ev['notify_radius']:
+                    if ev['name'] not in agent.known_events:
+                        agent.known_events.add(ev['name'])
+                        self._apply_salience_boost(agent, ev)
+
+    def _propagate_event_via_message(self, receiver: Agent, text: str) -> None:
+        """Path 2: a received message containing transit keywords marks the
+        receiver as aware of every currently-active transit event.
+
+        Deliberately coarse — we don't try to parse which event the message is
+        about. With one transit event per run (the hackathon scenario) this is
+        accurate enough and keeps the keyword list cheap.
+        """
+        if not text:
+            return
+        events = self._active_transit_events()
+        if not events:
+            return
+        if any(kw in text for kw in self._transit_keywords):
+            for ev in events:
+                if ev['name'] not in receiver.known_events:
+                    receiver.known_events.add(ev['name'])
+                    self._apply_salience_boost(receiver, ev)
+
+    def _apply_salience_boost(self, agent: Agent, event: Dict) -> None:
+        """Bump base_salience by +0.2 for identities listed in salience_boost_targets.
+        Bounded at 1.0. Idempotent (safe to call on repeat awareness)."""
+        targets = set(event.get('salience_boost_targets') or [])
+        if not targets or not agent.social_identities:
+            return
+        boosted_key = f"_salience_boosted::{event['name']}"
+        if getattr(agent, '_salience_marks', None) is None:
+            agent._salience_marks = set()
+        if boosted_key in agent._salience_marks:
+            return
+        for ident in agent.social_identities:
+            if ident.get('group_name') in targets:
+                ident['base_salience'] = min(
+                    1.0, float(ident.get('base_salience', 0.0)) + 0.2
+                )
+        agent._salience_marks.add(boosted_key)
+
+    def get_active_events_for_agent(self, agent: Agent) -> Optional[List[Dict]]:
+        """Return prompt-ready info for events the agent is aware of.
+        None if the agent has nothing to be told about (no events or not aware)."""
+        if not self.event_states:
+            return None
+        perceived = []
+        for ev in self.event_states:
+            if not ev.get('active'):
+                continue
+            if ev['name'] not in agent.known_events:
+                continue
+            perceived.append({
+                'name': ev['name'],
+                'type': ev['type'],
+                'affected_place': ev.get('affected_place'),
+                'description': ev.get('description', ''),
+            })
+        return perceived if perceived else None
+
+    def _log_event_awareness(self) -> None:
+        """Append one snapshot of per-agent known_events to
+        output/event_awareness_log.jsonl (1 line = 1 step). Only writes while
+        at least one event config exists to avoid noise on legacy fire runs."""
+        if not self.output_dir or not self.event_configs:
+            return
+        active_names = [e['name'] for e in self._active_transit_events()]
+        payload = {
+            'step': self.step,
+            'time': self._current_time_str(),
+            'active_events': active_names,
+            'agents': [
+                {
+                    'id': a.id,
+                    'name': a.persona.get('name', f'Agent {a.id}'),
+                    'known_events': sorted(a.known_events),
+                }
+                for a in self.agents
+            ],
+        }
+        path = os.path.join(self.output_dir, 'event_awareness_log.jsonl')
+        with self._log_locks['event_awareness']:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(payload, ensure_ascii=False) + '\n')
+
     def should_speak(
         self,
         agent: Agent,
@@ -720,7 +932,8 @@ class Simulation:
         fatigue_factor = max(0.2, 1.0 - fatigue / 200.0)
         effective_talk = talkativeness * fatigue_factor
 
-        emergency_boost = 3.0 if self._fires_near(agent, multiplier=2.0) else 1.0
+        in_emergency = self._fires_near(agent, multiplier=2.0) or self._transit_disruption_near(agent)
+        emergency_boost = 3.0 if in_emergency else 1.0
 
         candidates: List[Dict] = []
         best_prob = 0.0
@@ -868,6 +1081,14 @@ class Simulation:
                     f"{fc['intensity']}, radius {fc['radius']}"
                 )
 
+        # Transit-disruption event activation (feature 4.5). Same shape as the
+        # fire activation block so the two event families stay independent.
+        self._update_event_states()
+        # Propagate direct-proximity awareness right after events become active,
+        # but BEFORE the LLM phases, so prompts built this step see the
+        # refreshed known_events.
+        self._propagate_direct_event_awareness()
+
         # Update agent states
         for agent in self.agents:
             agent.update_state(self.places)
@@ -916,7 +1137,8 @@ class Simulation:
             if agent.in_place and agent.current_place:
                 agent_place_status = self.get_place_status(agent.current_place)
             fire_info = self.get_fire_info_for_agent(agent)
-            phase1_tasks.append((agent, targeted_nearby, nearby_agents, agent_place_status, fire_info))
+            events_info = self.get_active_events_for_agent(agent)
+            phase1_tasks.append((agent, targeted_nearby, nearby_agents, agent_place_status, fire_info, events_info))
             # Reserve slot — filled in after the executor returns.
             phase1_results[idx] = None
 
@@ -925,12 +1147,12 @@ class Simulation:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = [
                     executor.submit(
-                        ag.decide_message, ps, targ_nb, self.step, fire_info=fi
+                        ag.decide_message, ps, targ_nb, self.step, fire_info=fi, events_info=ei
                     )
-                    for ag, targ_nb, _full_nb, ps, fi in phase1_tasks
+                    for ag, targ_nb, _full_nb, ps, fi, ei in phase1_tasks
                 ]
                 task_results = []
-                for (ag, _targ_nb, full_nb, _, _), fut in zip(phase1_tasks, futures):
+                for (ag, _targ_nb, full_nb, _, _, _), fut in zip(phase1_tasks, futures):
                     try:
                         decision = fut.result()
                     except Exception as e:
@@ -965,6 +1187,8 @@ class Simulation:
                         step=self.step,
                         from_name=sender_name,
                     )
+                    # Feature 4.5 path 2: transit keyword → receiver learns the event.
+                    self._propagate_event_via_message(other_agent, message_content)
                     self.last_step_messages.append((agent.id, other_agent.id))
                     # Log message to jsonl file (feature 4: persona names + time + relationship)
                     self._log_message(
@@ -978,7 +1202,7 @@ class Simulation:
         # LLM calls are executed in parallel across agents (when parallel_workers > 1).
         action_decisions: List[Tuple[Agent, Dict, List[Agent]]] = [None] * len(message_decisions)
         memory_reasoning_records: List[Optional[Dict]] = [None] * len(message_decisions)
-        phase3_tasks: List[Tuple[int, Agent, List[Agent], Optional[Dict], str, Optional[List[Dict]]]] = []
+        phase3_tasks: List[Tuple[int, Agent, List[Agent], Optional[Dict], str, Optional[List[Dict]], Optional[List[Dict]]]] = []
         skipped_p3 = 0
 
         for idx, (agent, message_decision, nearby_agents) in enumerate(message_decisions):
@@ -1009,18 +1233,19 @@ class Simulation:
                 agent_place_status = self.get_place_status(agent.current_place)
             message_content = message_decision.get('message', '')
             fire_info = self.get_fire_info_for_agent(agent)
-            phase3_tasks.append((idx, agent, nearby_agents, agent_place_status, message_content, fire_info))
+            events_info = self.get_active_events_for_agent(agent)
+            phase3_tasks.append((idx, agent, nearby_agents, agent_place_status, message_content, fire_info, events_info))
 
         if phase3_tasks:
             workers = max(1, min(self.parallel_workers, len(phase3_tasks)))
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = [
                     executor.submit(
-                        ag.decide_action, ps, nb, self.step, mc, fire_info=fi
+                        ag.decide_action, ps, nb, self.step, mc, fire_info=fi, events_info=ei
                     )
-                    for _, ag, nb, ps, mc, fi in phase3_tasks
+                    for _, ag, nb, ps, mc, fi, ei in phase3_tasks
                 ]
-                for (idx, agent, nb, _, _, _), fut in zip(phase3_tasks, futures):
+                for (idx, agent, nb, _, _, _, _), fut in zip(phase3_tasks, futures):
                     try:
                         decision = fut.result()
                     except Exception as e:
@@ -1071,6 +1296,7 @@ class Simulation:
         # populated in Phase 2).
         self._update_relationships()
         self._log_relationships_snapshot()
+        self._log_event_awareness()
 
         # Record statistics
         agents_in_place = len(self.get_agents_in_place())
