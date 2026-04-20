@@ -32,13 +32,23 @@ BAR_ALPHA = 0.3
 # Per-type facecolor / edgecolor / linestyle. Feature 6 upgrade over the
 # previous flat blue-edge scheme. Unknown types fall back to DEFAULT_PLACE_STYLE.
 PLACE_STYLE = {
-    'bar':     {'face': 'lightblue',   'edge': 'steelblue',       'linestyle': '-'},
-    'cafe':    {'face': 'lightcoral',  'edge': 'darkred',         'linestyle': '-'},
-    'library': {'face': 'lightgreen',  'edge': 'darkgreen',       'linestyle': '-'},
-    'park':    {'face': 'lightpink',   'edge': 'mediumvioletred', 'linestyle': '--'},
-    'station': {'face': 'khaki',       'edge': 'saddlebrown',     'linestyle': '-'},
-    'plaza':   {'face': 'lavender',    'edge': 'indigo',          'linestyle': '-'},
-    'road':    {'face': 'lightgray',   'edge': 'dimgray',         'linestyle': ':'},
+    'bar':               {'face': 'lightblue',   'edge': 'steelblue',       'linestyle': '-'},
+    'izakaya':           {'face': 'peachpuff',   'edge': 'chocolate',       'linestyle': '-'},
+    'cafe':              {'face': 'lightcoral',  'edge': 'darkred',         'linestyle': '-'},
+    'restaurant':        {'face': 'moccasin',    'edge': 'darkorange',      'linestyle': '-'},
+    'library':           {'face': 'lightgreen',  'edge': 'darkgreen',       'linestyle': '-'},
+    'park':              {'face': 'lightpink',   'edge': 'mediumvioletred', 'linestyle': '--'},
+    'station':           {'face': 'khaki',       'edge': 'saddlebrown',     'linestyle': '-'},
+    'jr_station':        {'face': 'gold',        'edge': 'darkgoldenrod',   'linestyle': '-'},
+    'subway_station':    {'face': 'lightsteelblue','edge': 'midnightblue',  'linestyle': '-'},
+    'plaza':             {'face': 'lavender',    'edge': 'indigo',          'linestyle': '-'},
+    'convenience_store': {'face': 'mistyrose',   'edge': 'firebrick',       'linestyle': '-'},
+    'department_store':  {'face': 'thistle',     'edge': 'purple',          'linestyle': '-'},
+    'office_lobby':      {'face': 'gainsboro',   'edge': 'gray',            'linestyle': '-'},
+    'road':              {'face': 'lightgray',   'edge': 'dimgray',         'linestyle': ':'},
+    'wide_street':       {'face': 'whitesmoke',  'edge': 'dimgray',         'linestyle': ':'},
+    'narrow_street':     {'face': 'gainsboro',   'edge': 'gray',            'linestyle': ':'},
+    'pedestrian_street': {'face': 'honeydew',    'edge': 'seagreen',        'linestyle': ':'},
 }
 DEFAULT_PLACE_STYLE = {'face': 'lightyellow', 'edge': 'slategray', 'linestyle': '-'}
 

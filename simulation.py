@@ -4,6 +4,7 @@ LLM-based agent in 2D worlds with multiple places.
 import json
 import os
 import random
+import threading
 import yaml
 import logging
 from concurrent.futures import ThreadPoolExecutor
@@ -39,6 +40,15 @@ class Simulation:
 
         # Output directory for logs
         self.output_dir = output_dir
+        # JSONL writers are hit from multiple threads in Phase 1/3, so every
+        # append goes through a dedicated lock. One lock per sink is enough —
+        # sinks are disjoint files, so contention stays minimal.
+        self._log_locks: Dict[str, threading.Lock] = {
+            "messages": threading.Lock(),
+            "memory_reasoning": threading.Lock(),
+            "should_speak": threading.Lock(),
+            "relationships_timeline": threading.Lock(),
+        }
 
         # Reproducibility: seed both `random` and numpy. Falls back to
         # simulation.seed in config if not provided on the CLI.
@@ -330,8 +340,9 @@ class Simulation:
             "reasoning": reasoning,
         }
 
-        with open(messages_file, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+        with self._log_locks["messages"]:
+            with open(messages_file, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _log_memory_reasoning_batch(
         self,
@@ -349,11 +360,12 @@ class Simulation:
         os.makedirs(self.output_dir, exist_ok=True)
 
         memory_reasoning_file = os.path.join(self.output_dir, "memory_reasoning.jsonl")
-        
+
         # Write all records at once (buffered I/O)
-        with open(memory_reasoning_file, 'a', encoding='utf-8') as f:
-            for record in records:
-                f.write(json.dumps(record, ensure_ascii=False) + '\n')
+        with self._log_locks["memory_reasoning"]:
+            with open(memory_reasoning_file, 'a', encoding='utf-8') as f:
+                for record in records:
+                    f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _generate_random_position(self) -> Tuple[int, int]:
         """Generate a random position within the space (origin-centered coordinate system)"""
@@ -779,8 +791,9 @@ class Simulation:
             "relationships": edges,
         }
         path = os.path.join(self.output_dir, "relationships_timeline.jsonl")
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+        with self._log_locks["relationships_timeline"]:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _log_should_speak(
         self,
@@ -804,8 +817,9 @@ class Simulation:
             "selected_partner_id": selected_partner_id,
         }
         path = os.path.join(self.output_dir, "should_speak_log.jsonl")
-        with open(path, 'a', encoding='utf-8') as f:
-            f.write(json.dumps(record, ensure_ascii=False) + '\n')
+        with self._log_locks["should_speak"]:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(record, ensure_ascii=False) + '\n')
 
     def _get_agent_layer_jp(self, agent: Agent) -> str:
         """Map behavior_layer string to Japanese label used in logs."""
