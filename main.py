@@ -174,7 +174,13 @@ def main():
         default=None,
         help='Interval between visualization frames (overrides config)'
     )
-    
+    parser.add_argument(
+        '--seed',
+        type=int,
+        default=None,
+        help='Random seed for reproducibility (overrides simulation.seed in config)'
+    )
+
     args = parser.parse_args()
     
     # Load config
@@ -200,7 +206,7 @@ def main():
         logger.info(f"Output directory: {output_dir}")
     
     # Initialize simulation
-    sim = Simulation(config_path=args.config, output_dir=output_dir)
+    sim = Simulation(config_path=args.config, output_dir=output_dir, seed=args.seed)
     
     # Initialize visualizer if needed
     visualizer = None

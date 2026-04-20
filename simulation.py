@@ -12,6 +12,7 @@ from typing import List, Tuple, Dict, Set, Optional
 import numpy as np
 from agent import Agent
 from claude_client import ClaudeClient
+from llm_client_factory import create_llm_client
 from place_types import get_place_type_spec
 from utils import (
     is_position_in_place,
@@ -31,14 +32,25 @@ LOG_INTERVAL = 10
 class Simulation:
     """Main simulation class for LLM-based agent in 2D worlds with multiple places."""
     
-    def __init__(self, config_path: str = "config.yaml", output_dir: Optional[str] = None):
+    def __init__(self, config_path: str = "config.yaml", output_dir: Optional[str] = None, seed: Optional[int] = None):
         """Initialize simulation from config file"""
         with open(config_path, 'r', encoding='utf-8') as f:
             self.config = yaml.safe_load(f)
 
         # Output directory for logs
         self.output_dir = output_dir
-        
+
+        # Reproducibility: seed both `random` and numpy. Falls back to
+        # simulation.seed in config if not provided on the CLI.
+        if seed is None:
+            seed = self.config.get('simulation', {}).get('seed')
+        if seed is not None:
+            seed = int(seed)
+            random.seed(seed)
+            np.random.seed(seed)
+            logger.info(f"Random seed set: {seed}")
+        self.seed = seed
+
         # Simulation parameters
         sim_config = self.config['simulation']
         self.duration = sim_config['duration']
@@ -139,14 +151,9 @@ class Simulation:
             )
         self.fire_states: List[Dict] = []  # Active fires
 
-        # LLM parameters
+        # LLM parameters — factory selects provider (anthropic/openai/google)
         llm_config = self.config['llm']
-        self.llm_client = ClaudeClient(
-            base_url=llm_config['base_url'],
-            model=llm_config['model'],
-            temperature=llm_config.get('temperature', 0.7),
-            max_tokens=llm_config.get('max_tokens', 200),
-        )
+        self.llm_client = create_llm_client(llm_config)
         
         # Initialize agents
         self.agents: List[Agent] = []

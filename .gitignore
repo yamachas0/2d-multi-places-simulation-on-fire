@@ -40,3 +40,9 @@ htmlcov/
 *.egg-info/
 dist/
 build/
+
+# Inspection scripts / text dumps (dev-only)
+_inspect_*.py
+_inspect_*.txt
+compare_samples.txt
+fire_aware_samples.txt
