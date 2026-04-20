@@ -18,7 +18,7 @@ GUI_BACKENDS = ['TkAgg', 'Qt5Agg', 'MacOSX', 'Qt4Agg']
 NON_GUI_BACKENDS = ['agg', 'pdf', 'svg', 'ps']
 
 # Visualization constants
-FIGURE_SIZE = (10, 10)
+FIGURE_SIZE = (12, 13)  # 12w x 13h: square map + bottom footer for per-place occupancy
 STATS_FIGURE_SIZE = (12, 8)
 DPI = 150
 INITIAL_WINDOW_DELAY = 0.5
@@ -432,38 +432,57 @@ class Visualizer:
         if time_str:
             step_label = f"Step {step} ({time_str})"
 
-        # Build title with statistics for all places
-        if 'places' in place_status:
-            # Multiple places format
-            place_info = []
-            for place_name, status in place_status['places'].items():
-                place_info.append(
-                    f"{place_name}: {status['agents_in_place']}/{status['capacity']} "
-                    f"({status['occupancy_rate']:.0%})"
-                )
-            title = (
-                f"{step_label} | "
-                f"Total in places: {place_status['agents_in_place']} "
-                f"({place_status['occupancy_rate']:.1%}) | "
-                f"{' | '.join(place_info)}"
-            )
-        else:
-            # Single place format
-            title = (
-                f"{step_label} | "
-                f"Agents in place: {place_status['agents_in_place']}/{place_status['capacity']} "
-                f"({place_status['occupancy_rate']:.1%})"
-            )
-        # Append fire info to title if any active
+        # Compact title — overall stats only. Per-place occupancy goes to
+        # a multi-column footer at the bottom so the plot stays square instead
+        # of getting stretched horizontally by a 19-item pipe-joined string.
         active_fires = [f for f in (fire_states or []) if f.get('active')]
+        fire_suffix = ''
         if active_fires:
             agents_in_any_fire = set()
             for fire in active_fires:
                 for a in agents:
                     if a.distance_to(fire['position']) <= fire['radius']:
                         agents_in_any_fire.add(a.id)
-            title += f" | Fire: {len(agents_in_any_fire)} in radius"
-        self.ax.set_title(title, fontsize=11, fontweight='bold')
+            fire_suffix = f" | Fire: {len(agents_in_any_fire)} in radius"
+
+        if 'places' in place_status:
+            title = (
+                f"{step_label} | "
+                f"Total in places: {place_status['agents_in_place']} "
+                f"({place_status['occupancy_rate']:.1%}){fire_suffix}"
+            )
+        else:
+            title = (
+                f"{step_label} | "
+                f"Agents in place: {place_status['agents_in_place']}/{place_status['capacity']} "
+                f"({place_status['occupancy_rate']:.1%}){fire_suffix}"
+            )
+        self.ax.set_title(title, fontsize=13, fontweight='bold')
+
+        # Per-place occupancy footer (multi-column, bottom of figure).
+        # Uses fig.text per column instead of monospace padding, because
+        # the default family (Yu Gothic / Meiryo) is proportional and
+        # Japanese glyphs are absent from DejaVu Sans Mono.
+        if 'places' in place_status:
+            place_lines = [
+                f"{pn}: {st['agents_in_place']}/{st['capacity']} ({st['occupancy_rate']:.0%})"
+                for pn, st in place_status['places'].items()
+            ]
+            ncols = 4
+            nrows = (len(place_lines) + ncols - 1) // ncols
+            cells = [['' for _ in range(ncols)] for _ in range(nrows)]
+            for i, s in enumerate(place_lines):
+                cells[i // ncols][i % ncols] = s
+            # Footer occupies y ≈ [0.015, 0.145]; each column left-aligned.
+            col_xs = [0.06, 0.30, 0.54, 0.78]
+            line_h = 0.022
+            top_y = 0.145
+            for c in range(ncols):
+                col_text = '\n'.join(cells[r][c] for r in range(nrows))
+                self.fig.text(
+                    col_xs[c], top_y, col_text,
+                    ha='left', va='top', fontsize=8,
+                )
 
         # Add legend: gender (color) + location (marker)
         from matplotlib.lines import Line2D
@@ -501,10 +520,15 @@ class Visualizer:
         cbar = self.fig.colorbar(sm, cax=cax)
         cbar.set_label('Intensity of Fire', fontsize=10)
 
-        plt.tight_layout()
+        # Reserve bottom ~15% for per-place footer; top for title. We skip
+        # tight_layout because it fights the manual bottom/top ratios and
+        # the fig.text footer.
+        plt.subplots_adjust(top=0.94, bottom=0.16, left=0.07, right=0.93)
 
         if save_path:
-            plt.savefig(save_path, dpi=DPI, bbox_inches='tight')
+            # Drop bbox_inches='tight' — it was stretching the canvas horizontally
+            # to fit the old long title. Respect figsize now for consistent 1:1.
+            plt.savefig(save_path, dpi=DPI)
             # Close figure after saving to prevent memory leak
             plt.close(self.fig)
             self.fig = None

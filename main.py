@@ -297,7 +297,23 @@ def main():
                 )
         
         logger.info("Simulation completed")
-        
+
+        # Feature 5: export unified JSON dataset for the Canvas viewer.
+        try:
+            exported = sim.export_simulation_data()
+            if exported:
+                logger.info(f"Viewer data: {exported}")
+                # Bundle viewer_v2.html + inlined JSON into a single
+                # file so it runs from file:// without a local server.
+                try:
+                    from tools.bundle_viewer import bundle_viewer
+                    bundled = bundle_viewer(output_dir)
+                    logger.info(f"Bundled viewer: {bundled}")
+                except Exception as e:
+                    logger.warning(f"Viewer bundle skipped: {e}")
+        except Exception as e:
+            logger.error(f"Failed to export simulation_data.json: {e}", exc_info=True)
+
         # Print statistics
         stats = sim.get_statistics()
         print_statistics(stats, sim, logger)

@@ -1,0 +1,1238 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Singulabo 2D City Viewer v2 (Step 1)</title>
+<style>
+  :root {
+    --bg: #0e1714;
+    --bg-outline: #22302b;
+    --panel-bg: #121f1b;
+    --panel-border: #26362f;
+    --text: #e4ebe6;
+    --text-dim: #8ea59a;
+    --accent: #ffd85f;
+    --accent-dim: #b09239;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    grid-template-columns: 1fr 340px;
+    grid-template-areas:
+      "main side"
+      "controls controls";
+    height: 100vh; width: 100vw;
+  }
+  #main {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+    background: var(--bg);
+    min-width: 0;
+  }
+  #side-panel {
+    grid-area: side;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #side-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  #side-panel h3 .count {
+    font-weight: 400;
+    font-size: 10px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-dim);
+    opacity: 0.7;
+  }
+  #side-panel .side-section { margin-bottom: 14px; }
+  #side-panel .side-section.scroll {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #side-panel .side-section.scroll .scroll-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  #side-panel .side-section.scroll .scroll-body::-webkit-scrollbar {
+    width: 6px;
+  }
+  #side-panel .side-section.scroll .scroll-body::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 3px;
+  }
+  #section-convo { flex: 0 0 auto; max-height: 34%; }
+  #section-thought { flex: 1 1 auto; min-height: 140px; }
+  #section-focus { flex: 0 0 auto; max-height: 30%; }
+  #side-panel .placeholder {
+    color: var(--text-dim);
+    font-size: 11px;
+    opacity: 0.6;
+  }
+  #side-panel .legend {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  #side-panel .swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  }
+  #side-panel .ring {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid; box-sizing: border-box;
+  }
+  #convo-list { display: flex; flex-direction: column; gap: 6px; }
+  #thought-list { display: flex; flex-direction: column; gap: 6px; }
+  .thought-item {
+    border-left: 3px solid #8d93a5;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .thought-item:hover { background: rgba(255, 216, 95, 0.08); }
+  .thought-item.notification { border-left-color: #ffd85f; }
+  .thought-item.direct       { border-left-color: #62e08a; }
+  .thought-item.conversation { border-left-color: #ff9f43; }
+  .thought-item.selected {
+    background: rgba(255, 216, 95, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 216, 95, 0.4);
+  }
+  .thought-item .meta {
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-bottom: 3px;
+    display: flex; justify-content: space-between; gap: 6px;
+  }
+  .thought-item .meta .who { color: var(--text); font-weight: 500; }
+  .thought-item .tline {
+    margin-top: 3px;
+  }
+  .thought-item .tline .lbl {
+    display: inline-block;
+    color: var(--text-dim);
+    font-size: 9.5px;
+    margin-right: 4px;
+    letter-spacing: 0.3px;
+  }
+  .thought-item .source-tag {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.2px;
+  }
+  .convo-item {
+    border-left: 3px solid #ff9f43;
+    padding: 6px 8px;
+    background: rgba(255, 159, 67, 0.06);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .convo-item.outage {
+    border-left-color: #ff5050;
+    background: rgba(255, 80, 80, 0.08);
+  }
+  .convo-item .meta {
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-bottom: 3px;
+    display: flex; justify-content: space-between;
+  }
+  .convo-item .meta .who { color: var(--text); font-weight: 500; }
+  .convo-item .source-tag {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.2px;
+  }
+  #focus-panel .focus-head {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  #focus-panel .focus-sub {
+    color: var(--text-dim);
+    font-size: 10.5px;
+    margin-bottom: 10px;
+  }
+  #focus-panel .focus-block {
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  #focus-panel .focus-block .label {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    display: block;
+    margin-bottom: 2px;
+  }
+  #focus-panel .focus-badge {
+    display: inline-block;
+    padding: 1px 6px;
+    border-radius: 3px;
+    font-size: 10px;
+    margin-right: 4px;
+  }
+  #map-canvas { cursor: crosshair; }
+  #controls { grid-area: controls; }
+  #map-canvas {
+    position: absolute; inset: 0;
+    display: block;
+  }
+  #hud-clock {
+    position: absolute;
+    left: 24px; top: 18px;
+    pointer-events: none;
+  }
+  #hud-clock .time {
+    font-size: 52px;
+    font-weight: 200;
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--text);
+    text-shadow: 0 1px 6px rgba(0,0,0,0.6);
+  }
+  #hud-clock .meta {
+    margin-top: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+    letter-spacing: 0.5px;
+  }
+  #hud-stats {
+    position: absolute;
+    left: 24px; top: 110px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    pointer-events: none;
+  }
+  #hud-stats b { color: var(--text); font-weight: 500; }
+  #hud-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(14,23,20,0.92);
+    font-size: 14px; color: var(--text-dim);
+  }
+  #hud-loading.hidden { display: none; }
+  #hud-error {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%,-50%);
+    max-width: 70%;
+    background: #3a1f25; color: #ffb3bd;
+    padding: 18px 24px;
+    border-radius: 8px;
+    border: 1px solid #5a3238;
+    font-size: 13px; line-height: 1.5;
+    display: none;
+    white-space: pre-wrap;
+  }
+  #controls {
+    background: var(--panel-bg);
+    border-top: 1px solid var(--panel-border);
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px;
+    font-size: 13px;
+  }
+  #controls button {
+    background: var(--panel-border);
+    color: var(--text);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    min-width: 38px;
+  }
+  #controls button:hover { background: #34483e; }
+  #controls button:disabled { opacity: 0.4; cursor: default; }
+  #play-pause { min-width: 46px; font-size: 16px; }
+  #seek {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 2px;
+    background: var(--panel-border);
+    outline: none;
+  }
+  #seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: none;
+  }
+  #seek::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: none;
+  }
+  .speed-group button.active {
+    background: var(--accent);
+    color: #1b1608;
+  }
+  .step-label {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    min-width: 90px;
+    text-align: right;
+    font-size: 12px;
+  }
+  .sep {
+    width: 1px; height: 22px; background: var(--panel-border);
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div id="main">
+    <canvas id="map-canvas"></canvas>
+    <div id="hud-clock">
+      <div class="time" id="clock-time">--:--</div>
+      <div class="meta" id="clock-meta">loading…</div>
+    </div>
+    <div id="hud-stats">
+      <div><b id="stats-agents">—</b> agents</div>
+      <div>在施設率 <b id="stats-in-place">—</b></div>
+    </div>
+    <div id="hud-loading">データ読み込み中…</div>
+    <div id="hud-error"></div>
+  </div>
+  <aside id="side-panel">
+    <div class="side-section">
+      <h3>凡例</h3>
+      <div class="legend">
+        <span class="swatch" style="background:#4ea8ff"></span>男性
+        <span class="swatch" style="background:#e85a9b"></span>女性
+      </div>
+      <div class="legend">
+        <span class="ring" style="border-color:#ffd85f"></span>📱 通知経由
+        <span class="ring" style="border-color:#62e08a"></span>🚉 現場認識
+        <span class="ring" style="border-color:#ff9f43"></span>💬 会話経由
+      </div>
+    </div>
+    <div class="side-section scroll" id="section-convo">
+      <h3>会話ログ <span class="count" id="convo-count"></span></h3>
+      <div class="scroll-body"><div id="convo-list"></div></div>
+    </div>
+    <div class="side-section scroll" id="section-thought">
+      <h3>思考ログ <span class="count" id="thought-count"></span></h3>
+      <div class="scroll-body"><div id="thought-list"></div></div>
+    </div>
+    <div class="side-section scroll" id="section-focus">
+      <h3>追跡エージェント</h3>
+      <div class="scroll-body"><div id="focus-panel">
+        <div class="placeholder">思考ログまたは地図上のエージェントをクリックで選択</div>
+      </div></div>
+    </div>
+  </aside>
+  <!-- Optional inline JSON for file:// loading. Bundler script will
+       replace this block's contents with the exported simulation_data. -->
+  <script id="sim-data" type="application/json"></script>
+  <div id="controls">
+    <button id="play-pause" title="Space">▶</button>
+    <span class="sep"></span>
+    <input type="range" id="seek" min="0" max="0" step="1" value="0">
+    <span class="step-label" id="step-label">0 / 0</span>
+    <span class="sep"></span>
+    <div class="speed-group" id="speed-group">
+      <button data-speed="0.5">0.5x</button>
+      <button data-speed="1" class="active">1x</button>
+      <button data-speed="2">2x</button>
+      <button data-speed="5">5x</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(function () {
+  'use strict';
+
+  // ---------------------------------------------------------------
+  // Configuration
+  // ---------------------------------------------------------------
+
+  const DATA_URL = 'simulation_data.json';
+
+  // Layered place rendering: lower layer first (painted under), higher on top.
+  // Layer 1 = roads (bottom), 2 = plazas/parks, 3 = hubs/commercial (top).
+  const PLACE_LAYER = {
+    narrow_street: 1, wide_street: 1, pedestrian_street: 1,
+    plaza: 2, park: 2,
+    jr_station: 3, subway_station: 3,
+    cafe: 3, restaurant: 3, izakaya: 3,
+    convenience_store: 3, department_store: 3,
+    office_lobby: 3, library: 3,
+  };
+
+  const PLACE_STYLE = {
+    narrow_street:     { fill: '#1a1c24', label: null },
+    wide_street:       { fill: '#1d1f28', label: null },
+    pedestrian_street: { fill: '#1f212b', label: null, dots: true },
+    plaza:             { fill: '#3a3828', label: '🏛' },
+    park:              { fill: '#1f3a28', label: '🌳' },
+    jr_station:        { fill: '#2d4470', label: '🚆' },
+    subway_station:    { fill: '#4a2d70', label: '🚇' },
+    cafe:              { fill: '#5a3a2a', label: '☕' },
+    restaurant:        { fill: '#5a3530', label: '🍽' },
+    izakaya:           { fill: '#5a2f2f', label: '🏮' },
+    convenience_store: { fill: '#2a4a40', label: '🏪' },
+    department_store:  { fill: '#3a2a55', label: '🏬' },
+    office_lobby:      { fill: '#333640', label: '🏢' },
+    library:           { fill: '#313641', label: '📚' },
+  };
+
+  const AGENT_COLOR = {
+    male:   '#4ea8ff',
+    female: '#e85a9b',
+    other:  '#b0b6c8',
+  };
+  const LAYER_ALPHA = { transit: 0.5, dwelling: 0.9, interacting: 1.0 };
+
+  // Awareness-source → ring color + glyph. Drawn around the agent dot.
+  const AWARENESS_STYLE = {
+    notification: { ring: '#ffd85f', glyph: '📱' },
+    direct:       { ring: '#62e08a', glyph: '🚉' },
+    conversation: { ring: '#ff9f43', glyph: '💬' },
+  };
+
+  // Keywords that flag a conversation as outage-related. Used to toggle
+  // conversation-line color from orange (general) to red (event-linked).
+  const OUTAGE_KEYWORDS = ['運休', 'JR', '品川', '電車', '人身', '事故', '振替', '遅延'];
+
+  const CONVO_COLOR_DEFAULT = 'rgba(255, 159, 67, 0.7)';
+  const CONVO_COLOR_OUTAGE  = 'rgba(255, 80, 80, 0.85)';
+  const EVENT_PULSE_COLOR   = 'rgba(255, 80, 80, 0.9)';
+
+  // ---------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------
+
+  const state = {
+    data: null,
+    currentStep: 0,     // index into timeline array (0-based)
+    // sub-step progress in [0,1). Agents are drawn lerped between
+    // timeline[currentStep] and timeline[currentStep+1] by this fraction,
+    // so playback looks smooth instead of a discrete hop each step.
+    stepFrac: 0,
+    playing: false,
+    speed: 1,
+    lastTickAt: 0,
+    accum: 0,
+    // base seconds per step at 1x speed (controls playback pacing)
+    baseStepMs: 900,
+    // canvas transform
+    view: { scale: 1, offsetX: 0, offsetY: 0 },
+    // selected agent for focus tracking (clicked on the map).
+    selectedId: null,
+    // how many recent steps of history to render as the focus trail.
+    trailLength: 40,
+  };
+
+  // ---------------------------------------------------------------
+  // DOM
+  // ---------------------------------------------------------------
+
+  const canvas = document.getElementById('map-canvas');
+  const ctx = canvas.getContext('2d');
+  const elClockTime = document.getElementById('clock-time');
+  const elClockMeta = document.getElementById('clock-meta');
+  const elStatsAgents = document.getElementById('stats-agents');
+  const elStatsInPlace = document.getElementById('stats-in-place');
+  const elLoading = document.getElementById('hud-loading');
+  const elError = document.getElementById('hud-error');
+  const elPlayPause = document.getElementById('play-pause');
+  const elSeek = document.getElementById('seek');
+  const elStepLabel = document.getElementById('step-label');
+  const elSpeedGroup = document.getElementById('speed-group');
+  const elConvoList = document.getElementById('convo-list');
+  const elThoughtList = document.getElementById('thought-list');
+  const elConvoCount = document.getElementById('convo-count');
+  const elThoughtCount = document.getElementById('thought-count');
+  const elFocusPanel = document.getElementById('focus-panel');
+
+  // ---------------------------------------------------------------
+  // Setup
+  // ---------------------------------------------------------------
+
+  function showError(msg) {
+    elLoading.classList.add('hidden');
+    elError.textContent = msg;
+    elError.style.display = 'block';
+  }
+
+  function resizeCanvas() {
+    const dpr = window.devicePixelRatio || 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    canvas.width = Math.floor(rect.width * dpr);
+    canvas.height = Math.floor(rect.height * dpr);
+    canvas.style.width = rect.width + 'px';
+    canvas.style.height = rect.height + 'px';
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    recomputeView();
+    render();
+  }
+
+  function recomputeView() {
+    if (!state.data) return;
+    const half = state.data.metadata.half_space_size || 100;
+    const side = 2 * half + 1;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    const padding = 40;
+    const scale = Math.min(
+      (rect.width - padding * 2) / side,
+      (rect.height - padding * 2) / side
+    );
+    state.view.scale = scale;
+    state.view.offsetX = rect.width / 2;
+    state.view.offsetY = rect.height / 2;
+  }
+
+  // world (simulation cell coords, origin at center) → screen px
+  function worldToScreen(x, y) {
+    return {
+      px: state.view.offsetX + x * state.view.scale,
+      py: state.view.offsetY + y * state.view.scale,
+    };
+  }
+
+  // ---------------------------------------------------------------
+  // Rendering
+  // ---------------------------------------------------------------
+
+  function render() {
+    if (!state.data) return;
+    const rect = canvas.parentElement.getBoundingClientRect();
+    ctx.clearRect(0, 0, rect.width, rect.height);
+    drawBackdrop(rect);
+    drawPlaces();
+    drawEventOverlays();
+    drawFocusTrail();
+    drawConversations();
+    drawAgents();
+    drawScaleBar(rect);
+    updateHUD();
+    updateConversationList();
+    updateThoughtList();
+    updateFocusPanel();
+  }
+
+  // Day-phase tint of the world backdrop. Hour → top-of-map / bottom-of-map
+  // colors so the rectangle gets a subtle vertical gradient cue.
+  function dayPhaseColors(hh) {
+    if (hh >= 5 && hh < 7)  return ['#0e1b1a', '#183229']; // dawn: muted teal
+    if (hh >= 7 && hh < 10) return ['#0e1e1a', '#163026']; // morning rush: bright green
+    if (hh >= 10 && hh < 15) return ['#0d1b17', '#112420']; // midday: flat forest
+    if (hh >= 15 && hh < 17) return ['#0d1d18', '#16281f']; // late afternoon: moss
+    if (hh >= 17 && hh < 20) return ['#0d1f1a', '#1b3426']; // evening rush: deep pine
+    return ['#091310', '#0d1914'];                          // night
+  }
+
+  function drawBackdrop(rect) {
+    const frame = state.data.timeline[state.currentStep];
+    const hh = frame && frame.time ? parseInt(frame.time.split(':')[0], 10) : 12;
+    const [c1, c2] = dayPhaseColors(hh);
+    const grad = ctx.createLinearGradient(0, 0, 0, rect.height);
+    grad.addColorStop(0, c1);
+    grad.addColorStop(1, c2);
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, rect.width, rect.height);
+
+    const half = state.data.metadata.half_space_size;
+    const tl = worldToScreen(-half, -half);
+    const br = worldToScreen(half, half);
+    ctx.strokeStyle = '#2a3a33';
+    ctx.lineWidth = 1;
+    ctx.strokeRect(tl.px, tl.py, br.px - tl.px, br.py - tl.py);
+  }
+
+  // Left-bottom scale bar: 100m (20 cells at 5m/cell — fetched from metadata).
+  function drawScaleBar(rect) {
+    const meters = 100;
+    const mPerCell = state.data.metadata.meters_per_cell || 5;
+    const cells = meters / mPerCell;
+    const pxLen = cells * state.view.scale;
+    const x = 24, y = rect.height - 28;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(255,255,255,0.72)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, y); ctx.lineTo(x + pxLen, y);
+    // tick marks
+    ctx.moveTo(x, y - 4); ctx.lineTo(x, y + 4);
+    ctx.moveTo(x + pxLen, y - 4); ctx.lineTo(x + pxLen, y + 4);
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255,255,255,0.72)';
+    ctx.font = '11px -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif';
+    ctx.textAlign = 'left'; ctx.textBaseline = 'top';
+    ctx.fillText(`${meters} m`, x, y + 6);
+    ctx.restore();
+  }
+
+  function drawPlaces() {
+    const places = state.data.places;
+    // paint layer 1 → 2 → 3 so upper layers cover lower ones
+    for (let layer = 1; layer <= 3; layer++) {
+      for (const p of places) {
+        if ((PLACE_LAYER[p.type] || 3) !== layer) continue;
+        drawOnePlace(p);
+      }
+    }
+  }
+
+  function drawOnePlace(p) {
+    const style = PLACE_STYLE[p.type] || { fill: '#2a2d35', label: null };
+    const cx = p.center_x, cy = p.center_y;
+    const hx = p.half_size_x, hy = p.half_size_y;
+    const tl = worldToScreen(cx - hx, cy - hy);
+    const br = worldToScreen(cx + hx, cy + hy);
+    const w = br.px - tl.px;
+    const h = br.py - tl.py;
+
+    ctx.fillStyle = style.fill;
+    ctx.fillRect(tl.px, tl.py, w, h);
+
+    if (style.dots) {
+      ctx.fillStyle = 'rgba(255,255,255,0.04)';
+      const step = 6;
+      for (let dx = 0; dx < w; dx += step) {
+        for (let dy = 0; dy < h; dy += step) {
+          ctx.fillRect(tl.px + dx, tl.py + dy, 1, 1);
+        }
+      }
+    }
+
+    if (style.label && p.name) {
+      // label fades at small scales
+      const worldMin = Math.min(hx, hy);
+      if (worldMin * state.view.scale > 14) {
+        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.font = '11px -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif';
+        ctx.textAlign = 'left';
+        ctx.textBaseline = 'top';
+        const label = `${style.label} ${p.name}`;
+        ctx.fillText(label, tl.px + 4, tl.py + 3);
+      }
+    }
+  }
+
+  function drawAgents() {
+    const tl = state.data.timeline;
+    if (!tl || tl.length === 0) return;
+    const frame = tl[state.currentStep];
+    if (!frame) return;
+    for (const ag of frame.agents) {
+      drawOneAgent(ag);
+    }
+  }
+
+  function drawOneAgent(ag) {
+    const persona = state.data.personas.find(p => p.id === ag.id);
+    const gender = (persona && persona.gender) || 'other';
+    const color = AGENT_COLOR[gender] || AGENT_COLOR.other;
+    const alpha = LAYER_ALPHA[ag.layer] != null ? LAYER_ALPHA[ag.layer] : 0.9;
+    const isFocus = state.selectedId != null && state.selectedId === ag.id;
+
+    const w = lerpAgentPos(ag);
+    const pos = worldToScreen(w.x, w.y);
+    const r = isFocus ? 7 : 4.5;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = color;
+    ctx.beginPath();
+    ctx.arc(pos.px, pos.py, r, 0, Math.PI * 2);
+    ctx.fill();
+    // thin outline for readability against similar-color places
+    ctx.strokeStyle = 'rgba(0,0,0,0.45)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+
+    // Awareness ring — colored halo around agents who know about an active
+    // event, keyed by the propagation path (notification/direct/conversation).
+    const src = pickAwarenessSource(ag);
+    if (src && AWARENESS_STYLE[src]) {
+      ctx.strokeStyle = AWARENESS_STYLE[src].ring;
+      ctx.lineWidth = 1.6;
+      ctx.beginPath();
+      ctx.arc(pos.px, pos.py, r + 2.5, 0, Math.PI * 2);
+      ctx.stroke();
+    }
+
+    if (isFocus) {
+      ctx.strokeStyle = 'rgba(255, 216, 95, 0.95)';
+      ctx.lineWidth = 2.2;
+      ctx.beginPath();
+      ctx.arc(pos.px, pos.py, r + 5, 0, Math.PI * 2);
+      ctx.stroke();
+      const name = (persona && persona.name) || `#${ag.id}`;
+      ctx.fillStyle = 'rgba(255, 216, 95, 0.95)';
+      ctx.font = 'bold 12px -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(name, pos.px + r + 8, pos.py + 4);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Focus trail (recent history of selected agent)
+  // ---------------------------------------------------------------
+
+  function drawFocusTrail() {
+    if (state.selectedId == null) return;
+    const tl = state.data.timeline;
+    const from = Math.max(0, state.currentStep - state.trailLength + 1);
+    const points = [];
+    for (let i = from; i <= state.currentStep; i++) {
+      const ag = (tl[i].agents || []).find(a => a.id === state.selectedId);
+      if (ag) points.push([ag.x, ag.y]);
+    }
+    // Extend the newest segment to the interpolated current position so the
+    // trail tip tracks the smoothly-moving dot rather than snapping.
+    if (state.stepFrac > 0 && points.length >= 1) {
+      const curAg = (tl[state.currentStep].agents || []).find(a => a.id === state.selectedId);
+      if (curAg) {
+        const w = lerpAgentPos(curAg);
+        points.push([w.x, w.y]);
+      }
+    }
+    if (points.length < 2) return;
+
+    // Older segments render fainter. Segment i (0..n-2) spans points i→i+1.
+    ctx.save();
+    ctx.lineWidth = 2;
+    for (let i = 0; i < points.length - 1; i++) {
+      const ageFrac = i / (points.length - 1); // 0 oldest → 1 newest
+      const alpha = 0.12 + 0.78 * ageFrac;
+      ctx.strokeStyle = `rgba(255, 216, 95, ${alpha.toFixed(3)})`;
+      const a = worldToScreen(points[i][0],   points[i][1]);
+      const b = worldToScreen(points[i+1][0], points[i+1][1]);
+      ctx.beginPath();
+      ctx.moveTo(a.px, a.py);
+      ctx.lineTo(b.px, b.py);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
+
+  function pickAwarenessSource(ag) {
+    // agent.awareness_source is {event_name: 'notification'|'direct'|'conversation'}.
+    // Pick the first path for any currently active event.
+    const src = ag.awareness_source;
+    if (!src) return null;
+    const frame = state.data.timeline[state.currentStep];
+    const activeNames = new Set((frame && frame.events || []).map(e => e.name));
+    for (const [ev, path] of Object.entries(src)) {
+      if (activeNames.has(ev)) return path;
+    }
+    // Fallback: if the agent has *ever* learned of an event but nothing is
+    // active this step, still show the ring using the first known path —
+    // useful for pre-event phases when awareness is empty anyway.
+    const first = Object.values(src)[0];
+    return first || null;
+  }
+
+  // ---------------------------------------------------------------
+  // Conversation lines + event overlay
+  // ---------------------------------------------------------------
+
+  function isOutageConversation(msg) {
+    if (!msg) return false;
+    return OUTAGE_KEYWORDS.some(k => msg.indexOf(k) !== -1);
+  }
+
+  function drawConversations() {
+    const frame = state.data.timeline[state.currentStep];
+    if (!frame || !frame.conversations) return;
+    const agentsById = new Map(frame.agents.map(a => [a.id, a]));
+    const seen = new Set();
+
+    for (const c of frame.conversations) {
+      const fid = c.from != null ? c.from : c.from_id;
+      const tid = c.to   != null ? c.to   : c.to_id;
+      if (fid == null || tid == null) continue;
+      const key = fid < tid ? `${fid}-${tid}` : `${tid}-${fid}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const a = agentsById.get(fid), b = agentsById.get(tid);
+      if (!a || !b) continue;
+
+      const color = isOutageConversation(c.message) ? CONVO_COLOR_OUTAGE : CONVO_COLOR_DEFAULT;
+      const wa = lerpAgentPos(a), wb = lerpAgentPos(b);
+      const p1 = worldToScreen(wa.x, wa.y);
+      const p2 = worldToScreen(wb.x, wb.y);
+      ctx.save();
+      ctx.strokeStyle = color;
+      ctx.lineWidth = 1.5;
+      ctx.setLineDash([4, 3]);
+      ctx.beginPath();
+      ctx.moveTo(p1.px, p1.py);
+      ctx.lineTo(p2.px, p2.py);
+      ctx.stroke();
+      ctx.restore();
+    }
+  }
+
+  function drawEventOverlays() {
+    const frame = state.data.timeline[state.currentStep];
+    if (!frame || !frame.events) return;
+    const placesByName = new Map(state.data.places.map(p => [p.name, p]));
+
+    for (const ev of frame.events) {
+      if (ev.type !== 'transit_disruption') continue;
+      const p = placesByName.get(ev.affected_place);
+      if (!p) continue;
+      const tl = worldToScreen(p.center_x - p.half_size_x, p.center_y - p.half_size_y);
+      const br = worldToScreen(p.center_x + p.half_size_x, p.center_y + p.half_size_y);
+      ctx.save();
+      ctx.strokeStyle = EVENT_PULSE_COLOR;
+      ctx.lineWidth = 2.5;
+      ctx.setLineDash([6, 4]);
+      ctx.strokeRect(tl.px - 2, tl.py - 2, (br.px - tl.px) + 4, (br.py - tl.py) + 4);
+      ctx.restore();
+
+      ctx.save();
+      ctx.fillStyle = 'rgba(255,80,80,0.95)';
+      ctx.font = 'bold 12px -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif';
+      ctx.textAlign = 'left';
+      ctx.textBaseline = 'bottom';
+      ctx.fillText(`⚠ 運休中 (残${ev.remaining_steps}step)`, tl.px, tl.py - 4);
+      ctx.restore();
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // HUD
+  // ---------------------------------------------------------------
+
+  function updateHUD() {
+    const tl = state.data.timeline;
+    const frame = tl[state.currentStep];
+    if (!frame) return;
+    elClockTime.textContent = frame.time || '--:--';
+    const hh = parseInt((frame.time || '0').split(':')[0], 10);
+    let band = '';
+    if (hh >= 7 && hh < 10) band = '朝ラッシュ';
+    else if (hh >= 17 && hh < 20) band = '夕方ラッシュ';
+    else if (hh >= 20 || hh < 5) band = '夜間';
+    else band = '日中';
+    const ev = frame.events.find(e => e.type === 'transit_disruption');
+    elClockMeta.textContent = band + (ev ? `  ⚠ ${ev.affected_place} 運休中 (残${ev.remaining_steps}step)` : '');
+
+    const agentsHere = frame.agents.length;
+    const inPlace = frame.agents.filter(a => a.in_place).length;
+    elStatsAgents.textContent = agentsHere;
+    elStatsInPlace.textContent = agentsHere > 0
+      ? Math.round((inPlace / agentsHere) * 100) + '%'
+      : '—';
+
+    elStepLabel.textContent = `${frame.step} / ${state.data.metadata.total_steps}`;
+    elSeek.value = String(state.currentStep);
+  }
+
+  const MAX_CONVO_ITEMS = 12;
+  const SOURCE_LABEL = {
+    notification: '📱 通知経由',
+    direct:       '🚉 現場認識',
+    conversation: '💬 会話経由',
+  };
+
+  function updateConversationList() {
+    if (!elConvoList || !state.data) return;
+    const tl = state.data.timeline;
+    // Flatten conversations from step 0 to current, newest first.
+    const recent = [];
+    for (let i = state.currentStep; i >= 0 && recent.length < MAX_CONVO_ITEMS; i--) {
+      const f = tl[i];
+      if (!f || !f.conversations) continue;
+      // Within a step, treat as sequential — reverse so newer-within-step first.
+      for (let j = f.conversations.length - 1; j >= 0 && recent.length < MAX_CONVO_ITEMS; j--) {
+        const c = f.conversations[j];
+        recent.push({ ...c, _step: f.step, _time: f.time });
+      }
+    }
+    const frame = tl[state.currentStep];
+    const agById = new Map((frame && frame.agents || []).map(a => [a.id, a]));
+
+    const html = recent.map(c => {
+      const outage = isOutageConversation(c.message);
+      const fid = c.from != null ? c.from : c.from_id;
+      const fromAg = agById.get(fid);
+      const src = fromAg ? pickAwarenessSource(fromAg) : null;
+      const srcLabel = src && SOURCE_LABEL[src] ? SOURCE_LABEL[src] : '— 未認識';
+      const rel = (c.relationship != null) ? `rel ${c.relationship.toFixed(2)}` : '';
+      return `
+        <div class="convo-item${outage ? ' outage' : ''}">
+          <div class="meta">
+            <span class="who">${escapeHtml(c.from_name || ('#' + fid))} → ${escapeHtml(c.to_name || ('#' + (c.to != null ? c.to : c.to_id)))}</span>
+            <span>${escapeHtml(c._time || '')} · ${rel}</span>
+          </div>
+          <div>${escapeHtml(c.message || '')}</div>
+          <span class="source-tag">${srcLabel}</span>
+        </div>
+      `;
+    }).join('');
+    elConvoList.innerHTML = html || '<div class="placeholder">(まだ会話なし)</div>';
+    if (elConvoCount) elConvoCount.textContent = recent.length ? `(最新${recent.length}件)` : '';
+  }
+
+  // Thought log: memory + reasoning for every agent, newest first across steps.
+  // Clicking an item selects that agent for map-tracking.
+  const MAX_THOUGHT_ITEMS = 15;
+
+  function updateThoughtList() {
+    if (!elThoughtList || !state.data) return;
+    const tl = state.data.timeline;
+    const personaById = new Map(state.data.personas.map(p => [p.id, p]));
+    const frame = tl[state.currentStep];
+    const activeEvents = new Set((frame && frame.events || []).map(e => e.name));
+
+    // Walk backward from current step; collect agents whose memory or
+    // reasoning is non-empty this step. Dedupe per (step, id) so a single
+    // frame can contribute many agents but only once per agent per step.
+    const items = [];
+    const seen = new Set();
+    for (let i = state.currentStep; i >= 0 && items.length < MAX_THOUGHT_ITEMS; i--) {
+      const f = tl[i];
+      if (!f || !f.agents) continue;
+      // iterate agents — order matches export, which is agent-id order. To
+      // give a slightly more natural "stream" feel, reverse so later-id
+      // agents appear first within a single step.
+      for (let j = f.agents.length - 1; j >= 0 && items.length < MAX_THOUGHT_ITEMS; j--) {
+        const ag = f.agents[j];
+        if (!ag) continue;
+        const mem = (ag.memory || '').trim();
+        const rsn = (ag.reasoning || '').trim();
+        if (!mem && !rsn) continue;
+        const k = `${i}:${ag.id}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        items.push({ step: f.step, time: f.time, agent: ag });
+      }
+    }
+
+    const html = items.map(it => {
+      const ag = it.agent;
+      const persona = personaById.get(ag.id);
+      const name = (persona && persona.name) || `#${ag.id}`;
+      // awareness path for coloring; fall back to any known path.
+      let path = null;
+      if (ag.awareness_source) {
+        for (const [ev, p] of Object.entries(ag.awareness_source)) {
+          if (activeEvents.has(ev)) { path = p; break; }
+        }
+        if (!path) path = Object.values(ag.awareness_source)[0] || null;
+      }
+      const pathCls = path && AWARENESS_STYLE[path] ? ` ${path}` : '';
+      const srcLabel = path && SOURCE_LABEL[path] ? SOURCE_LABEL[path] : '— 未認識';
+      const selCls = state.selectedId === ag.id ? ' selected' : '';
+      const loc = ag.in_place && ag.current_place
+        ? escapeHtml(ag.current_place)
+        : `移動中 (${escapeHtml(ag.layer || '-')})`;
+      const mem = (ag.memory || '').trim();
+      const rsn = (ag.reasoning || '').trim();
+      const memHtml = mem
+        ? `<div class="tline"><span class="lbl">MEM</span>${escapeHtml(mem)}</div>` : '';
+      const rsnHtml = rsn
+        ? `<div class="tline"><span class="lbl">RSN</span>${escapeHtml(rsn)}</div>` : '';
+      return `
+        <div class="thought-item${pathCls}${selCls}" data-agent-id="${ag.id}">
+          <div class="meta">
+            <span class="who">${escapeHtml(name)} · ${loc}</span>
+            <span>${escapeHtml(it.time || '')} · step ${it.step}</span>
+          </div>
+          ${rsnHtml}${memHtml}
+          <span class="source-tag">${srcLabel}</span>
+        </div>
+      `;
+    }).join('');
+    elThoughtList.innerHTML = html || '<div class="placeholder">(思考ログなし)</div>';
+    if (elThoughtCount) elThoughtCount.textContent = items.length ? `(最新${items.length}件)` : '';
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  function updateFocusPanel() {
+    if (!elFocusPanel) return;
+    if (state.selectedId == null) {
+      elFocusPanel.innerHTML =
+        '<div class="placeholder">地図上のエージェントをクリックで選択 (Esc で解除)</div>';
+      return;
+    }
+    const frame = state.data.timeline[state.currentStep];
+    const ag = (frame && frame.agents || []).find(a => a.id === state.selectedId);
+    const persona = state.data.personas.find(p => p.id === state.selectedId);
+    if (!ag || !persona) {
+      elFocusPanel.innerHTML = '<div class="placeholder">(対象エージェントのデータなし)</div>';
+      return;
+    }
+    const src = pickAwarenessSource(ag);
+    const srcLabel = src && SOURCE_LABEL[src] ? SOURCE_LABEL[src] : '— 未認識';
+    const known = (ag.known_events && ag.known_events.length)
+      ? ag.known_events.map(escapeHtml).join(', ') : 'なし';
+    const loc = ag.in_place
+      ? `施設内: ${escapeHtml(ag.current_place || '')}`
+      : `移動中 (layer: ${escapeHtml(ag.layer || '-')})`;
+    elFocusPanel.innerHTML = `
+      <div class="focus-head">${escapeHtml(persona.name || `#${persona.id}`)}</div>
+      <div class="focus-sub">
+        ${escapeHtml(String(persona.age ?? ''))}歳 ·
+        ${escapeHtml(persona.gender || '')} ·
+        ${escapeHtml(persona.occupation || '')}
+      </div>
+      <div class="focus-block">
+        <span class="label">現在地</span>${loc}
+      </div>
+      <div class="focus-block">
+        <span class="label">認識経路</span>${srcLabel}
+      </div>
+      <div class="focus-block">
+        <span class="label">既知イベント</span>${known}
+      </div>
+      <div class="focus-block">
+        <span class="label">Memory</span>${escapeHtml(ag.memory || '(なし)')}
+      </div>
+      <div class="focus-block">
+        <span class="label">Reasoning</span>${escapeHtml(ag.reasoning || '(なし)')}
+      </div>
+    `;
+  }
+
+  function screenToWorld(sx, sy) {
+    return {
+      x: (sx - state.view.offsetX) / state.view.scale,
+      y: (sy - state.view.offsetY) / state.view.scale,
+    };
+  }
+
+  function agentAt(screenX, screenY, hitPxRadius = 10) {
+    const frame = state.data.timeline[state.currentStep];
+    if (!frame) return null;
+    let best = null, bestDist = Infinity;
+    for (const ag of frame.agents) {
+      const p = worldToScreen(ag.x, ag.y);
+      const dx = p.px - screenX, dy = p.py - screenY;
+      const d = Math.hypot(dx, dy);
+      if (d <= hitPxRadius && d < bestDist) {
+        best = ag; bestDist = d;
+      }
+    }
+    return best;
+  }
+
+  // ---------------------------------------------------------------
+  // Playback loop
+  // ---------------------------------------------------------------
+
+  function setPlaying(playing) {
+    state.playing = playing;
+    elPlayPause.textContent = playing ? '⏸' : '▶';
+    if (playing) {
+      state.lastTickAt = performance.now();
+      // keep state.accum so sub-step progress resumes where it was paused
+      requestAnimationFrame(tick);
+    }
+  }
+
+  function tick(now) {
+    if (!state.playing) return;
+    const dt = now - state.lastTickAt;
+    state.lastTickAt = now;
+    state.accum += dt * state.speed;
+    const stepMs = state.baseStepMs;
+    const last = state.data.timeline.length - 1;
+    while (state.accum >= stepMs) {
+      if (state.currentStep >= last) {
+        state.accum = 0;
+        state.stepFrac = 0;
+        setPlaying(false);
+        render();
+        return;
+      }
+      state.accum -= stepMs;
+      state.currentStep++;
+      elSeek.value = String(state.currentStep);
+      elStepLabel.textContent = `${state.currentStep + 1} / ${state.data.timeline.length}`;
+    }
+    // stepFrac=1 on the very last frame would try to interpolate to a
+    // non-existent next frame; clamp to 0 there.
+    state.stepFrac = state.currentStep >= last ? 0 : Math.min(1, state.accum / stepMs);
+    render();
+    requestAnimationFrame(tick);
+  }
+
+  function seekTo(i) {
+    const last = state.data.timeline.length - 1;
+    state.currentStep = Math.max(0, Math.min(last, i));
+    state.stepFrac = 0;
+    state.accum = 0;
+    render();
+  }
+
+  // Interpolated world-space position for an agent at the current sub-step
+  // fraction. Falls back to the raw position if there is no next frame,
+  // the agent is absent in the next frame, or the hop is too large
+  // (teleport — e.g. spawn/despawn or cross-map jump; do not smear across).
+  function lerpAgentPos(ag) {
+    const f = state.stepFrac;
+    if (f <= 0) return { x: ag.x, y: ag.y };
+    const next = state.data.timeline[state.currentStep + 1];
+    if (!next) return { x: ag.x, y: ag.y };
+    const nb = next.agents && next.agents.find(a => a.id === ag.id);
+    if (!nb) return { x: ag.x, y: ag.y };
+    const dx = nb.x - ag.x, dy = nb.y - ag.y;
+    if (dx * dx + dy * dy > 400) return { x: ag.x, y: ag.y };
+    return { x: ag.x + dx * f, y: ag.y + dy * f };
+  }
+
+  // ---------------------------------------------------------------
+  // Events
+  // ---------------------------------------------------------------
+
+  elPlayPause.addEventListener('click', () => setPlaying(!state.playing));
+  elSeek.addEventListener('input', (e) => {
+    setPlaying(false);
+    seekTo(parseInt(e.target.value, 10));
+  });
+  elSpeedGroup.addEventListener('click', (e) => {
+    if (e.target.tagName !== 'BUTTON') return;
+    const sp = parseFloat(e.target.dataset.speed);
+    if (!sp) return;
+    state.speed = sp;
+    [...elSpeedGroup.children].forEach(b => b.classList.toggle('active', b === e.target));
+  });
+  window.addEventListener('keydown', (e) => {
+    if (e.key === ' ') { e.preventDefault(); setPlaying(!state.playing); }
+    else if (e.key === 'ArrowLeft')  { setPlaying(false); seekTo(state.currentStep - 1); }
+    else if (e.key === 'ArrowRight') { setPlaying(false); seekTo(state.currentStep + 1); }
+    else if (e.key === 'Escape')     { state.selectedId = null; render(); }
+  });
+  window.addEventListener('resize', resizeCanvas);
+
+  canvas.addEventListener('click', (e) => {
+    if (!state.data) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = e.clientX - rect.left;
+    const sy = e.clientY - rect.top;
+    const hit = agentAt(sx, sy);
+    if (!hit) {
+      state.selectedId = null;
+    } else if (state.selectedId === hit.id) {
+      state.selectedId = null;  // toggle off on same agent
+    } else {
+      state.selectedId = hit.id;
+    }
+    render();
+  });
+
+  // Thought-log item click → select that agent for focus tracking.
+  // Delegated because thought-list innerHTML is replaced every render.
+  if (elThoughtList) {
+    elThoughtList.addEventListener('click', (e) => {
+      const item = e.target.closest('.thought-item');
+      if (!item) return;
+      const idStr = item.getAttribute('data-agent-id');
+      if (idStr == null) return;
+      const aid = parseInt(idStr, 10);
+      if (Number.isNaN(aid)) return;
+      state.selectedId = state.selectedId === aid ? null : aid;
+      render();
+    });
+  }
+
+  // ---------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------
+
+  function readEmbeddedData() {
+    // Exporter may inline JSON as <script id="sim-data" type="application/json">
+    // so the viewer works from file:// without a local server. Empty tag =
+    // not bundled, fall through to fetch.
+    const el = document.getElementById('sim-data');
+    if (!el) return null;
+    const raw = (el.textContent || '').trim();
+    if (!raw) return null;
+    return JSON.parse(raw);
+  }
+
+  function applyData(data) {
+    if (!data || !data.timeline || !data.places || !data.personas) {
+      throw new Error('Malformed simulation_data — missing required sections');
+    }
+    state.data = data;
+    elSeek.max = String(Math.max(0, data.timeline.length - 1));
+    elSeek.value = '0';
+    elLoading.classList.add('hidden');
+    recomputeView();
+    render();
+  }
+
+  async function loadData() {
+    try {
+      const embedded = readEmbeddedData();
+      if (embedded) { applyData(embedded); return; }
+      const res = await fetch(DATA_URL, { cache: 'no-store' });
+      if (!res.ok) throw new Error(`HTTP ${res.status} fetching ${DATA_URL}`);
+      applyData(await res.json());
+    } catch (err) {
+      showError(
+        'simulation_data の読み込みに失敗しました。\n' +
+        '対処:\n' +
+        '  A. 埋め込み版 HTML (viewer_v2_bundled.html) を開く (推奨)\n' +
+        '  B. このフォルダで `python -m http.server 8000` を起動してから開く\n\n' +
+        String(err)
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------
+
+  resizeCanvas();
+  loadData();
+})();
+</script>
+</body>
+</html>
