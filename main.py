@@ -2,7 +2,9 @@
 LLM-based agent in 2D worlds with multiple places.
 """
 import argparse
+import datetime
 import logging
+import re
 import yaml
 import os
 import shutil
@@ -21,6 +23,50 @@ from reporter import build_report
 DEFAULT_FRAME_INTERVAL_INTERACTIVE = 10
 DEFAULT_FRAME_INTERVAL_CONFIG = 50
 VISUALIZATION_UPDATE_DELAY = 0.2
+OUTPUTS_ROOT = "outputs"
+
+
+def _next_run_sequence(outputs_root: str) -> int:
+    """Scan outputs/ for existing `{date}_{NN}_...` dirs and return the next NN."""
+    if not os.path.isdir(outputs_root):
+        return 1
+    max_seq = 0
+    pat = re.compile(r"^\d{4}-\d{2}-\d{2}_\d{4}_(\d{2,})_")
+    for name in os.listdir(outputs_root):
+        m = pat.match(name)
+        if m:
+            max_seq = max(max_seq, int(m.group(1)))
+    return max_seq + 1
+
+
+def _derive_run_name(config_path: str, config: dict) -> str:
+    """Pick a short run name. Prefer config.visualization.run_name, else strip
+    the config filename of leading 'config_' and the extension."""
+    vis = config.get('visualization', {}) or {}
+    if vis.get('run_name'):
+        return str(vis['run_name'])
+    stem = os.path.splitext(os.path.basename(config_path))[0]
+    if stem.startswith('config_'):
+        stem = stem[len('config_'):]
+    return stem or 'run'
+
+
+def resolve_run_dir(config_path: str, config: dict) -> Tuple[str, str]:
+    """Return (output_dir_path, basename). output_dir is the run folder,
+    basename is the folder name (used to rename html/md/transcript)."""
+    vis = config.get('visualization', {}) or {}
+    # Backwards-compat: configs that explicitly set visualization.output_dir
+    # keep the old flat layout (used by dev / smoke tests).
+    if vis.get('output_dir'):
+        output_dir = vis['output_dir']
+        return output_dir, os.path.basename(os.path.normpath(output_dir))
+
+    dt_str = datetime.datetime.now().strftime("%Y-%m-%d_%H%M")
+    seq = _next_run_sequence(OUTPUTS_ROOT)
+    name = _derive_run_name(config_path, config)
+    folder = f"{dt_str}_{seq:02d}_{name}"
+    output_dir = os.path.join(OUTPUTS_ROOT, folder)
+    return output_dir, folder
 
 
 def setup_logging(config: dict):
@@ -57,23 +103,24 @@ def check_llm_setup(sim: Simulation, logger: logging.Logger) -> bool:
     return True
 
 
-def determine_visualization_settings(args, config: dict) -> Tuple[bool, bool, int, str]:
-    """Determine visualization settings from args and config"""
+def determine_visualization_settings(args, config: dict, config_path: str) -> Tuple[bool, bool, int, str, str]:
+    """Determine visualization settings from args and config.
+    Returns (should_visualize, config_save_frames, frame_interval, output_dir, basename)."""
     config_save_frames = config.get('visualization', {}).get('save_frames', False)
     should_visualize = args.visualize or args.save_frames or config_save_frames
-    
+
     frame_interval = (
-        args.frame_interval or 
+        args.frame_interval or
         config.get('visualization', {}).get('frame_interval', DEFAULT_FRAME_INTERVAL_CONFIG)
     )
-    
+
     # For interactive visualization, use smaller interval
     if args.visualize and not args.save_frames and not args.frame_interval:
         frame_interval = DEFAULT_FRAME_INTERVAL_INTERACTIVE
-    
-    output_dir = config.get('visualization', {}).get('output_dir', 'output')
-    
-    return should_visualize, config_save_frames, frame_interval, output_dir
+
+    output_dir, basename = resolve_run_dir(config_path, config)
+
+    return should_visualize, config_save_frames, frame_interval, output_dir, basename
 
 
 def handle_visualization(
@@ -95,7 +142,9 @@ def handle_visualization(
     step_messages = getattr(sim, 'last_step_messages', None)
 
     if should_save:
-        save_path = os.path.join(output_dir, f"frame_{step:04d}.png")
+        frames_dir = os.path.join(output_dir, "frames")
+        os.makedirs(frames_dir, exist_ok=True)
+        save_path = os.path.join(frames_dir, f"frame_{step:04d}.png")
         visualizer.visualize_step(
             sim.agents,
             place_status,
@@ -192,8 +241,8 @@ def main():
     logger = logging.getLogger(__name__)
     
     # Determine visualization settings
-    should_visualize, config_save_frames, frame_interval, output_dir = \
-        determine_visualization_settings(args, config)
+    should_visualize, config_save_frames, frame_interval, output_dir, run_basename = \
+        determine_visualization_settings(args, config, args.config)
     
     # Remove output directory if it exists
     if os.path.exists(output_dir):
@@ -251,7 +300,11 @@ def main():
         # Plot statistics
         if visualizer:
             should_save_stats = args.save_frames or config_save_frames
-            stats_path = os.path.join(output_dir, 'statistics.png') if should_save_stats else None
+            stats_path = None
+            if should_save_stats:
+                frames_dir = os.path.join(output_dir, 'frames')
+                os.makedirs(frames_dir, exist_ok=True)
+                stats_path = os.path.join(frames_dir, 'statistics.png')
             visualizer.plot_statistics(sim.stats, save_path=stats_path, fire_states=sim.fire_states)
             if stats_path:
                 logger.info(f"Saved statistics plot: {stats_path}")
@@ -259,7 +312,9 @@ def main():
         # Build single-page HTML report (GIF + conversation + thinking)
         if args.save_frames or config_save_frames:
             try:
-                report_path = build_report(output_dir, config, total_steps=sim.step)
+                report_path = build_report(
+                    output_dir, config, total_steps=sim.step, basename=run_basename
+                )
                 logger.info(f"Open in browser: {report_path}")
             except Exception as e:
                 logger.error(f"Failed to build report: {e}", exc_info=True)

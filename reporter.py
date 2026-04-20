@@ -27,7 +27,11 @@ def _agent_color(agent_id: int) -> str:
 
 
 def build_gif(output_dir: str, gif_path: str) -> bool:
-    frame_paths = sorted(glob.glob(os.path.join(output_dir, "frame_*.png")))
+    # New layout: frames live in `{output_dir}/frames/`. Legacy layout: frames
+    # at `{output_dir}/` root. Check both so old smoke configs still work.
+    frame_paths = sorted(glob.glob(os.path.join(output_dir, "frames", "frame_*.png")))
+    if not frame_paths:
+        frame_paths = sorted(glob.glob(os.path.join(output_dir, "frame_*.png")))
     if not frame_paths:
         logger.warning("No frames found for GIF generation")
         return False
@@ -222,7 +226,8 @@ HTML_TEMPLATE = """<!DOCTYPE html>
 """
 
 
-def build_markdown_transcript(output_dir: str, config: Dict, total_steps: int) -> str:
+def build_markdown_transcript(output_dir: str, config: Dict, total_steps: int,
+                              basename: Optional[str] = None) -> str:
     """Write a chronological Markdown transcript of messages and thoughts for AI consumption."""
     messages = _read_jsonl(os.path.join(output_dir, "messages.jsonl"))
     memory_reasoning = _read_jsonl(os.path.join(output_dir, "memory_reasoning.jsonl"))
@@ -306,7 +311,8 @@ def build_markdown_transcript(output_dir: str, config: Dict, total_steps: int) -
                     lines.append(f"  - _記憶_: {memory}")
             lines.append("")
 
-    md_path = os.path.join(output_dir, "transcript.md")
+    transcript_name = f"{basename}_transcript.md" if basename else "transcript.md"
+    md_path = os.path.join(output_dir, transcript_name)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     logger.info(f"Saved transcript: {md_path}")
@@ -419,6 +425,7 @@ def build_markdown_condensed(
     config: Dict,
     total_steps: int,
     sample_steps: Optional[List[int]] = None,
+    basename: Optional[str] = None,
 ) -> str:
     """Write a condensed Markdown transcript: raw for sample steps, LLM summaries for the rest."""
     from anthropic import Anthropic
@@ -494,14 +501,20 @@ def build_markdown_condensed(
             lines.append("")
             logger.info(f"Step {step} summarized")
 
-    md_path = os.path.join(output_dir, "transcript_condensed.md")
+    condensed_name = f"{basename}_transcript_condensed.md" if basename else "transcript_condensed.md"
+    md_path = os.path.join(output_dir, condensed_name)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines))
     logger.info(f"Saved condensed transcript: {md_path}")
     return md_path
 
 
-def build_report(output_dir: str, config: Dict, total_steps: int) -> str:
+def build_report(
+    output_dir: str,
+    config: Dict,
+    total_steps: int,
+    basename: Optional[str] = None,
+) -> str:
     gif_name = "animation.gif"
     gif_path = os.path.join(output_dir, gif_name)
     build_gif(output_dir, gif_path)
@@ -524,10 +537,11 @@ def build_report(output_dir: str, config: Dict, total_steps: int) -> str:
         thoughts_html=thoughts_html,
     )
 
-    report_path = os.path.join(output_dir, "report.html")
+    html_name = f"{basename}.html" if basename else "report.html"
+    report_path = os.path.join(output_dir, html_name)
     with open(report_path, "w", encoding="utf-8") as f:
         f.write(rendered)
     logger.info(f"Saved report: {report_path}")
 
-    build_markdown_transcript(output_dir, config, total_steps)
+    build_markdown_transcript(output_dir, config, total_steps, basename=basename)
     return report_path

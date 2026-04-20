@@ -18,6 +18,7 @@ env/
 # Simulation outputs
 output/
 output_*/
+outputs/
 *.log
 simulation*.log
 
