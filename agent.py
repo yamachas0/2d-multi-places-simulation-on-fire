@@ -49,6 +49,70 @@ DIRECTION_MAP = {
 }
 
 
+def time_band_labels(time_str: str) -> Tuple[str, str]:
+    """Return (Japanese label, English label) for an HH:MM string.
+
+    Used by prompts so the LLM knows which part of the day it is framed in,
+    both in Japanese (matches the persona language) and in English (which
+    modern LLMs ground more reliably than time-of-day words alone).
+    """
+    try:
+        hh = int(time_str.split(':')[0])
+    except Exception:
+        return "", ""
+    if 5 <= hh < 7:   return "早朝", "Early morning (around sunrise)"
+    if 7 <= hh < 10:  return "朝ラッシュ", "Morning rush hour (commuting to work/school)"
+    if 10 <= hh < 12: return "午前中", "Late morning"
+    if 12 <= hh < 14: return "昼休み", "Lunch hour"
+    if 14 <= hh < 17: return "午後", "Afternoon"
+    if 17 <= hh < 20: return "夕方ラッシュ", "Evening rush hour (commuting home)"
+    if 20 <= hh < 22: return "夜", "Evening"
+    return "深夜", "Late night / pre-dawn"
+
+
+def time_language_guardrail(time_str: str) -> str:
+    """Return an NG-list of words that would be anachronistic this hour.
+
+    LLMs drift to morning greetings/topics by default when the time is
+    ambiguous. We anchor them explicitly: what to use, what to avoid.
+    """
+    try:
+        hh = int(time_str.split(':')[0])
+    except Exception:
+        return ""
+    if 5 <= hh < 11:
+        return (
+            "Language guardrail — this is MORNING in Tokyo:\n"
+            "- Appropriate greetings: 「おはようございます」「おはよう」\n"
+            "- Appropriate topics: 朝食, 出社, 始業, 今日の予定, モーニングコーヒー\n"
+            "- Do NOT use evening greetings (「お疲れ様でした」「お先に失礼」「こんばんは」) unless addressing someone who worked overnight.\n"
+            "- Do NOT speak as if 帰宅 or 夕食 were happening now."
+        )
+    if 17 <= hh < 22:
+        return (
+            "Language guardrail — this is EVENING in Tokyo (帰宅時間帯, commute home):\n"
+            "- Appropriate greetings: 「お疲れ様です」「お先に失礼します」「こんばんは」\n"
+            "- Appropriate topics: 帰宅, 夕食, 駅の混雑, 一日の振り返り, 明日の予定, 夕方の天気\n"
+            "- Do NOT use morning greetings: 「おはようございます」「おはよう」\n"
+            "- Do NOT talk about 朝食, 朝コーヒー, 出社前, 始業, 「今日も頑張りましょう」, 「これから一日が始まる」 as if they were happening now.\n"
+            "- 「今日」 is fine when referring to the day that is wrapping up (例: 「今日もお疲れ様」「今日は疲れた」)."
+        )
+    if hh >= 22 or hh < 5:
+        return (
+            "Language guardrail — this is LATE NIGHT in Tokyo:\n"
+            "- Appropriate topics: 終電, 夜の静けさ, 明日の予定, お疲れ, 帰り道\n"
+            "- Do NOT use morning greetings.\n"
+            "- Do NOT reference 朝の活動 (朝食, 出社, 始業) as if they were happening now."
+        )
+    # 11-17 daytime / lunch
+    return (
+        "Language guardrail — this is DAYTIME in Tokyo:\n"
+        "- Morning-specific greetings (「おはよう」) are out of place after ~10時.\n"
+        "- Evening-specific greetings (「こんばんは」「お疲れ様でした」) are premature before 17時.\n"
+        "- Appropriate framing: 昼食, ちょっとした休憩, 外回り, 午後の予定."
+    )
+
+
 class MessageDecision(TypedDict):
     """Type definition for agent message decision"""
     message: str  # Message to communicate with nearby agents
@@ -170,6 +234,10 @@ class Agent:
         # Feature 4.5: events this agent has learned about (direct proximity or
         # conversation keyword). Simulation fills this in each step.
         self.known_events: set = set()
+        # Phase 2.5: how each known event was learned ("direct"|"conversation"|"notification")
+        # and at which step. Keyed by event name.
+        self.awareness_source: Dict[str, str] = {}
+        self.awareness_step: Dict[str, int] = {}
 
     def is_in_place(self, position: Tuple[int, int]) -> bool:
         """Check if a position is inside any place"""
@@ -319,21 +387,50 @@ class Agent:
     def _build_events_section(self, events_info: Optional[List[Dict]]) -> str:
         """Build CURRENT EVENTS section for the user prompt (feature 4.5).
 
-        Only emits events the simulation has already filtered for this agent
-        (i.e. events the agent is aware of). The list of possible reactions is
-        included so the LLM sees the option space but is NOT told which to pick.
+        Phase 2.5: branches by awareness_source so that the same underlying
+        event is framed differently depending on how the agent learned about
+        it (directly witnessed / heard from someone / push notification).
+        The LLM still chooses how/whether to act; only framing changes.
         """
         if not events_info:
             return ""
         lines = ["\n=== CURRENT EVENTS ==="]
         for ev in events_info:
-            if ev.get('description'):
-                lines.append(ev['description'])
-            if ev.get('affected_place'):
-                lines.append(
-                    f"Affected place: {ev['affected_place']}. "
-                    "You are aware of this disruption."
-                )
+            source = ev.get('awareness_source', 'direct')
+            desc = ev.get('description', '')
+            affected = ev.get('affected_place', '')
+
+            if source == 'direct':
+                if desc:
+                    lines.append(desc)
+                if affected:
+                    lines.append(
+                        f"Affected place: {affected}. "
+                        "You witnessed the announcement directly."
+                    )
+            elif source == 'conversation':
+                if desc:
+                    lines.append(f"Someone told you: {desc}")
+                if affected:
+                    lines.append(
+                        f"Affected place: {affected}. "
+                        "Consider the reliability of the source."
+                    )
+            elif source == 'notification':
+                if desc:
+                    lines.append(f"[BREAKING NEWS] {desc}")
+                if affected:
+                    lines.append(
+                        f"Affected place: {affected}. "
+                        "You received a push notification — "
+                        "you are among the first to know."
+                    )
+            else:
+                if desc:
+                    lines.append(desc)
+                if affected:
+                    lines.append(f"Affected place: {affected}.")
+
         lines.append(
             "\nConsider your options (no option is recommended):\n"
             "- Walk to an alternative station (e.g. 地下鉄A駅 or 地下鉄B駅)\n"
@@ -482,20 +579,31 @@ class Agent:
         return "\n".join(lines) + "\n"
 
     def _build_time_context_section(self) -> str:
-        """Compose a TIME & CONTEXT block for the user prompt (feature 5).
+        """Compose a CURRENT TIME & CONTEXT block for the user prompt.
 
+        Carries both the clock (HH:MM), a bilingual band label (夕方ラッシュ /
+        Evening rush hour), and an explicit NG/OK list so the LLM doesn't
+        drift to morning greetings in an evening scenario or vice-versa.
         Empty string when simulation never set any time context — keeps the
         block out of the prompt for configs without time_patterns.
         """
         if not (self.current_time_str or self.current_context or self.current_goal):
             return ""
-        lines = ["=== TIME & CONTEXT ==="]
+        lines = ["=== CURRENT TIME & CONTEXT ==="]
         if self.current_time_str:
-            lines.append(f"Current time (approx): {self.current_time_str}")
+            jp, en = time_band_labels(self.current_time_str)
+            if jp and en:
+                lines.append(f"Current time: {self.current_time_str} ({jp} / {en})")
+            else:
+                lines.append(f"Current time: {self.current_time_str}")
         if self.current_context:
             lines.append(f"Neighborhood mood: {self.current_context}")
         if self.current_goal:
             lines.append(f"What people around here are typically doing now: {self.current_goal}")
+        guard = time_language_guardrail(self.current_time_str) if self.current_time_str else ""
+        if guard:
+            lines.append("")
+            lines.append(guard)
         return "\n".join(lines) + "\n"
 
     def _build_world_description(self) -> str:

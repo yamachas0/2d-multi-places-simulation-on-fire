@@ -203,6 +203,8 @@ class Simulation:
         ]
         # Extra log sink for event awareness snapshots.
         self._log_locks['event_awareness'] = threading.Lock()
+        # Phase 2.5: per-transition log of awareness propagation (direct/conversation/notification).
+        self._log_locks['awareness_propagation'] = threading.Lock()
 
         # LLM parameters — factory selects provider (anthropic/openai/google)
         llm_config = self.config['llm']
@@ -215,7 +217,15 @@ class Simulation:
         # Feature 6: per-step message edges as (from_id, to_id) tuples,
         # recorded during Phase 2 and consumed by the visualizer.
         self.last_step_messages: List[Tuple[int, int]] = []
-        
+
+        # Feature 5 (Canvas viewer): per-step snapshot timeline, flushed once
+        # at simulation end into simulation_data.json. _viewer_step_convs is a
+        # rolling buffer for the current step's conversations, reset every
+        # step after snapshot capture.
+        self._viewer_timeline: List[Dict] = []
+        self._viewer_step_convs: List[Dict] = []
+
+
         # Statistics - track per place
         self.stats = {
             'place_occupancy': [],  # Overall occupancy (all places combined)
@@ -408,6 +418,9 @@ class Simulation:
         with self._log_locks["messages"]:
             with open(messages_file, 'a', encoding='utf-8') as f:
                 f.write(json.dumps(record, ensure_ascii=False) + '\n')
+
+        # Feature 5: also buffer for the per-step viewer snapshot.
+        self._viewer_step_convs.append(record)
 
     def _log_memory_reasoning_batch(
         self,
@@ -781,11 +794,18 @@ class Simulation:
             state = dict(ec)
             state['place_position'] = pos
             state['active'] = True
+            state['activated_at_step'] = self.step
             self.event_states.append(state)
             logger.info(
                 f"EVENT '{ec['name']}' activated at step {self.step} "
                 f"(type={ec['type']}, affected={ec['affected_place']}, pos={pos})"
             )
+            # Path 3: push-notification propagation. Broadcast model — fires
+            # once at activation, not per-step. Controlled by event's
+            # `broadcast_once` flag (default True). Set to False to opt out,
+            # in which case this event won't use notification-based awareness.
+            if state['type'] == 'transit_disruption' and state.get('broadcast_once', True):
+                self._propagate_event_via_notification(state)
         for st in self.event_states:
             if st.get('active') and self.step > st['end_step']:
                 st['active'] = False
@@ -795,16 +815,20 @@ class Simulation:
         return [e for e in self.event_states
                 if e.get('active') and e.get('type') == 'transit_disruption']
 
-    def _transit_disruption_near(self, agent: Agent) -> bool:
-        """True if agent sits within the notify radius of any active transit event.
-        Used to extend the emergency_boost to transit disruptions."""
-        for ev in self._active_transit_events():
-            pos = ev.get('place_position')
-            if pos is None or ev.get('notify_radius', 0) <= 0:
-                continue
-            if agent.distance_to(pos) <= ev['notify_radius']:
-                return True
-        return False
+    def _mark_aware(self, agent: Agent, event: Dict, source: str,
+                    source_agent_id: Optional[int] = None) -> bool:
+        """Record that `agent` just became aware of `event` via `source`.
+        Returns True if this was a new transition (first-time awareness).
+        Idempotent — repeat calls are no-ops."""
+        name = event['name']
+        if name in agent.known_events:
+            return False
+        agent.known_events.add(name)
+        agent.awareness_source[name] = source
+        agent.awareness_step[name] = self.step
+        self._apply_salience_boost(agent, event)
+        self._log_awareness_transition(agent, event, source, source_agent_id)
+        return True
 
     def _propagate_direct_event_awareness(self) -> None:
         """Path 1: agents inside notify_radius of an active event auto-learn it."""
@@ -817,11 +841,10 @@ class Simulation:
                 continue
             for agent in self.agents:
                 if agent.distance_to(pos) <= ev['notify_radius']:
-                    if ev['name'] not in agent.known_events:
-                        agent.known_events.add(ev['name'])
-                        self._apply_salience_boost(agent, ev)
+                    self._mark_aware(agent, ev, source='direct')
 
-    def _propagate_event_via_message(self, receiver: Agent, text: str) -> None:
+    def _propagate_event_via_message(self, receiver: Agent, text: str,
+                                     sender_id: Optional[int] = None) -> None:
         """Path 2: a received message containing transit keywords marks the
         receiver as aware of every currently-active transit event.
 
@@ -836,9 +859,34 @@ class Simulation:
             return
         if any(kw in text for kw in self._transit_keywords):
             for ev in events:
-                if ev['name'] not in receiver.known_events:
-                    receiver.known_events.add(ev['name'])
-                    self._apply_salience_boost(receiver, ev)
+                self._mark_aware(receiver, ev, source='conversation',
+                                 source_agent_id=sender_id)
+
+    def _propagate_event_via_notification(self, event: Dict) -> None:
+        """Path 3: broadcast-model push notification. At the moment an event
+        activates, each agent rolls ONCE against their per-persona
+        phone_check_rate. Winners learn the event; losers never get another
+        notification roll for the same event (they can still become aware
+        via path-1 direct or path-2 conversation).
+
+        Design choice (vs. per-step polling): per-step would make cumulative
+        probability → 1 over a long observation window, collapsing the rate
+        difference between personas. Broadcast-once preserves rate as the
+        actual success probability, so 0.4 means ~40% of those personas
+        learn it, 0.7 means ~70%, etc. This matches real-world transit
+        alerts where apps push at event time, not on a polling loop.
+
+        Rationale: captures the Jacobs-style asymmetry where some people opt
+        into transit alerts and some don't, independent of proximity.
+        """
+        for agent in self.agents:
+            if event['name'] in agent.known_events:
+                continue
+            rate = float(agent.persona.get('phone_check_rate', 0.5) or 0.0)
+            if rate <= 0.0:
+                continue
+            if random.random() < rate:
+                self._mark_aware(agent, event, source='notification')
 
     def _apply_salience_boost(self, agent: Agent, event: Dict) -> None:
         """Bump base_salience by +0.2 for identities listed in salience_boost_targets.
@@ -858,6 +906,65 @@ class Simulation:
                 )
         agent._salience_marks.add(boosted_key)
 
+    def _compute_emergency_boost(self, agent: Agent) -> float:
+        """Phase 2.5: route-specific emergency_boost for should_speak.
+
+        Precedence / rule (max across all active stressors):
+        - fire near agent                          → 3.0 (hard override)
+        - transit event learned via notification
+          * within NOTIFICATION_FRESH_STEPS of event start → 3.0 ("breaking news"
+            adrenaline while it's still novel)
+          * after the freshness window             → 1.5 (background awareness)
+        - transit event learned directly           → 1.5
+        - transit event heard in conversation      → 1.0 (default, no boost)
+        """
+        if self._fires_near(agent, multiplier=2.0):
+            return 3.0
+
+        NOTIFICATION_FRESH_STEPS = 5
+        boost = 1.0
+        for ev in self._active_transit_events():
+            name = ev['name']
+            if name not in agent.known_events:
+                continue
+            src = agent.awareness_source.get(name, 'direct')
+            if src == 'notification':
+                activated = ev.get('activated_at_step')
+                if activated is not None and (self.step - activated) < NOTIFICATION_FRESH_STEPS:
+                    candidate = 3.0
+                else:
+                    candidate = 1.5
+            elif src == 'direct':
+                candidate = 1.5
+            else:  # conversation
+                candidate = 1.0
+            if candidate > boost:
+                boost = candidate
+        return boost
+
+    def _log_awareness_transition(self, agent: Agent, event: Dict,
+                                  source: str,
+                                  source_agent_id: Optional[int]) -> None:
+        """Append one line per awareness transition to
+        output/awareness_propagation_log.jsonl. Transition-triggered — not a
+        per-step snapshot. Complements event_awareness_log.jsonl (which IS a
+        snapshot)."""
+        if not self.output_dir:
+            return
+        payload = {
+            'step': self.step,
+            'time': self._current_time_str(),
+            'event_name': event['name'],
+            'agent_id': agent.id,
+            'agent_name': agent.persona.get('name', f'Agent {agent.id}'),
+            'source': source,
+            'source_agent_id': source_agent_id,
+        }
+        path = os.path.join(self.output_dir, 'awareness_propagation_log.jsonl')
+        with self._log_locks['awareness_propagation']:
+            with open(path, 'a', encoding='utf-8') as f:
+                f.write(json.dumps(payload, ensure_ascii=False) + '\n')
+
     def get_active_events_for_agent(self, agent: Agent) -> Optional[List[Dict]]:
         """Return prompt-ready info for events the agent is aware of.
         None if the agent has nothing to be told about (no events or not aware)."""
@@ -874,6 +981,8 @@ class Simulation:
                 'type': ev['type'],
                 'affected_place': ev.get('affected_place'),
                 'description': ev.get('description', ''),
+                'awareness_source': agent.awareness_source.get(ev['name'], 'direct'),
+                'awareness_step': agent.awareness_step.get(ev['name']),
             })
         return perceived if perceived else None
 
@@ -932,8 +1041,7 @@ class Simulation:
         fatigue_factor = max(0.2, 1.0 - fatigue / 200.0)
         effective_talk = talkativeness * fatigue_factor
 
-        in_emergency = self._fires_near(agent, multiplier=2.0) or self._transit_disruption_near(agent)
-        emergency_boost = 3.0 if in_emergency else 1.0
+        emergency_boost = self._compute_emergency_boost(agent)
 
         candidates: List[Dict] = []
         best_prob = 0.0
@@ -1042,6 +1150,113 @@ class Simulation:
             "interacting": "交流中",
         }.get(agent.behavior_layer, agent.behavior_layer or "?")
 
+    def _append_viewer_snapshot(self, memory_reasoning_records: List[Dict]) -> None:
+        """Feature 5: record one timeline entry for the Canvas viewer.
+
+        Called at the end of each step_simulation. Consumes the current
+        _viewer_step_convs buffer and resets it for the next step.
+        """
+        mr_by_id = {r.get("id"): r for r in (memory_reasoning_records or []) if r}
+        agents_snap: List[Dict] = []
+        for a in self.agents:
+            mr = mr_by_id.get(a.id, {})
+            pos = getattr(a, "position", None) or (0, 0)
+            agents_snap.append({
+                "id": a.id,
+                "x": int(pos[0]),
+                "y": int(pos[1]),
+                "in_place": bool(a.in_place),
+                "current_place": a.current_place,
+                "layer": getattr(a, "behavior_layer", None),
+                "memory": mr.get("memory", ""),
+                "reasoning": mr.get("reasoning", ""),
+                "known_events": sorted(list(a.known_events)) if a.known_events else [],
+                "awareness_source": dict(a.awareness_source) if a.awareness_source else {},
+            })
+        events_snap: List[Dict] = []
+        for e in self.event_states:
+            if not e.get("active"):
+                continue
+            events_snap.append({
+                "name": e.get("name"),
+                "type": e.get("type"),
+                "affected_place": e.get("affected_place"),
+                "remaining_steps": max(0, int(e.get("end_step", 0)) - self.step),
+            })
+        self._viewer_timeline.append({
+            "step": self.step,
+            "time": self._current_time_str(),
+            "agents": agents_snap,
+            "conversations": list(self._viewer_step_convs),
+            "events": events_snap,
+        })
+        self._viewer_step_convs = []
+
+    def export_simulation_data(self) -> Optional[str]:
+        """Feature 5: write simulation_data.json for the Canvas viewer.
+
+        One-shot export at simulation end. Bundles metadata, places,
+        personas, and the full per-step timeline into a single file.
+        Returns the output path on success, None on failure or when
+        output_dir is not set.
+        """
+        if not self.output_dir:
+            return None
+        try:
+            os.makedirs(self.output_dir, exist_ok=True)
+            cell_meters = 5  # per spec: 1 grid cell == 5 m
+            field_side_cells = 2 * self.half_space_size + 1
+            metadata = {
+                "total_steps": self.step,
+                "minutes_per_step": int(getattr(self, "step_duration_minutes", 1)),
+                "start_time": self.start_time_str,
+                "start_datetime_iso": self.start_datetime.isoformat() if self.start_datetime else None,
+                "meters_per_cell": cell_meters,
+                "half_space_size": self.half_space_size,
+                "field_size_cells": field_side_cells,
+                "field_size_meters": field_side_cells * cell_meters,
+                "llm_model": getattr(self.llm_client, "model", None),
+            }
+            places = [{
+                "name": p.get("name"),
+                "type": p.get("type"),
+                "center_x": p.get("center_x"),
+                "center_y": p.get("center_y"),
+                "half_size_x": p.get("half_size_x"),
+                "half_size_y": p.get("half_size_y"),
+                "capacity": p.get("capacity"),
+                "social_likelihood": p.get("social_likelihood"),
+                "is_spawn_point": bool(p.get("is_spawn_point", False)),
+            } for p in self.places]
+            personas = [{
+                "id": a.id,
+                "name": a.persona.get("name"),
+                "age": a.persona.get("age"),
+                "gender": a.persona.get("gender"),
+                "occupation": a.persona.get("occupation"),
+                "speech_style": a.persona.get("speech_style"),
+                "phone_check_rate": a.persona.get("phone_check_rate"),
+                "social_identities": list(getattr(a, "social_identities", []) or []),
+            } for a in self.agents]
+            payload = {
+                "metadata": metadata,
+                "places": places,
+                "personas": personas,
+                "timeline": self._viewer_timeline,
+                "focus_agent_id": None,
+            }
+            out_path = os.path.join(self.output_dir, "simulation_data.json")
+            with open(out_path, "w", encoding="utf-8") as f:
+                json.dump(payload, f, ensure_ascii=False, separators=(",", ":"))
+            logger.info(
+                f"Exported simulation_data.json ({len(self._viewer_timeline)} steps, "
+                f"{len(personas)} personas, {len(places)} places) to {out_path}"
+            )
+            return out_path
+        except Exception as e:
+            logger.error(f"Failed to export simulation_data.json: {e}", exc_info=True)
+            return None
+
     def step_simulation(self):
         """Execute one simulation step
 
@@ -1104,12 +1319,16 @@ class Simulation:
         # targeted_nearby (single partner) that is passed to the message LLM.
         skipped_p1 = 0
         gated_p1 = 0
-        phase1_tasks: List[Tuple[Agent, List[Agent], List[Agent], Optional[Dict], Optional[List[Dict]]]] = []
-        phase1_results: List[Optional[Tuple[Agent, Dict, List[Agent]]]] = [None] * len(self.agents)
+        # phase1_tasks carry the partner_id from should_speak so Phase 2 can
+        # deliver the message to that one recipient only (policy D: message is
+        # 1-to-1 per the prompt audience, while overheard-agents still get the
+        # event-awareness path via _propagate_event_via_message).
+        phase1_tasks: List[Tuple[Agent, List[Agent], List[Agent], Optional[Dict], Optional[List[Dict]], Optional[List[Dict]], Optional[int]]] = []
+        phase1_results: List[Optional[Tuple[Agent, Dict, List[Agent], Optional[int]]]] = [None] * len(self.agents)
         for idx, agent in enumerate(self.agents):
             nearby_agents = agent.get_nearby_agents(self.agents)
             if self.skip_probability > 0 and random.random() < self.skip_probability:
-                phase1_results[idx] = (agent, {"message": "", "reasoning": "Skipped (random)"}, nearby_agents)
+                phase1_results[idx] = (agent, {"message": "", "reasoning": "Skipped (random)"}, nearby_agents, None)
                 skipped_p1 += 1
                 continue
 
@@ -1126,6 +1345,7 @@ class Simulation:
                     agent,
                     {"message": "", "reasoning": "should_speak=False"},
                     nearby_agents,
+                    None,
                 )
                 gated_p1 += 1
                 continue
@@ -1138,7 +1358,7 @@ class Simulation:
                 agent_place_status = self.get_place_status(agent.current_place)
             fire_info = self.get_fire_info_for_agent(agent)
             events_info = self.get_active_events_for_agent(agent)
-            phase1_tasks.append((agent, targeted_nearby, nearby_agents, agent_place_status, fire_info, events_info))
+            phase1_tasks.append((agent, targeted_nearby, nearby_agents, agent_place_status, fire_info, events_info, partner_id))
             # Reserve slot — filled in after the executor returns.
             phase1_results[idx] = None
 
@@ -1149,18 +1369,18 @@ class Simulation:
                     executor.submit(
                         ag.decide_message, ps, targ_nb, self.step, fire_info=fi, events_info=ei
                     )
-                    for ag, targ_nb, _full_nb, ps, fi, ei in phase1_tasks
+                    for ag, targ_nb, _full_nb, ps, fi, ei, _pid in phase1_tasks
                 ]
                 task_results = []
-                for (ag, _targ_nb, full_nb, _, _, _), fut in zip(phase1_tasks, futures):
+                for (ag, _targ_nb, full_nb, _, _, _, pid), fut in zip(phase1_tasks, futures):
                     try:
                         decision = fut.result()
                     except Exception as e:
                         logger.error(f"Agent {ag.id} Phase 1 parallel execution failed: {e}")
                         decision = {"message": "", "reasoning": "Parallel execution error"}
-                    # Store FULL nearby for Phase 2/3; the targeted_nearby was
-                    # only used to shape the message-LLM prompt.
-                    task_results.append((ag, decision, full_nb))
+                    # Keep full_nb (for Phase 2 event propagation + Phase 3),
+                    # and partner_id (who the LLM's message was written for).
+                    task_results.append((ag, decision, full_nb, pid))
 
             # Merge task_results back into phase1_results in original agent order.
             result_iter = iter(task_results)
@@ -1168,35 +1388,55 @@ class Simulation:
                 if slot is None:
                     phase1_results[idx] = next(result_iter)
 
-        message_decisions: List[Tuple[Agent, Dict, List[Agent]]] = [r for r in phase1_results if r is not None]
+        message_decisions: List[Tuple[Agent, Dict, List[Agent], Optional[int]]] = [r for r in phase1_results if r is not None]
 
-        # Phase 2: Send messages (using decision-time nearby agents, before movement)
+        # Phase 2: Deliver messages.
+        # Policy D (2026-04-20): the message content goes to the single partner
+        # the LLM was prompted with (1-to-1 matching prompt audience). Other
+        # agents in `nearby_agents` still receive the event-awareness side-
+        # effect via _propagate_event_via_message — they "overhear" the gist
+        # of transit news without being logged as individual recipients.
         self.last_step_messages = []
-        for agent, message_decision, nearby_agents in message_decisions:
+        for agent, message_decision, nearby_agents, partner_id in message_decisions:
             message_content = message_decision.get('message', '')
-            if message_content and nearby_agents:
-                sender_name = agent.persona.get('name') or f"Agent {agent.id}"
+            if not (message_content and nearby_agents):
+                continue
+            sender_name = agent.persona.get('name') or f"Agent {agent.id}"
+            partner = None
+            if partner_id is not None:
+                partner = next((a for a in nearby_agents if a.id == partner_id), None)
+
+            if partner is not None:
                 logger.info(
-                    f"Step {self.step}: {sender_name} sends message to {len(nearby_agents)} nearby agent(s): "
+                    f"Step {self.step}: {sender_name} → {partner.persona.get('name', f'Agent {partner.id}')}: "
                     f"\"{message_content}\""
                 )
-                for other_agent in nearby_agents:
-                    other_agent.receive_message(
-                        agent.id,
-                        message_content,
-                        step=self.step,
-                        from_name=sender_name,
-                    )
-                    # Feature 4.5 path 2: transit keyword → receiver learns the event.
-                    self._propagate_event_via_message(other_agent, message_content)
-                    self.last_step_messages.append((agent.id, other_agent.id))
-                    # Log message to jsonl file (feature 4: persona names + time + relationship)
-                    self._log_message(
-                        from_agent=agent,
-                        to_agent=other_agent,
-                        message=message_content,
-                        reasoning=message_decision.get('reasoning', '')
-                    )
+                partner.receive_message(
+                    agent.id,
+                    message_content,
+                    step=self.step,
+                    from_name=sender_name,
+                )
+                self._propagate_event_via_message(
+                    partner, message_content, sender_id=agent.id
+                )
+                self.last_step_messages.append((agent.id, partner.id))
+                self._log_message(
+                    from_agent=agent,
+                    to_agent=partner,
+                    message=message_content,
+                    reasoning=message_decision.get('reasoning', '')
+                )
+
+            # Overheard path: every OTHER nearby agent still has a chance to
+            # pick up the event keyword (transit disruption). No message log,
+            # no memory push — only the awareness side-effect.
+            for other_agent in nearby_agents:
+                if partner is not None and other_agent.id == partner.id:
+                    continue
+                self._propagate_event_via_message(
+                    other_agent, message_content, sender_id=agent.id
+                )
 
         # Phase 3: Collect action decisions from all agents (with position information and message content).
         # LLM calls are executed in parallel across agents (when parallel_workers > 1).
@@ -1205,7 +1445,7 @@ class Simulation:
         phase3_tasks: List[Tuple[int, Agent, List[Agent], Optional[Dict], str, Optional[List[Dict]], Optional[List[Dict]]]] = []
         skipped_p3 = 0
 
-        for idx, (agent, message_decision, nearby_agents) in enumerate(message_decisions):
+        for idx, (agent, message_decision, nearby_agents, _partner_id) in enumerate(message_decisions):
             if self.skip_probability > 0 and random.random() < self.skip_probability:
                 action_decision = {
                     "action_type": "stay",
@@ -1331,6 +1571,9 @@ class Simulation:
             'agents_in_place': [agent.id for agent in self.get_agents_in_place()],
             'fire_states': list(self.fire_states),
         })
+
+        # Feature 5: capture per-step snapshot for the Canvas viewer.
+        self._append_viewer_snapshot(memory_reasoning_records)
         
         if self.step % LOG_INTERVAL == 0:
             place_info = ", ".join([
@@ -1363,7 +1606,10 @@ class Simulation:
             logger.info("Simulation interrupted by user")
         except Exception as e:
             logger.error(f"Error during simulation: {e}", exc_info=True)
-        
+
+        # Feature 5: export the unified Canvas-viewer dataset at the end.
+        self.export_simulation_data()
+
         logger.info("Simulation completed")
     
     def get_statistics(self) -> Dict:
