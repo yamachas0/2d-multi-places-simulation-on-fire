@@ -14,6 +14,7 @@ import numpy as np
 from agent import Agent
 from claude_client import ClaudeClient
 from llm_client_factory import create_llm_client
+from navigation import Navigator
 from place_types import get_place_type_spec
 from utils import (
     is_position_in_place,
@@ -36,7 +37,16 @@ class Simulation:
     def __init__(self, config_path: str = "config.yaml", output_dir: Optional[str] = None, seed: Optional[int] = None):
         """Initialize simulation from config file"""
         with open(config_path, 'r', encoding='utf-8') as f:
-            self.config = yaml.safe_load(f)
+            raw = f.read()
+        # Handle shinagawa_config.yaml shorthand (`- axis: ".." ; center_x: ..`)
+        # the same way tools/bundle_viewer.py does.
+        import re as _re
+        _SC = _re.compile(r'^(\s*-\s)(.+?\s;\s.+)$', _re.MULTILINE)
+        def _norm(m):
+            prefix, body = m.group(1), m.group(2).strip()
+            fields = [f.strip() for f in body.split(';') if f.strip()]
+            return f"{prefix}{{ {', '.join(fields)} }}"
+        self.config = yaml.safe_load(_SC.sub(_norm, raw))
 
         # Output directory for logs
         self.output_dir = output_dir
@@ -139,6 +149,11 @@ class Simulation:
         place_names = [place['name'] for place in self.places]
         place_types = [place['type'] for place in self.places]
         logger.info(f"Initialized {len(self.places)} place(s): {place_names} (types: {place_types})")
+
+        # Passability layer. Builds a walkable mask from scene_3d (roads,
+        # decks, stairs) + place interiors. When scene_3d is absent, falls
+        # back to "everything walkable" so legacy configs still work.
+        self.navigator = Navigator(self.config, self.half_space_size)
         
         # Fire parameters (multiple fires supported)
         fires_config = self.config.get('fires', [])
@@ -161,12 +176,14 @@ class Simulation:
             )
         self.fire_states: List[Dict] = []  # Active fires
 
-        # Generic events (feature 4.5). Currently supports type:transit_disruption
-        # (JR運休). Fires stay on the legacy `fires:` key; transit events live
-        # under `events:` so both can run in parallel without touching each other.
+        # Generic events (feature 4.5). Supports type:transit_disruption (JR運休)
+        # and type:last_train (終電後 — same awareness plumbing, different prompt
+        # context). Fires stay on the legacy `fires:` key; these live under
+        # `events:` so both can run in parallel without touching each other.
         self.event_configs: List[Dict] = []
+        _SUPPORTED_EVENT_TYPES = ('transit_disruption', 'last_train')
         for i, ec in enumerate(self.config.get('events', []) or []):
-            if ec.get('type') != 'transit_disruption':
+            if ec.get('type') not in _SUPPORTED_EVENT_TYPES:
                 logger.warning(
                     f"Event #{i} '{ec.get('name')}' has unsupported type "
                     f"'{ec.get('type')}' — skipping."
@@ -175,7 +192,7 @@ class Simulation:
             effects = ec.get('effects', {}) or {}
             self.event_configs.append({
                 'name': ec.get('name', f'event_{i}'),
-                'type': 'transit_disruption',
+                'type': ec.get('type'),
                 'start_step': int(ec['start_step']),
                 'end_step': int(ec.get('end_step', 10**9)),
                 'affected_place': ec.get('affected_place'),
@@ -187,7 +204,7 @@ class Simulation:
             })
             logger.info(
                 f"Event '{self.event_configs[-1]['name']}' configured: "
-                f"type=transit_disruption, start={ec['start_step']}, "
+                f"type={ec.get('type')}, start={ec['start_step']}, "
                 f"end={ec.get('end_step','inf')}, affected={ec.get('affected_place')}"
             )
         # Active events (mirrors fire_states). Items have the same keys as
@@ -195,12 +212,15 @@ class Simulation:
         # the affected_place.
         self.event_states: List[Dict] = []
 
-        # Keywords that indicate transit disruption in a received message —
-        # used by the 2nd propagation path (conversation-based awareness).
-        self._transit_keywords = [
+        # Keywords that indicate an event in a received message — used by the
+        # 2nd propagation path (conversation-based awareness). Defaults to the
+        # JR-disruption set; configs can override via `events_keywords:` at top
+        # level to swap in scenario-specific vocab (e.g. 終電/新幹線).
+        default_kw = [
             '運休', '止まって', '止まった', '電車', '事故', '山手線',
             '京浜東北', '地下鉄', '歩いて', '振替', '運転見合わせ',
         ]
+        self._transit_keywords = list(self.config.get('events_keywords') or default_kw)
         # Extra log sink for event awareness snapshots.
         self._log_locks['event_awareness'] = threading.Lock()
         # Phase 2.5: per-transition log of awareness propagation (direct/conversation/notification).
@@ -302,6 +322,7 @@ class Simulation:
             persona=persona,
             movement_base_cells=self.movement_base_cells,
             movement_variance=self.movement_variance,
+            navigator=self.navigator,
         )
         new_agent.update_state(self.places)
         self.agents.append(new_agent)
@@ -459,9 +480,10 @@ class Simulation:
     ) -> List[Tuple[int, int]]:
         """Generate initial positions for agents.
 
-        If a persona defines `initial_place: <name>`, the corresponding
-        agent is spawned at a random cell **inside** that place. All other
-        agents keep the legacy random-avoid-places behaviour.
+        In constrained-passability mode, every agent spawns at a random
+        walkable cell (road/deck/place interior). The `initial_place`
+        persona hint and `avoid_places` flag are honoured only when
+        the navigator is unconstrained (legacy mode).
         """
         personas_by_id = personas_by_id or {}
         place_by_name = {p['name']: p for p in self.places}
@@ -469,6 +491,46 @@ class Simulation:
         positions: List[Optional[Tuple[int, int]]] = [None] * self.num_agents
         used_positions: Set[Tuple[int, int]] = set()
 
+        constrained = getattr(self, 'navigator', None) and self.navigator.constrained
+
+        if constrained:
+            # In constrained mode: honour persona.initial_place when it points
+            # to a walkable place (pedestrian_street / plaza / etc). This lets
+            # scenarios pin the starting location (e.g. 全員東西自由通路). When
+            # no initial_place is set, fall back to a random walkable cell.
+            rng = random.Random(random.random())
+            for i in range(self.num_agents):
+                persona = personas_by_id.get(i)
+                place_name = (persona or {}).get('initial_place')
+                pos = None
+                if place_name:
+                    place = place_by_name.get(place_name)
+                    if place is None:
+                        logger.warning(
+                            f"Agent {i}: initial_place '{place_name}' not found — "
+                            "falling back to random walkable cell."
+                        )
+                    else:
+                        pos = self._sample_walkable_cell_in_place(
+                            place, used_positions
+                        )
+                        if pos is None:
+                            logger.warning(
+                                f"Agent {i}: '{place_name}' has no free walkable "
+                                "cell — falling back to random walkable cell."
+                            )
+                if pos is None:
+                    pos = self.navigator.sample_walkable_cell(rng, used_positions)
+                if pos is None:
+                    logger.warning(
+                        f"Agent {i}: no walkable cell available — using origin."
+                    )
+                    pos = (0, 0)
+                positions[i] = pos
+                used_positions.add(pos)
+            return [p for p in positions if p is not None]
+
+        # Legacy (unconstrained) mode: original behaviour.
         for i in range(self.num_agents):
             persona = personas_by_id.get(i)
             if not persona:
@@ -539,6 +601,32 @@ class Simulation:
             if pos not in used_positions:
                 return pos
         return None
+
+    def _sample_walkable_cell_in_place(
+        self,
+        place: Dict,
+        used_positions: Set[Tuple[int, int]],
+    ) -> Optional[Tuple[int, int]]:
+        """Constrained-mode variant: sample a cell inside the place bbox that
+        is also walkable per the navigator mask. Used when personas pin
+        initial_place and we still must respect road/passage geometry."""
+        nav = getattr(self, 'navigator', None)
+        cx = int(place.get('center_x', 0))
+        cy = int(place.get('center_y', 0))
+        hx = int(place.get('half_size_x', place.get('half_size', self.half_place_size)))
+        hy = int(place.get('half_size_y', place.get('half_size', self.half_place_size)))
+        candidates = []
+        for x in range(cx - hx, cx + hx + 1):
+            for y in range(cy - hy, cy + hy + 1):
+                pos = (x, y)
+                if pos in used_positions:
+                    continue
+                if nav is not None and not nav.is_walkable(x, y):
+                    continue
+                candidates.append(pos)
+        if not candidates:
+            return None
+        return random.choice(candidates)
     
     def _initialize_relationships(
         self, personas_by_id: Dict[int, Dict]
@@ -606,6 +694,7 @@ class Simulation:
                 movement_base_cells=self.movement_base_cells,
                 movement_variance=self.movement_variance,
                 initial_relationships=relationships_by_id.get(i, {}),
+                navigator=self.navigator,
             )
             agent.update_state()
             self.agents.append(agent)
@@ -804,7 +893,7 @@ class Simulation:
             # once at activation, not per-step. Controlled by event's
             # `broadcast_once` flag (default True). Set to False to opt out,
             # in which case this event won't use notification-based awareness.
-            if state['type'] == 'transit_disruption' and state.get('broadcast_once', True):
+            if state['type'] in ('transit_disruption', 'last_train') and state.get('broadcast_once', True):
                 self._propagate_event_via_notification(state)
         for st in self.event_states:
             if st.get('active') and self.step > st['end_step']:
@@ -813,7 +902,7 @@ class Simulation:
 
     def _active_transit_events(self) -> List[Dict]:
         return [e for e in self.event_states
-                if e.get('active') and e.get('type') == 'transit_disruption']
+                if e.get('active') and e.get('type') in ('transit_disruption', 'last_train')]
 
     def _mark_aware(self, agent: Agent, event: Dict, source: str,
                     source_agent_id: Optional[int] = None) -> bool:

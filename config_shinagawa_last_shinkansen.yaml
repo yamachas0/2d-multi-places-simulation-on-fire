@@ -1,0 +1,1199 @@
+# ================================================================
+# 品川 新幹線終電後シナリオ v3 (last_shinkansen)
+# ================================================================
+# Built by tools/build_last_shinkansen_config.py
+# Source指示書: 2026-04-20_shinagawa_last_shinkansen_v3.md
+#
+# 主な設定:
+#   - 全員 initial_place = 品川駅 東西自由通路
+#   - start_time 21:30 / step=1min / duration 15(smoke) or 90(本線)
+#   - num_agents 20(smoke) / 30(本線)
+#   - event: last_train (transit_disruption と同じ awareness 配線)
+#   - events_keywords: 終電シナリオ仕様 (新幹線/ホテル/深夜バス等)
+# ================================================================
+
+metadata:
+  name: 品川駅周辺 400m圏
+  description: JR/京急品川駅を中心に半径400m圏の都市シーン
+  half_space_size: 80
+  meters_per_cell: 5
+  generated_from: Claude chat 3D widget iteration
+proposed_type_extensions:
+- hotel
+- residential
+- industrial
+- utility
+- construction
+- zone_izakaya
+- museum
+simulation:
+  duration: 90
+  half_space_size: 80
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: '21:30'
+    patterns:
+    - hours:
+      - 21
+      - 22
+      enter_per_step: 0.08
+      exit_per_step: 0.04
+      neighborhood_mood: 新幹線の終電が出たばかりの品川駅東西自由通路。帰れなくなった出張者・無関係な帰宅客・夜勤者が入り混じる。
+      default_goal: 終電後の自分の状況を整理し、今夜どう動くか決める
+    - hours:
+      - 22
+      - 23
+      - 0
+      - 1
+      enter_per_step: 0.03
+      exit_per_step: 0.06
+      neighborhood_mood: 在来線の終電も徐々に消え、タクシー待ちや深夜バス乗り場が目立ち始める。
+      default_goal: 今夜の宿泊・移動手段を確定させる
+agents:
+  num_agents: 30
+  max_agents: 30
+  communication_radius: 10
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 15
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+  personas:
+  - id: 0
+    name: 中村達也
+    age: 42
+    gender: male
+    occupation: メーカー営業部長
+    address: 大阪府堺市
+    background: 明日9時に大阪本社でプレゼン。部下の田中さやかと出張。冷静だが内心焦っている。
+    speech_style: 落ち着いた丁寧語。部下には兄貴分
+    current_goal: 明日の朝イチ打ち合わせに絶対間に合わせたい。部下のことも気になる。
+    talkativeness: 0.3
+    phone_check_rate: 0.88
+    initial_relationships:
+      1: 0.65
+    social_identities:
+    - group_name: 大阪出張メーカー営業チーム
+      scale: micro
+      base_salience: 0.85
+      norms: 仕事仲間・責任感
+      member_ids:
+      - 1
+      in_group_bias: 0.7
+    initial_place: 品川駅 東西自由通路
+  - id: 1
+    name: 田中さやか
+    age: 28
+    gender: female
+    occupation: メーカー営業
+    address: 大阪市北区
+    background: 部長と一緒に出張。明日の資料がまだ完成していない。
+    speech_style: ハキハキ敬語、焦ると早口
+    current_goal: 今夜のうちに資料を仕上げたい。宿のことも考えないといけない。
+    talkativeness: 0.55
+    phone_check_rate: 0.95
+    initial_relationships:
+      0: 0.65
+    social_identities:
+    - group_name: 大阪出張メーカー営業チーム
+      scale: micro
+      base_salience: 0.85
+      norms: 仕事仲間・責任感
+      member_ids:
+      - 0
+      in_group_bias: 0.7
+    initial_place: 品川駅 東西自由通路
+  - id: 2
+    name: 松田浩二
+    age: 55
+    gender: male
+    occupation: 商社 上席部長
+    address: 名古屋市
+    background: 単独出張。定年まで数年、リスクを取らない慎重派。家族が心配している。
+    speech_style: 重厚な敬語、ゆっくり
+    current_goal: 家族を不安にさせたくない。自分の身は自分で守る。
+    talkativeness: 0.25
+    phone_check_rate: 0.7
+    initial_place: 品川駅 東西自由通路
+  - id: 3
+    name: 佐藤美穂
+    age: 34
+    gender: female
+    occupation: IT企業 PM
+    address: 京都市
+    background: 単独出張。明日午前の会議はリモートでも代替できる。どちらかというと適応型。
+    speech_style: 淡々とした丁寧語
+    current_goal: 焦っても仕方ない。一番賢い選択をしたい。
+    talkativeness: 0.5
+    phone_check_rate: 0.92
+    initial_place: 品川駅 東西自由通路
+  - id: 4
+    name: 林雄介
+    age: 29
+    gender: male
+    occupation: スタートアップ エンジニア
+    address: 大阪市福島区
+    background: 出費を最小限にしたいが明日の午後に大阪で打ち合わせがある。
+    speech_style: ため口混じりのカジュアル
+    current_goal: できるだけお金を使いたくない。でも打ち合わせには間に合わせたい。
+    talkativeness: 0.4
+    phone_check_rate: 0.88
+    initial_place: 品川駅 東西自由通路
+  - id: 5
+    name: 山岡りえ
+    age: 38
+    gender: female
+    occupation: コンサルタント
+    address: 神戸市
+    background: 出張トラブルには慣れている。体力よりも快適さを優先するタイプ。
+    speech_style: さばさばした丁寧語
+    current_goal: 余計なストレスをかけずに今夜を乗り越えたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.95
+    initial_place: 品川駅 東西自由通路
+  - id: 6
+    name: 渡辺健一
+    age: 47
+    gender: male
+    occupation: 建設会社 課長
+    address: 名古屋市守山区
+    background: 翌日は有給を取ってあるので実は急ぎではない。
+    speech_style: 明るい世間話モード
+    current_goal: せっかく東京に居る。楽しめるならそれでいい。
+    talkativeness: 0.55
+    phone_check_rate: 0.65
+    initial_place: 品川駅 東西自由通路
+  - id: 7
+    name: 大西幸子
+    age: 62
+    gender: female
+    occupation: パート
+    address: 富山市
+    background: 娘と二人旅。スマホ操作が苦手で娘に頼りっきり。
+    speech_style: 素朴な方言混じり
+    current_goal: 娘のそばにいれば大丈夫、でも早く休みたい。
+    talkativeness: 0.35
+    phone_check_rate: 0.15
+    initial_relationships:
+      8: 0.98
+    social_identities:
+    - group_name: 大西母娘
+      scale: micro
+      base_salience: 0.95
+      norms: 家族・寄り添う
+      member_ids:
+      - 8
+      in_group_bias: 0.98
+    initial_place: 品川駅 東西自由通路
+  - id: 8
+    name: 大西美鈴
+    age: 35
+    gender: female
+    occupation: 会社員
+    address: 富山市
+    background: 母親と二人旅。母を安心させることが最優先。
+    speech_style: 母には優しく、外には丁寧
+    current_goal: お母さんを心配させたくない。自分がなんとかしないといけない。
+    talkativeness: 0.55
+    phone_check_rate: 0.9
+    initial_relationships:
+      7: 0.98
+    social_identities:
+    - group_name: 大西母娘
+      scale: micro
+      base_salience: 0.95
+      norms: 家族・守る
+      member_ids:
+      - 7
+      in_group_bias: 0.98
+    initial_place: 品川駅 東西自由通路
+  - id: 9
+    name: 川口翔太
+    age: 23
+    gender: male
+    occupation: 大学院生
+    address: 福岡市
+    background: 東京観光の帰り。お金はあまりない。飛行機の選択肢が頭にある。
+    speech_style: 若者らしいカジュアル
+    current_goal: なるべく安く今夜をしのいで明日福岡に帰りたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.88
+    initial_place: 品川駅 東西自由通路
+  - id: 10
+    name: 斎藤英雄
+    age: 70
+    gender: male
+    occupation: 退職者
+    address: 仙台市
+    background: 孫の顔を見に東京へ来た帰り。スマホを使いこなせない。
+    speech_style: ゆっくりした丁寧語
+    current_goal: 仙台への電車があると思っている。早く帰りたい。
+    talkativeness: 0.4
+    phone_check_rate: 0.12
+    initial_place: 品川駅 東西自由通路
+  - id: 11
+    name: 北村彩乃
+    age: 27
+    gender: female
+    occupation: アパレル販売員
+    address: 札幌市
+    background: 東京出張の帰り。飛行機なので新幹線は関係ないが、この混雑の意味がわからない。
+    speech_style: 明るくフレンドリー
+    current_goal: 羽田行きの京急に乗らないといけない。何が起きているのかわからない。
+    talkativeness: 0.6
+    phone_check_rate: 0.92
+    initial_place: 品川駅 東西自由通路
+  - id: 12
+    name: 石川慶太
+    age: 31
+    gender: male
+    occupation: 広告代理店
+    address: 目黒区
+    background: 残業後の帰宅。疲れているのでさっさと帰りたい。
+    speech_style: 疲れた淡々
+    current_goal: 早く家に帰って風呂に入りたい。
+    talkativeness: 0.35
+    phone_check_rate: 0.2
+    initial_place: 品川駅 東西自由通路
+  - id: 13
+    name: 加藤真理
+    age: 44
+    gender: female
+    occupation: 中学校教師
+    address: 大田区
+    background: 研修帰り。明日も早い。
+    speech_style: 落ち着いた敬語
+    current_goal: 明日も朝から仕事。できるだけ早く帰りたい。
+    talkativeness: 0.3
+    phone_check_rate: 0.3
+    initial_place: 品川駅 東西自由通路
+  - id: 14
+    name: 村田隆司
+    age: 38
+    gender: male
+    occupation: 外資系銀行員
+    address: 港区
+    background: 会食帰り。お金は気にしない。
+    speech_style: スマートな敬語
+    current_goal: 楽に帰れればそれでいい。
+    talkativeness: 0.2
+    phone_check_rate: 0.5
+    initial_place: 品川駅 東西自由通路
+  - id: 15
+    name: 木村奈緒
+    age: 26
+    gender: female
+    occupation: 看護師(夜勤明け)
+    address: 品川区
+    background: 夜勤明け。かなり疲れている。
+    speech_style: ぼそぼそ
+    current_goal: とにかく早くベッドに横になりたい。
+    talkativeness: 0.25
+    phone_check_rate: 0.55
+    initial_place: 品川駅 東西自由通路
+  - id: 16
+    name: 藤井淳
+    age: 52
+    gender: male
+    occupation: 不動産会社社長
+    address: 横浜市
+    background: 取引先との会食帰り。気分がいい。
+    speech_style: 貫禄のある余裕口調
+    current_goal: 今夜は楽しかった。ゆっくり横浜に帰ろう。
+    talkativeness: 0.5
+    phone_check_rate: 0.65
+    initial_place: 品川駅 東西自由通路
+  - id: 17
+    name: 長谷川桜
+    age: 21
+    gender: female
+    occupation: 大学生
+    address: 世田谷区
+    background: 友人と夕食の帰り。まだ話し足りない気分。
+    speech_style: 楽しげなタメ口
+    current_goal: 拓ともう少し話したいけど、終電も気になる。
+    talkativeness: 0.65
+    phone_check_rate: 0.9
+    initial_relationships:
+      18: 0.88
+    social_identities:
+    - group_name: 大学生ペア(桜・拓)
+      scale: micro
+      base_salience: 0.8
+      norms: 親しい友人
+      member_ids:
+      - 18
+      in_group_bias: 0.88
+    initial_place: 品川駅 東西自由通路
+  - id: 18
+    name: 橋本拓
+    age: 22
+    gender: male
+    occupation: 大学生
+    address: 世田谷区
+    background: 長谷川と一緒。明日の課題が気になっている。
+    speech_style: 優しいタメ口
+    current_goal: 課題が終わってない。早めに帰りたいが、桜とのこの時間も大事にしたい。
+    talkativeness: 0.6
+    phone_check_rate: 0.88
+    initial_relationships:
+      17: 0.88
+    social_identities:
+    - group_name: 大学生ペア(桜・拓)
+      scale: micro
+      base_salience: 0.8
+      norms: 親しい友人
+      member_ids:
+      - 17
+      in_group_bias: 0.88
+    initial_place: 品川駅 東西自由通路
+  - id: 19
+    name: 岡田仁
+    age: 67
+    gender: male
+    occupation: 定年退職者
+    address: 川崎市
+    background: 息子夫婦と夕食の帰り。急ぐ理由がない。
+    speech_style: ゆったりした丁寧語
+    current_goal: 夜の散歩でも楽しみながらゆっくり帰ろう。
+    talkativeness: 0.55
+    phone_check_rate: 0.2
+    initial_place: 品川駅 東西自由通路
+  - id: 20
+    name: 荒木誠
+    age: 45
+    gender: male
+    occupation: 商社 部長
+    address: 福岡市博多区
+    background: 既に港南口のホテルにチェックイン済み。明日の会議の準備が気になる。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 明日の朝一に備えて今夜は早めに休みたい。少し外に出たかった。
+    talkativeness: 0.3
+    phone_check_rate: 0.75
+    initial_place: 品川駅 東西自由通路
+  - id: 21
+    name: 池田麻子
+    age: 33
+    gender: female
+    occupation: 製薬会社MR
+    address: 広島市
+    background: 既にチェックイン済み。夕食を食べ損ねた。
+    speech_style: ハキハキ
+    current_goal: 何かお腹に入れてから部屋に戻りたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.85
+    initial_place: 品川駅 東西自由通路
+  - id: 22
+    name: 田辺修
+    age: 39
+    gender: male
+    occupation: 製造業 係長
+    address: 高松市
+    background: 既にチェックイン済み。散歩に出てきた。
+    speech_style: 静かな敬語
+    current_goal: ぶらっと外の空気を吸いたかっただけ。
+    talkativeness: 0.35
+    phone_check_rate: 0.6
+    initial_place: 品川駅 東西自由通路
+  - id: 23
+    name: 村上千恵
+    age: 50
+    gender: female
+    occupation: 市役所職員
+    address: 新潟市
+    background: 既にチェックイン済み。夜の品川を見てみたかった。
+    speech_style: 穏やかな丁寧語
+    current_goal: 少し外を見たら部屋に戻るつもりだった。
+    talkativeness: 0.5
+    phone_check_rate: 0.4
+    initial_place: 品川駅 東西自由通路
+  - id: 24
+    name: 吉田健
+    age: 35
+    gender: male
+    occupation: 出版社
+    address: 渋谷区
+    background: 同僚と飲み会の帰り。まだ飲み足りない。
+    speech_style: 酔っぱらいのフランク
+    current_goal: 楽しい夜を続けたいが、終電は逃したくない。
+    talkativeness: 0.7
+    phone_check_rate: 0.7
+    initial_relationships:
+      25: 0.72
+    social_identities:
+    - group_name: 出版社飲み会ペア
+      scale: micro
+      base_salience: 0.7
+      norms: 同僚ノリ
+      member_ids:
+      - 25
+      in_group_bias: 0.72
+    initial_place: 品川駅 東西自由通路
+  - id: 25
+    name: 福田明美
+    age: 32
+    gender: female
+    occupation: 出版社
+    address: 新宿区
+    background: 同僚と一緒。明日は普通に仕事がある。
+    speech_style: 赤ら顔のタメ口混じり
+    current_goal: もう少し飲みたい気持ちと、ちゃんと帰らなきゃという気持ちが半々。
+    talkativeness: 0.65
+    phone_check_rate: 0.85
+    initial_relationships:
+      24: 0.72
+    social_identities:
+    - group_name: 出版社飲み会ペア
+      scale: micro
+      base_salience: 0.7
+      norms: 同僚ノリ
+      member_ids:
+      - 24
+      in_group_bias: 0.72
+    initial_place: 品川駅 東西自由通路
+  - id: 26
+    name: 三浦浩
+    age: 41
+    gender: male
+    occupation: SE
+    address: 江東区
+    background: 一人で飲み会帰り。この混雑が何事かと思っている。
+    speech_style: ぼそっと
+    current_goal: 終電には十分間に合う。何かあったのか気になる。
+    talkativeness: 0.25
+    phone_check_rate: 0.75
+    initial_place: 品川駅 東西自由通路
+  - id: 27
+    name: 平田亜紀
+    age: 29
+    gender: female
+    occupation: 事務職
+    address: 墨田区
+    background: 終電まで2時間はある。夜はまだ長い。
+    speech_style: 明るいタメ口
+    current_goal: せっかく品川まで来たし、もう一軒くらいいいかなという気分。
+    talkativeness: 0.45
+    phone_check_rate: 0.88
+    initial_place: 品川駅 東西自由通路
+  - id: 28
+    name: 原田哲也
+    age: 36
+    gender: male
+    occupation: コンビニ夜勤
+    address: 品川区
+    background: 仕事に向かう途中。この混雑には慣れている。
+    speech_style: 素っ気ない敬語
+    current_goal: 遅刻せずに出勤する。
+    talkativeness: 0.2
+    phone_check_rate: 0.3
+    initial_place: 品川駅 東西自由通路
+  - id: 29
+    name: 杉山洋子
+    age: 48
+    gender: female
+    occupation: 深夜清掃スタッフ
+    address: 港区
+    background: 仕事の行き帰り。自分のペースを崩さない。
+    speech_style: ひかえめ
+    current_goal: 現場に時間通り着けばいい。
+    talkativeness: 0.15
+    phone_check_rate: 0.25
+    initial_place: 品川駅 東西自由通路
+places:
+- name: イーストワンタワー
+  type: office_lobby
+  center_x: 25.668352511634808
+  center_y: -15.508642855391223
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 品川プリンスホテル
+  type: hotel
+  center_x: -37.602782480720975
+  center_y: -22.072728323034486
+  half_size_x: 7.628662937534351
+  half_size_y: 7.505977878985348
+  capacity: 20
+  attributes:
+    height_m: 30
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: アトレ品川
+  type: restaurant
+  center_x: 10.569423511605955
+  center_y: 1.2317147830943393
+  half_size_x: 3.765886905876801
+  half_size_y: 8.95868558852331
+  capacity: 30
+  attributes:
+    height_m: 20
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: 高輪の森公園
+  type: park
+  center_x: -48.10962630034103
+  center_y: 19.410208237313746
+  half_size_x: 3.549595971904779
+  half_size_y: 5.360860939694009
+  capacity: 40
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: ''
+  type: wide_street
+  center_x: -0.31120661454021814
+  center_y: -70.31987889445018
+  half_size_x: 72.58910638465292
+  half_size_y: 2.9886775101582828
+  capacity: 120
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: 品川水族館
+  type: department_store
+  center_x: -60.820077480402254
+  center_y: -22.443617184153283
+  half_size_x: 8.679922519597746
+  half_size_y: 7.056382815846719
+  capacity: 40
+  attributes:
+    height_m: 10
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: ウィング高輪
+  type: restaurant
+  center_x: -34.39221903133152
+  center_y: -8.28840018821802
+  half_size_x: 5
+  half_size_y: 4
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: アレア品川
+  type: office_lobby
+  center_x: 29.666820478199682
+  center_y: 19.10070060792403
+  half_size_x: 6
+  half_size_y: 4
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 税務署
+  type: utility
+  center_x: -49.07449845422798
+  center_y: 7.944672763491219
+  half_size_x: 2.7562955293388214
+  half_size_y: 4.0731211598144625
+  capacity: 50
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 京急EXホテル
+  type: hotel
+  center_x: -63.14258598625918
+  center_y: -7.564510196122534
+  half_size_x: 6.3985816758548495
+  half_size_y: 3.6356944189163016
+  capacity: 25
+  attributes:
+    height_m: 20
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 居酒屋
+  type: restaurant
+  center_x: 41.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 京急1ビル (複製)
+  type: office_lobby
+  center_x: -48.46416671956831
+  center_y: -7.827482345774463
+  half_size_x: 6
+  half_size_y: 4
+  capacity: 50
+  attributes:
+    height_m: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 新高輪プリンスホテル
+  type: hotel
+  center_x: -36.0
+  center_y: 11.342798361061895
+  half_size_x: 6.56086575025472
+  half_size_y: 6.844856940113093
+  capacity: 25
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 国際会議場
+  type: utility
+  center_x: -59.91146849137762
+  center_y: 29.103710338423213
+  half_size_x: 6.56086575025472
+  half_size_y: 6.844856940113093
+  capacity: 25
+  attributes:
+    height_m: 5
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: プリンスさくらタワー
+  type: hotel
+  center_x: -32.0
+  center_y: 30.79519935719253
+  half_size_x: 6.3985816758548495
+  half_size_y: 3.6356944189163016
+  capacity: 25
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 高輪プリンスホテル
+  type: hotel
+  center_x: -38.0
+  center_y: 42.47198056608042
+  half_size_x: 7.989206802246411
+  half_size_y: 4.540749090252014
+  capacity: 25
+  attributes:
+    height_m: 10
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: （建設中）
+  type: construction
+  center_x: -35.89271255844507
+  center_y: 12.112925822476289
+  half_size_x: 6.943650059879644
+  half_size_y: 7.2791675798058755
+  capacity: 50
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 品川セントラルガーデン
+  type: plaza
+  center_x: 35.212810545429896
+  center_y: -32.035052222012
+  half_size_x: 2.9627501068296738
+  half_size_y: 20.757379023138565
+  capacity: 40
+  attributes:
+    color: '#4eb847'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 芝浦中央公園
+  type: park
+  center_x: 28.678554273160998
+  center_y: 65.94795292257899
+  half_size_x: 7.019558070094774
+  half_size_y: 6.4093975490499275
+  capacity: 40
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 太陽生命
+  type: office_lobby
+  center_x: 25.588134749120087
+  center_y: -26.296955765001133
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: キャノン
+  type: office_lobby
+  center_x: 25.380347020348054
+  center_y: -47.75562281244753
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: マイクロソフト
+  type: office_lobby
+  center_x: 25.562126601905
+  center_y: -37.08952595129378
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: Vタワーレジデンス
+  type: residential
+  center_x: 25.4153971472866
+  center_y: -57.46135776623614
+  half_size_x: 3.6713520045771837
+  half_size_y: 3.320625897796951
+  capacity: 50
+  attributes:
+    color: '#ffea00'
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: インターシティA棟
+  type: office_lobby
+  center_x: 43.43644686347153
+  center_y: -16.466737366231445
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: インターシティ
+  type: office_lobby
+  center_x: 44.43449568540996
+  center_y: -37.52060613422212
+  half_size_x: 4.915239363391443
+  half_size_y: 13.780523889970471
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 港南口広場
+  type: plaza
+  center_x: 30.41390952438407
+  center_y: 1.9986035587015358
+  half_size_x: 8.343520569725062
+  half_size_y: 6.887264465625567
+  capacity: 40
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: NTT
+  type: office_lobby
+  center_x: 29.409703221209995
+  center_y: 33.8637194011481
+  half_size_x: 6.82371160709198
+  half_size_y: 6.722042692889829
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: コクヨ
+  type: office_lobby
+  center_x: 48.24319402197353
+  center_y: 20.271542952567152
+  half_size_x: 3.4273612676276883
+  half_size_y: 5.146189256299564
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: ソニー
+  type: office_lobby
+  center_x: 52.735852355631316
+  center_y: 33.947162070885085
+  half_size_x: 6.776708401105285
+  half_size_y: 6.554061045662138
+  capacity: 50
+  attributes:
+    height_m: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 居酒屋 (複製)
+  type: restaurant
+  center_x: 41.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製)
+  type: restaurant
+  center_x: 53.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製)
+  type: restaurant
+  center_x: 59.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製)
+  type: restaurant
+  center_x: 47.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製)
+  type: restaurant
+  center_x: 47.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製)
+  type: restaurant
+  center_x: 53.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製) (複製)
+  type: restaurant
+  center_x: 59.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 食肉市場
+  type: industrial
+  center_x: 58.86656786350474
+  center_y: -34.132721514811976
+  half_size_x: 6.362097176497638
+  half_size_y: 19.47155024684979
+  capacity: 50
+  attributes:
+    height_m: 5
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 品川シーズンテラス
+  type: office_lobby
+  center_x: 30.143394975902602
+  center_y: 52.91069497023864
+  half_size_x: 5.449142860466232
+  half_size_y: 5.011697410565812
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 浄水場
+  type: industrial
+  center_x: 49.9121171574144
+  center_y: 60.09841586284304
+  half_size_x: 8.53024940804816
+  half_size_y: 11.894555973803651
+  capacity: 50
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: （建設中）
+  type: construction
+  center_x: -60.76556227207922
+  center_y: 43.82441653564818
+  half_size_x: 4.582810914699603
+  half_size_y: 4.10161215118649
+  capacity: 50
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 三菱関東閣
+  type: museum
+  center_x: -36.8572586761546
+  center_y: -58.54373471434378
+  half_size_x: 8.769990509402316
+  half_size_y: 5.982100120143635
+  capacity: 40
+  attributes:
+    color: '#4eb847'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: ''
+  type: residential
+  center_x: -36.979180268944575
+  center_y: -43.91680750946529
+  half_size_x: 6.364505549231838
+  half_size_y: 4.8516535741376146
+  capacity: 50
+  attributes:
+    color: '#ffea00'
+    height_m: 10
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: ガーデングレイス御殿山
+  type: office_lobby
+  center_x: -60.734726315386446
+  center_y: -58.79058081894381
+  half_size_x: 10.781787367027412
+  half_size_y: 5.60067365829407
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: ave高輪
+  type: office_lobby
+  center_x: -11.186622958073961
+  center_y: 56.37095049073575
+  half_size_x: 2.1755577693287123
+  half_size_y: 10.635003524558666
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: セブンイレブン
+  type: convenience_store
+  center_x: -10.836890515877974
+  center_y: 30.61748386925443
+  half_size_x: 1.9714647523922828
+  half_size_y: 2.4008423905682506
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: プロント
+  type: cafe
+  center_x: -10.822027028173581
+  center_y: 36.89488997819682
+  half_size_x: 1.9714647523922828
+  half_size_y: 2.4008423905682506
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: スタバ
+  type: cafe
+  center_x: 3.5729102327865596
+  center_y: 5.241937890410021
+  half_size_x: 1.9183626183326656
+  half_size_y: 1.6330373280741202
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: JR改札
+  type: subway_station
+  center_x: 2.57
+  center_y: 0.29
+  half_size_x: 1.5
+  half_size_y: 1.0
+  capacity: 40
+  attributes:
+    height_m: 3
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 京急改札
+  type: subway_station
+  center_x: -5.74
+  center_y: 0.29
+  half_size_x: 1.0
+  half_size_y: 1.0
+  capacity: 25
+  attributes:
+    height_m: 3
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: タクシー乗り場
+  type: plaza
+  center_x: 22.5
+  center_y: 5.0
+  half_size_x: 1.5
+  half_size_y: 1.5
+  capacity: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: バス乗り場
+  type: plaza
+  center_x: 22.5
+  center_y: -1.0
+  half_size_x: 1.5
+  half_size_y: 1.5
+  capacity: 25
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 品川駅 東西自由通路
+  type: pedestrian_street
+  center_x: 0.33
+  center_y: 0.29
+  half_size_x: 17.0
+  half_size_y: 3.0
+  capacity: 60
+  attributes:
+    height_m: 4
+  social_likelihood: 0.3
+  is_spawn_point: true
+scene_3d:
+  rails:
+  - name: JR本線
+    axis: ns
+    center_x: 2.5696257326855365
+    width_cells: 9.085125534954322
+    length_cells: 155.222578024892
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  - name: JR東海道新幹線
+    axis: ns
+    center_x: 10.864078928398822
+    width_cells: 5.074166460529881
+    length_cells: 91.39848336336343
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  - name: 京急本線
+    axis: ns
+    center_x: -5.735229349899554
+    width_cells: 4.802410440989567
+    length_cells: 149.59043444852682
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  roads:
+  - axis: ns
+    width_cells: 11.178604230728142
+    length_cells: 149.9123711116077
+    road_class: local
+    name: 国道15号
+    center_x: -19.551560257408774
+  - axis: ns
+    width_cells: 6.018145395669492
+    length_cells: 120.08122590762542
+    road_class: local
+    center_x: 17.621884394493787
+  - axis: ns
+    width_cells: 4.098804814382746
+    length_cells: 75.83964549542911
+    road_class: local
+    name: 二本榎通り
+    center_x: -70.5525672381342
+  - axis: ns
+    width_cells: 5.431194110311097
+    length_cells: 148.96521150195758
+    road_class: local
+    center_x: 69.64152630141368
+  - axis: ns
+    width_cells: 58.97870728471791
+    length_cells: 4.501099307104312
+    road_class: local
+    center_x: 44.868725656672346
+  - axis: ns
+    width_cells: 48.20606933085901
+    length_cells: 3.8303325125561685
+    road_class: local
+    center_x: 43.58187566132122
+  - axis: ns
+    width_cells: 2.752042230750284
+    length_cells: 30.214326795515042
+    road_class: local
+    center_x: 40.42141299904402
+  - axis: ns
+    width_cells: 47.71634031126909
+    length_cells: 3.7110950863108343
+    road_class: local
+    center_x: 43.72550975256154
+  - axis: ns
+    width_cells: 1.0367657933763468
+    length_cells: 60.32091427709095
+    road_class: local
+    center_x: 50.39108135624293
+  - axis: ns
+    width_cells: 46.81274308119943
+    length_cells: 4.237489638616058
+    road_class: local
+    name: 柘榴坂
+    center_x: -47.65808391071951
+  - axis: ns
+    width_cells: 46.81274308119943
+    length_cells: 4.237489638616058
+    road_class: local
+    name: 柘榴坂 (複製)
+    center_x: -47.45882942142999
+  - axis: ew
+    road_class: local
+    width_cells: 6
+    length_cells: 34.699
+    center_x: 0.331
+    center_y: 0.287
+    name: 東西自由通路
+  - axis: ew
+    road_class: local
+    width_cells: 3
+    length_cells: 150
+    center_x: 0
+    center_y: 20
+    name: (auto) EW連絡道 y=20
+  landmarks:
+  - name: 京急品川駅 支柱線 (elevated)
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events:
+- name: shinkansen_last_departure
+  type: last_train
+  start_step: 0
+  end_step: 90
+  broadcast_once: true
+  affected_place: 品川駅 東西自由通路
+  description: 東海道新幹線 のぞみ 最終 新大阪行きが 21:33 に発車した。以降、今日中に新大阪・京都・名古屋方面へは新幹線では行けない。次の始発は翌 6:00 台。品川駅構内アナウンスで案内中。
+  effects:
+    notify_agents_within_radius: 999
+  salience_boost_targets:
+  - 大阪出張メーカー営業チーム
+events_keywords:
+- 新幹線
+- 終電
+- 最終
+- のぞみ
+- 新大阪
+- 大阪
+- 名古屋
+- 京都
+- 乗れなかった
+- 乗り遅れ
+- 逃した
+- 始発
+- ホテル
+- 泊まる
+- 一泊
+- 深夜バス
+- バス
+- タクシー
+- 羽田
+- 飛行機
+- 宿
+- 予約
+- 明日の朝
+- チェックイン
+- 帰れない
+- 帰れなくなった
+- どうしよう
+visualization:
+  save_frames: true
+  frame_interval: 1
+  focus_agent_id: 0
+logging:
+  level: INFO

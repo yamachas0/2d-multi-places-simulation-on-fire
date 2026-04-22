@@ -163,6 +163,7 @@ class Agent:
         movement_base_cells: int = 1,
         movement_variance: int = 0,
         initial_relationships: Optional[Dict[int, float]] = None,
+        navigator=None,
     ):
         self.id = agent_id
         self.position = initial_position
@@ -172,6 +173,7 @@ class Agent:
         self.places = places
         self.num_agents = num_agents
         self.gender = gender
+        self.navigator = navigator
 
         # Movement speed (cells per "move" action). Actual distance per step is
         # base + uniform(-variance, +variance), clamped to >= 1.
@@ -1613,25 +1615,36 @@ Step: {step}
         x, y = self.position
         new_pos = self.position
 
+        nav = getattr(self, 'navigator', None)
+        use_nav = nav is not None and getattr(nav, 'constrained', False)
+
         if action_type == "walk_along":
             direction = decision.get("direction")
             dx, dy = DIRECTION_MAP.get(direction, (0, 0))
             if dx == 0 and dy == 0:
                 return self.position
-            new_pos = self._clamp_to_field(x + dx * distance, y + dy * distance)
+            raw_target = (x + dx * distance, y + dy * distance)
+            if use_nav:
+                new_pos = nav.validate_step(self.position, raw_target)
+            else:
+                new_pos = self._clamp_to_field(raw_target[0], raw_target[1])
 
         elif action_type in ("walk_toward", "enter"):
             place = self._find_place_by_name(decision.get("target_place"))
             if place is None:
                 return self.position
             target_x, target_y = place['center_x'], place['center_y']
-            # "enter" snaps into the place when within one step, so the agent
-            # doesn't overshoot the box.
-            dist_to_center = math.hypot(target_x - x, target_y - y)
-            if action_type == "enter" and dist_to_center <= distance:
-                new_pos = self._clamp_to_field(target_x, target_y)
+            if use_nav:
+                new_pos = nav.step_toward(
+                    self.position, (target_x, target_y), distance, target_place=place
+                )
             else:
-                new_pos = self._step_toward(target_x, target_y, distance)
+                # Legacy: straight-line snap.
+                dist_to_center = math.hypot(target_x - x, target_y - y)
+                if action_type == "enter" and dist_to_center <= distance:
+                    new_pos = self._clamp_to_field(target_x, target_y)
+                else:
+                    new_pos = self._step_toward(target_x, target_y, distance)
 
         elif action_type == "approach":
             target = self._find_nearby_agent_by_handle(
@@ -1639,13 +1652,22 @@ Step: {step}
             )
             if target is None:
                 return self.position
-            new_pos = self._step_toward(target.position[0], target.position[1], distance)
+            if use_nav:
+                new_pos = nav.step_toward(
+                    self.position, (target.position[0], target.position[1]), distance
+                )
+            else:
+                new_pos = self._step_toward(target.position[0], target.position[1], distance)
 
         elif action_type == "wander":
             angle = random.uniform(0, 2 * math.pi)
             dx = math.cos(angle) * distance
             dy = math.sin(angle) * distance
-            new_pos = self._clamp_to_field(int(round(x + dx)), int(round(y + dy)))
+            raw_target = (int(round(x + dx)), int(round(y + dy)))
+            if use_nav:
+                new_pos = nav.validate_step(self.position, raw_target)
+            else:
+                new_pos = self._clamp_to_field(raw_target[0], raw_target[1])
 
         else:
             return self.position

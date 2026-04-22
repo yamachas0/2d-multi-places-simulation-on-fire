@@ -1,0 +1,1235 @@
+# ================================================================
+# shinagawa navigation smoke test config
+# ================================================================
+# Built by tools/build_shinagawa_run_config.py
+#
+# Purpose:
+#   Validate that the Navigator (road mask + BFS + apron-jump) lets
+#   agents move across the simplified shinagawa field without
+#   getting stuck. NO fires / NO events so behavior is isolated.
+#
+# Sources:
+#   scene : shinagawa_config.merged.yaml  (places + scene_3d)
+#   sim   : config_jr_disruption.yaml (simulation + agents.personas + llm)
+#
+# Overrides:
+#   - half_space_size forced to 80 (shinagawa scale)
+#   - num_agents capped to 20 / max_agents 25 (smoke test size)
+#   - fires / events set to [] for clean nav observation
+# ================================================================
+
+metadata:
+  name: 品川駅周辺 400m圏
+  description: JR/京急品川駅を中心に半径400m圏の都市シーン
+  half_space_size: 80
+  meters_per_cell: 5
+  generated_from: Claude chat 3D widget iteration
+proposed_type_extensions:
+- hotel
+- residential
+- industrial
+- utility
+- construction
+- zone_izakaya
+- museum
+simulation:
+  duration: 60
+  half_space_size: 80
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: '17:00'
+    patterns:
+    - hours:
+      - 17
+      - 18
+      enter_per_step: 0.3
+      exit_per_step: 0.03
+      neighborhood_mood: 夕方の帰宅ラッシュ。駅は人で溢れ、街へ帰宅客が流れる
+      default_goal: 退勤・帰宅中
+    - hours:
+      - 19
+      - 20
+      enter_per_step: 0.15
+      exit_per_step: 0.06
+      neighborhood_mood: ラッシュが落ち着き、夕食や飲みに出る人が混ざる
+      default_goal: 夕食・寄り道
+agents:
+  num_agents: 20
+  max_agents: 25
+  communication_radius: 10
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 15
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+  personas:
+  - id: 0
+    name: 田中健一
+    age: 42
+    gender: male
+    occupation: IT会社員
+    background: 最近この街に引っ越してきた。妻の美咲と暮らしている
+    speech_style: 丁寧だが少し堅い。敬語多め
+    current_goal: 仕事帰り、妻とスターバックスで一息ついてから帰宅
+    talkativeness: 0.25
+    phone_check_rate: 0.6
+    initial_place: スターバックス駅前店
+    cognitive_biases:
+    - 人見知りで初対面は警戒
+    social_identities:
+    - group_name: 田中家
+      scale: micro
+      base_salience: 0.9
+      norms: 家族を大切にする
+      member_ids:
+      - 1
+      in_group_bias: 0.95
+    initial_relationships:
+      1: 0.95
+  - id: 1
+    name: 田中美咲
+    age: 38
+    gender: female
+    occupation: フリーランスデザイナー
+    background: この街に長く住んでいる。夫の健一と暮らしている
+    speech_style: カジュアルでフレンドリー
+    current_goal: 仕事帰りに夫とスターバックスで合流して一息
+    talkativeness: 0.5
+    phone_check_rate: 0.52
+    initial_place: スターバックス駅前店
+    social_identities:
+    - group_name: 田中家
+      scale: micro
+      base_salience: 0.9
+      norms: 家族を大切にする
+      member_ids:
+      - 0
+      in_group_bias: 0.95
+    initial_relationships:
+      0: 0.95
+  - id: 2
+    name: 鈴木健太
+    age: 50
+    gender: male
+    occupation: 銀行員
+    background: 品川勤務20年のベテラン。妻と駅前で朝コーヒー
+    speech_style: 落ち着いた丁寧語
+    current_goal: 退勤後、妻とタリーズで一服してから帰宅
+    talkativeness: 0.3
+    phone_check_rate: 0.36
+    initial_place: タリーズコーヒー
+    social_identities:
+    - group_name: 鈴木家
+      scale: micro
+      base_salience: 0.85
+      norms: 家族を大切にする
+      member_ids:
+      - 3
+      in_group_bias: 0.9
+    initial_relationships:
+      3: 0.9
+  - id: 3
+    name: 鈴木優子
+    age: 47
+    gender: female
+    occupation: 看護師
+    background: 健太の妻。同じ病院で勤続15年
+    speech_style: 柔らかい敬語、でも家族には砕けた話し方
+    current_goal: 退勤後、夫とタリーズで待ち合わせて帰宅
+    talkativeness: 0.4
+    phone_check_rate: 0.46
+    initial_place: タリーズコーヒー
+    social_identities:
+    - group_name: 鈴木家
+      scale: micro
+      base_salience: 0.85
+      norms: 家族を大切にする
+      member_ids:
+      - 2
+      in_group_bias: 0.9
+    initial_relationships:
+      2: 0.9
+  - id: 4
+    name: 佐々木和夫
+    age: 35
+    gender: male
+    occupation: 広告代理店勤務
+    background: 新婚。妻のさくらと駅前広場で朝の待ち合わせ
+    speech_style: 優しくフレンドリー
+    current_goal: 仕事帰り、駅前広場でさくらと合流して夕食へ
+    talkativeness: 0.45
+    phone_check_rate: 0.6
+    initial_place: 駅前広場
+    social_identities:
+    - group_name: 佐々木家
+      scale: micro
+      base_salience: 0.92
+      norms: 家族を大切にする
+      member_ids:
+      - 5
+      in_group_bias: 0.95
+    initial_relationships:
+      5: 0.95
+  - id: 5
+    name: 佐々木さくら
+    age: 32
+    gender: female
+    occupation: グラフィックデザイナー
+    background: 新婚。夫の和夫と駅前で待ち合わせ
+    speech_style: 明るく親しみやすい
+    current_goal: 仕事帰り、駅前広場で和夫と合流して夕食へ
+    talkativeness: 0.5
+    phone_check_rate: 0.6
+    initial_place: 駅前広場
+    social_identities:
+    - group_name: 佐々木家
+      scale: micro
+      base_salience: 0.92
+      norms: 家族を大切にする
+      member_ids:
+      - 4
+      in_group_bias: 0.95
+    initial_relationships:
+      4: 0.95
+  - id: 6
+    name: 山田太郎
+    age: 35
+    gender: male
+    occupation: 商社マン
+    background: テックビジョンで10年。佐藤・鈴木三郎の同僚
+    speech_style: 明るく社交的
+    current_goal: 退勤後、同僚と品川ビルのバーで一杯
+    talkativeness: 0.4
+    phone_check_rate: 0.64
+    initial_place: 品川第一ビル ロビー
+    social_identities:
+    - group_name: 株式会社テックビジョン
+      scale: meso
+      base_salience: 0.7
+      norms: 同僚と協力
+      member_ids:
+      - 7
+      - 8
+      in_group_bias: 0.65
+    initial_relationships:
+      7: 0.65
+      8: 0.55
+  - id: 7
+    name: 佐藤次郎
+    age: 40
+    gender: male
+    occupation: 商社マン
+    background: 山田・鈴木三郎と同じ会社。落ち着いた人
+    speech_style: 丁寧な敬語
+    current_goal: 退勤、同僚と軽く一杯打ち合わせて帰る
+    talkativeness: 0.25
+    phone_check_rate: 0.6
+    initial_place: 品川第一ビル ロビー
+    social_identities:
+    - group_name: 株式会社テックビジョン
+      scale: meso
+      base_salience: 0.7
+      norms: 同僚と協力
+      member_ids:
+      - 6
+      - 8
+      in_group_bias: 0.65
+    initial_relationships:
+      6: 0.65
+      8: 0.6
+  - id: 8
+    name: 鈴木三郎
+    age: 33
+    gender: female
+    occupation: 商社マン
+    background: 山田・佐藤の後輩、若手でよく喋る
+    speech_style: カジュアルで明るい
+    current_goal: 退勤、同僚と雑談しながら家路につく
+    talkativeness: 0.5
+    phone_check_rate: 0.6
+    initial_place: 品川第一ビル ロビー
+    social_identities:
+    - group_name: 株式会社テックビジョン
+      scale: meso
+      base_salience: 0.7
+      norms: 同僚と協力
+      member_ids:
+      - 6
+      - 7
+      in_group_bias: 0.65
+    initial_relationships:
+      6: 0.55
+      7: 0.6
+  - id: 9
+    name: 中村健
+    age: 45
+    gender: male
+    occupation: 営業部長
+    background: グローバル商事の古株。若手を育てるのが好き
+    speech_style: 落ち着いた上司口調
+    current_goal: 退勤前の最終ミーティング、部下を見送る
+    talkativeness: 0.35
+    phone_check_rate: 0.52
+    initial_place: 品川第二ビル ロビー
+    social_identities:
+    - group_name: グローバル商事
+      scale: meso
+      base_salience: 0.75
+      norms: チームで目標達成
+      member_ids:
+      - 10
+      - 11
+      in_group_bias: 0.7
+    initial_relationships:
+      10: 0.6
+      11: 0.6
+  - id: 10
+    name: 小林由美
+    age: 29
+    gender: female
+    occupation: 営業
+    background: 中村の部下。3年目で中堅に差し掛かる
+    speech_style: 明るく丁寧
+    current_goal: 退勤前、上司・同僚と軽い情報共有
+    talkativeness: 0.45
+    phone_check_rate: 0.64
+    initial_place: 品川第二ビル ロビー
+    social_identities:
+    - group_name: グローバル商事
+      scale: meso
+      base_salience: 0.75
+      norms: チームで目標達成
+      member_ids:
+      - 9
+      - 11
+      in_group_bias: 0.7
+    initial_relationships:
+      9: 0.6
+      11: 0.55
+  - id: 11
+    name: 加藤直樹
+    age: 27
+    gender: male
+    occupation: 営業
+    background: 新卒2年目。中村・小林と同じチーム
+    speech_style: 元気で、やや体育会系
+    current_goal: 定時後も残業して明日までに追いつく
+    talkativeness: 0.5
+    phone_check_rate: 0.63
+    initial_place: 品川第二ビル ロビー
+    social_identities:
+    - group_name: グローバル商事
+      scale: meso
+      base_salience: 0.75
+      norms: チームで目標達成
+      member_ids:
+      - 9
+      - 10
+      in_group_bias: 0.7
+    initial_relationships:
+      9: 0.6
+      10: 0.55
+  - id: 12
+    name: 松田翼
+    age: 21
+    gender: male
+    occupation: 大学生
+    background: 品川キャンパスの3年生。朝は公園でランニング仲間と待ち合わせ
+    speech_style: カジュアルでタメ口
+    current_goal: 授業後、友達と公園で夕方ランニング
+    talkativeness: 0.55
+    phone_check_rate: 0.4
+    initial_place: 中央公園
+    social_identities:
+    - group_name: 品川大ランニング部
+      scale: meso
+      base_salience: 0.6
+      norms: 練習後に一緒にカフェへ
+      member_ids:
+      - 13
+      - 14
+      in_group_bias: 0.7
+    initial_relationships:
+      13: 0.65
+      14: 0.65
+  - id: 13
+    name: 橋本亜紀
+    age: 22
+    gender: female
+    occupation: 大学生
+    background: 翼・拓海の同期。公園ランナー
+    speech_style: 明るくて元気
+    current_goal: ラン後、友達と夕食を兼ねた雑談
+    talkativeness: 0.6
+    phone_check_rate: 0.49
+    initial_place: 中央公園
+    social_identities:
+    - group_name: 品川大ランニング部
+      scale: meso
+      base_salience: 0.6
+      norms: 練習後に一緒にカフェへ
+      member_ids:
+      - 12
+      - 14
+      in_group_bias: 0.7
+    initial_relationships:
+      12: 0.65
+      14: 0.65
+  - id: 14
+    name: 井上拓海
+    age: 21
+    gender: male
+    occupation: 大学生
+    background: 翼・亜紀の同期。朝ラン後は授業
+    speech_style: 軽快でジョーク好き
+    current_goal: 授業終わり、友達と運動してから帰宅
+    talkativeness: 0.55
+    phone_check_rate: 0.34
+    initial_place: 中央公園
+    social_identities:
+    - group_name: 品川大ランニング部
+      scale: meso
+      base_salience: 0.6
+      norms: 練習後に一緒にカフェへ
+      member_ids:
+      - 12
+      - 13
+      in_group_bias: 0.7
+    initial_relationships:
+      12: 0.65
+      13: 0.65
+  - id: 15
+    name: 高橋隼人
+    age: 30
+    gender: male
+    occupation: フリーランスライター
+    background: 昨夜から妹と飲み続け、朝まで残っている
+    speech_style: 気だるい砕けた口調
+    current_goal: 居酒屋で盛り上がってきたが、終電までには帰りたい
+    talkativeness: 0.35
+    phone_check_rate: 0.55
+    initial_place: 居酒屋 本町
+    social_identities:
+    - group_name: 高橋兄妹
+      scale: micro
+      base_salience: 0.8
+      norms: 困ったら頼り合う
+      member_ids:
+      - 16
+      in_group_bias: 0.85
+    initial_relationships:
+      16: 0.85
+  - id: 16
+    name: 高橋舞
+    age: 26
+    gender: female
+    occupation: 看護師 (夜勤明け)
+    background: 夜勤明けで兄と一杯やっている
+    speech_style: 兄にはタメ口、疲れ気味
+    current_goal: 軽く夕食を済ませて家でくつろぐ
+    talkativeness: 0.4
+    phone_check_rate: 0.33
+    initial_place: 居酒屋 本町
+    social_identities:
+    - group_name: 高橋兄妹
+      scale: micro
+      base_salience: 0.8
+      norms: 困ったら頼り合う
+      member_ids:
+      - 15
+      in_group_bias: 0.85
+    initial_relationships:
+      15: 0.85
+  - id: 17
+    name: 石川裕子
+    age: 34
+    gender: female
+    occupation: 経理担当
+    background: 毎朝 JR で通勤。誰とも関わらないのが日常
+    speech_style: ビジネスライクな敬語
+    current_goal: 退勤、自宅へ急ぐ
+    talkativeness: 0.15
+    phone_check_rate: 0.56
+    initial_place: JR品川駅
+    cognitive_biases:
+    - 朝は他人と関わりたくない
+  - id: 18
+    name: 山本修
+    age: 58
+    gender: male
+    occupation: ベテラン営業マン
+    background: 毎日 JR 利用の古参。新聞を読みながら歩く
+    speech_style: 落ち着いた世代言葉
+    current_goal: いつもの帰り道へ
+    talkativeness: 0.2
+    phone_check_rate: 0.28
+    initial_place: JR品川駅
+  - id: 19
+    name: 森田健一
+    age: 41
+    gender: male
+    occupation: システムエンジニア
+    background: 地下鉄A駅から通勤。音楽を聴いて歩く
+    speech_style: 簡潔
+    current_goal: 静かに帰宅
+    talkativeness: 0.1
+    phone_check_rate: 0.44
+    initial_place: 地下鉄A駅
+  - id: 20
+    name: 田村美由紀
+    age: 38
+    gender: female
+    occupation: マーケター
+    background: 地下鉄B駅を使う。朝のメールチェックが日課
+    speech_style: テキパキした口調
+    current_goal: 退勤間際、最終ミーティングを片付けて帰る
+    talkativeness: 0.2
+    phone_check_rate: 0.51
+    initial_place: 地下鉄B駅
+  - id: 21
+    name: 岩田伸吾
+    age: 52
+    gender: male
+    occupation: 建築士
+    background: 駅前プロムナードを歩いて出勤するのが習慣
+    speech_style: 穏やかで観察的
+    current_goal: 散策しながら家路へ
+    talkativeness: 0.2
+    phone_check_rate: 0.12
+    initial_place: 駅前プロムナード
+  - id: 22
+    name: 斎藤義男
+    age: 72
+    gender: male
+    occupation: 定年退職
+    background: 毎朝この辺りを散歩している常連
+    speech_style: のんびりした昔言葉
+    current_goal: 夕方の散歩コースを回る
+    talkativeness: 0.25
+    phone_check_rate: 0.09
+    initial_place: 中央公園
+    cognitive_biases:
+    - 顔見知りには話すが初対面には控えめ
+  - id: 23
+    name: 中田千代
+    age: 55
+    gender: female
+    occupation: 主婦
+    background: デパートに朝一番で買い物にきた
+    speech_style: 気さくな下町言葉
+    current_goal: 夕食の食材を買って帰る
+    talkativeness: 0.35
+    phone_check_rate: 0.14
+    initial_place: 駅前デパート
+  - id: 24
+    name: 岡田誠
+    age: 28
+    gender: male
+    occupation: 観光客 (大阪から)
+    background: 出張の合間にこの街を観光
+    speech_style: 関西弁
+    current_goal: 夕暮れの街を散策する
+    talkativeness: 0.45
+    phone_check_rate: 0.34
+    initial_place: 駅前広場
+  - id: 25
+    name: 西村理香
+    age: 24
+    gender: female
+    occupation: 観光客 (大学生)
+    background: 友人と旅行中だがはぐれた。駅前で合流待ち
+    speech_style: 明るく、困ったら人に聞くタイプ
+    current_goal: 友達と合流して夕食へ向かう
+    talkativeness: 0.5
+    phone_check_rate: 0.27
+    initial_place: 駅前広場
+  - id: 26
+    name: 上田学
+    age: 45
+    gender: male
+    occupation: 公務員
+    background: 市役所への出勤前、コンビニで新聞を買う
+    speech_style: 丁寧で硬め
+    current_goal: 帰宅途中にコンビニで夕食を調達
+    talkativeness: 0.15
+    phone_check_rate: 0.49
+    initial_place: 駅前コンビニ
+  - id: 27
+    name: 伊藤祐子
+    age: 36
+    gender: female
+    occupation: デパート店員
+    background: 駅前デパートの化粧品売場で働く。開店前準備中
+    speech_style: 接客トーンの丁寧語
+    current_goal: 閉店時間に向けたカスタマー対応
+    talkativeness: 0.3
+    phone_check_rate: 0.44
+    initial_place: 駅前デパート
+  - id: 28
+    name: 三木健
+    age: 48
+    gender: male
+    occupation: 図書館司書
+    background: 品川中央図書館の司書。朝の開館前にチェック
+    speech_style: 静かで落ち着いた敬語
+    current_goal: 夕方の閉館準備
+    talkativeness: 0.15
+    phone_check_rate: 0.33
+    initial_place: 品川中央図書館
+  - id: 29
+    name: 藤原美咲
+    age: 25
+    gender: female
+    occupation: レストランのホール担当
+    background: イタリアンレストランで開店準備中
+    speech_style: 元気で明るい
+    current_goal: ディナー営業のピーク対応
+    talkativeness: 0.4
+    phone_check_rate: 0.51
+    initial_place: イタリアンレストラン
+places:
+- name: イーストワンタワー
+  type: office_lobby
+  center_x: 25.668352511634808
+  center_y: -15.508642855391223
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 品川プリンスホテル
+  type: hotel
+  center_x: -37.602782480720975
+  center_y: -22.072728323034486
+  half_size_x: 7.628662937534351
+  half_size_y: 7.505977878985348
+  capacity: 20
+  attributes:
+    height_m: 30
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: アトレ品川
+  type: restaurant
+  center_x: 10.569423511605955
+  center_y: 1.2317147830943393
+  half_size_x: 3.765886905876801
+  half_size_y: 8.95868558852331
+  capacity: 30
+  attributes:
+    height_m: 20
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: 高輪の森公園
+  type: park
+  center_x: -48.10962630034103
+  center_y: 19.410208237313746
+  half_size_x: 3.549595971904779
+  half_size_y: 5.360860939694009
+  capacity: 40
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: ''
+  type: wide_street
+  center_x: -0.31120661454021814
+  center_y: -70.31987889445018
+  half_size_x: 72.58910638465292
+  half_size_y: 2.9886775101582828
+  capacity: 120
+  social_likelihood: 0.08
+  is_spawn_point: false
+- name: 品川水族館
+  type: department_store
+  center_x: -60.820077480402254
+  center_y: -22.443617184153283
+  half_size_x: 8.679922519597746
+  half_size_y: 7.056382815846719
+  capacity: 40
+  attributes:
+    height_m: 10
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: ウィング高輪
+  type: restaurant
+  center_x: -34.39221903133152
+  center_y: -8.28840018821802
+  half_size_x: 5
+  half_size_y: 4
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: アレア品川
+  type: office_lobby
+  center_x: 29.666820478199682
+  center_y: 19.10070060792403
+  half_size_x: 6
+  half_size_y: 4
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 税務署
+  type: utility
+  center_x: -49.07449845422798
+  center_y: 7.944672763491219
+  half_size_x: 2.7562955293388214
+  half_size_y: 4.0731211598144625
+  capacity: 50
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 京急EXホテル
+  type: hotel
+  center_x: -63.14258598625918
+  center_y: -7.564510196122534
+  half_size_x: 6.3985816758548495
+  half_size_y: 3.6356944189163016
+  capacity: 25
+  attributes:
+    height_m: 20
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 居酒屋
+  type: restaurant
+  center_x: 41.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 京急1ビル (複製)
+  type: office_lobby
+  center_x: -48.46416671956831
+  center_y: -7.827482345774463
+  half_size_x: 6
+  half_size_y: 4
+  capacity: 50
+  attributes:
+    height_m: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 新高輪プリンスホテル
+  type: hotel
+  center_x: -36.0
+  center_y: 11.342798361061895
+  half_size_x: 6.56086575025472
+  half_size_y: 6.844856940113093
+  capacity: 25
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 国際会議場
+  type: utility
+  center_x: -59.91146849137762
+  center_y: 29.103710338423213
+  half_size_x: 6.56086575025472
+  half_size_y: 6.844856940113093
+  capacity: 25
+  attributes:
+    height_m: 5
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: プリンスさくらタワー
+  type: hotel
+  center_x: -32.0
+  center_y: 30.79519935719253
+  half_size_x: 6.3985816758548495
+  half_size_y: 3.6356944189163016
+  capacity: 25
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 高輪プリンスホテル
+  type: hotel
+  center_x: -38.0
+  center_y: 42.47198056608042
+  half_size_x: 7.989206802246411
+  half_size_y: 4.540749090252014
+  capacity: 25
+  attributes:
+    height_m: 10
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: （建設中）
+  type: construction
+  center_x: -35.89271255844507
+  center_y: 12.112925822476289
+  half_size_x: 6.943650059879644
+  half_size_y: 7.2791675798058755
+  capacity: 50
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 品川セントラルガーデン
+  type: plaza
+  center_x: 35.212810545429896
+  center_y: -32.035052222012
+  half_size_x: 2.9627501068296738
+  half_size_y: 20.757379023138565
+  capacity: 40
+  attributes:
+    color: '#4eb847'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 芝浦中央公園
+  type: park
+  center_x: 28.678554273160998
+  center_y: 65.94795292257899
+  half_size_x: 7.019558070094774
+  half_size_y: 6.4093975490499275
+  capacity: 40
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 太陽生命
+  type: office_lobby
+  center_x: 25.588134749120087
+  center_y: -26.296955765001133
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: キャノン
+  type: office_lobby
+  center_x: 25.380347020348054
+  center_y: -47.75562281244753
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: マイクロソフト
+  type: office_lobby
+  center_x: 25.562126601905
+  center_y: -37.08952595129378
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: Vタワーレジデンス
+  type: residential
+  center_x: 25.4153971472866
+  center_y: -57.46135776623614
+  half_size_x: 3.6713520045771837
+  half_size_y: 3.320625897796951
+  capacity: 50
+  attributes:
+    color: '#ffea00'
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: インターシティA棟
+  type: office_lobby
+  center_x: 43.43644686347153
+  center_y: -16.466737366231445
+  half_size_x: 4.345749847969131
+  half_size_y: 4.572927130568797
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: インターシティ
+  type: office_lobby
+  center_x: 44.43449568540996
+  center_y: -37.52060613422212
+  half_size_x: 4.915239363391443
+  half_size_y: 13.780523889970471
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 港南口広場
+  type: plaza
+  center_x: 30.41390952438407
+  center_y: 1.9986035587015358
+  half_size_x: 8.343520569725062
+  half_size_y: 6.887264465625567
+  capacity: 40
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: NTT
+  type: office_lobby
+  center_x: 29.409703221209995
+  center_y: 33.8637194011481
+  half_size_x: 6.82371160709198
+  half_size_y: 6.722042692889829
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: コクヨ
+  type: office_lobby
+  center_x: 48.24319402197353
+  center_y: 20.271542952567152
+  half_size_x: 3.4273612676276883
+  half_size_y: 5.146189256299564
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: ソニー
+  type: office_lobby
+  center_x: 52.735852355631316
+  center_y: 33.947162070885085
+  half_size_x: 6.776708401105285
+  half_size_y: 6.554061045662138
+  capacity: 50
+  attributes:
+    height_m: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 居酒屋 (複製)
+  type: restaurant
+  center_x: 41.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製)
+  type: restaurant
+  center_x: 53.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製)
+  type: restaurant
+  center_x: 59.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製)
+  type: restaurant
+  center_x: 47.844398021114294
+  center_y: 4.765773473440918
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製)
+  type: restaurant
+  center_x: 47.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製)
+  type: restaurant
+  center_x: 53.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 居酒屋 (複製) (複製) (複製) (複製)
+  type: restaurant
+  center_x: 59.98580162344579
+  center_y: -2.061986531991362
+  half_size_x: 2.1669142807713015
+  half_size_y: 2.6482972015607427
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: 食肉市場
+  type: industrial
+  center_x: 58.86656786350474
+  center_y: -34.132721514811976
+  half_size_x: 6.362097176497638
+  half_size_y: 19.47155024684979
+  capacity: 50
+  attributes:
+    height_m: 5
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: 品川シーズンテラス
+  type: office_lobby
+  center_x: 30.143394975902602
+  center_y: 52.91069497023864
+  half_size_x: 5.449142860466232
+  half_size_y: 5.011697410565812
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 浄水場
+  type: industrial
+  center_x: 49.9121171574144
+  center_y: 60.09841586284304
+  half_size_x: 8.53024940804816
+  half_size_y: 11.894555973803651
+  capacity: 50
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: （建設中）
+  type: construction
+  center_x: -60.76556227207922
+  center_y: 43.82441653564818
+  half_size_x: 4.582810914699603
+  half_size_y: 4.10161215118649
+  capacity: 50
+  attributes:
+    color: '#e5e5e5'
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 三菱関東閣
+  type: museum
+  center_x: -36.8572586761546
+  center_y: -58.54373471434378
+  half_size_x: 8.769990509402316
+  half_size_y: 5.982100120143635
+  capacity: 40
+  attributes:
+    color: '#4eb847'
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: ''
+  type: residential
+  center_x: -36.979180268944575
+  center_y: -43.91680750946529
+  half_size_x: 6.364505549231838
+  half_size_y: 4.8516535741376146
+  capacity: 50
+  attributes:
+    color: '#ffea00'
+    height_m: 10
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: ガーデングレイス御殿山
+  type: office_lobby
+  center_x: -60.734726315386446
+  center_y: -58.79058081894381
+  half_size_x: 10.781787367027412
+  half_size_y: 5.60067365829407
+  capacity: 50
+  attributes:
+    height_m: 15
+  social_likelihood: 0.05
+  is_spawn_point: false
+- name: ave高輪
+  type: office_lobby
+  center_x: -11.186622958073961
+  center_y: 56.37095049073575
+  half_size_x: 2.1755577693287123
+  half_size_y: 10.635003524558666
+  capacity: 50
+  attributes:
+    height_m: 30
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: セブンイレブン
+  type: convenience_store
+  center_x: -10.836890515877974
+  center_y: 30.61748386925443
+  half_size_x: 1.9714647523922828
+  half_size_y: 2.4008423905682506
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: プロント
+  type: cafe
+  center_x: -10.822027028173581
+  center_y: 36.89488997819682
+  half_size_x: 1.9714647523922828
+  half_size_y: 2.4008423905682506
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: スタバ
+  type: cafe
+  center_x: 3.5729102327865596
+  center_y: 5.241937890410021
+  half_size_x: 1.9183626183326656
+  half_size_y: 1.6330373280741202
+  capacity: 20
+  social_likelihood: 0.3
+  is_spawn_point: false
+- name: JR改札
+  type: subway_station
+  center_x: 2.57
+  center_y: 0.29
+  half_size_x: 1.5
+  half_size_y: 1.0
+  capacity: 40
+  attributes:
+    height_m: 3
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: 京急改札
+  type: subway_station
+  center_x: -5.74
+  center_y: 0.29
+  half_size_x: 1.0
+  half_size_y: 1.0
+  capacity: 25
+  attributes:
+    height_m: 3
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: タクシー乗り場
+  type: plaza
+  center_x: 22.5
+  center_y: 5.0
+  half_size_x: 1.5
+  half_size_y: 1.5
+  capacity: 20
+  social_likelihood: 0.2
+  is_spawn_point: false
+- name: バス乗り場
+  type: plaza
+  center_x: 22.5
+  center_y: -1.0
+  half_size_x: 1.5
+  half_size_y: 1.5
+  capacity: 25
+  social_likelihood: 0.2
+  is_spawn_point: false
+scene_3d:
+  rails:
+  - name: JR本線
+    axis: ns
+    center_x: 2.5696257326855365
+    width_cells: 9.085125534954322
+    length_cells: 155.222578024892
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  - name: JR東海道新幹線
+    axis: ns
+    center_x: 10.864078928398822
+    width_cells: 5.074166460529881
+    length_cells: 91.39848336336343
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  - name: 京急本線
+    axis: ns
+    center_x: -5.735229349899554
+    width_cells: 4.802410440989567
+    length_cells: 149.59043444852682
+    elevation_m: 0
+    level: 1F
+    color: '#6b7280'
+  roads:
+  - axis: ns
+    width_cells: 11.178604230728142
+    length_cells: 149.9123711116077
+    road_class: local
+    name: 国道15号
+    center_x: -19.551560257408774
+  - axis: ns
+    width_cells: 6.018145395669492
+    length_cells: 120.08122590762542
+    road_class: local
+    center_x: 17.621884394493787
+  - axis: ns
+    width_cells: 4.098804814382746
+    length_cells: 75.83964549542911
+    road_class: local
+    name: 二本榎通り
+    center_x: -70.5525672381342
+  - axis: ns
+    width_cells: 5.431194110311097
+    length_cells: 148.96521150195758
+    road_class: local
+    center_x: 69.64152630141368
+  - axis: ns
+    width_cells: 58.97870728471791
+    length_cells: 4.501099307104312
+    road_class: local
+    center_x: 44.868725656672346
+  - axis: ns
+    width_cells: 48.20606933085901
+    length_cells: 3.8303325125561685
+    road_class: local
+    center_x: 43.58187566132122
+  - axis: ns
+    width_cells: 2.752042230750284
+    length_cells: 30.214326795515042
+    road_class: local
+    center_x: 40.42141299904402
+  - axis: ns
+    width_cells: 47.71634031126909
+    length_cells: 3.7110950863108343
+    road_class: local
+    center_x: 43.72550975256154
+  - axis: ns
+    width_cells: 1.0367657933763468
+    length_cells: 60.32091427709095
+    road_class: local
+    center_x: 50.39108135624293
+  - axis: ns
+    width_cells: 46.81274308119943
+    length_cells: 4.237489638616058
+    road_class: local
+    name: 柘榴坂
+    center_x: -47.65808391071951
+  - axis: ns
+    width_cells: 46.81274308119943
+    length_cells: 4.237489638616058
+    road_class: local
+    name: 柘榴坂 (複製)
+    center_x: -47.45882942142999
+  - axis: ew
+    road_class: local
+    width_cells: 6
+    length_cells: 34.699
+    center_x: 0.331
+    center_y: 0.287
+    name: 東西自由通路
+  - axis: ew
+    road_class: local
+    width_cells: 3
+    length_cells: 150
+    center_x: 0
+    center_y: 20
+    name: (auto) EW連絡道 y=20
+  landmarks:
+  - name: 京急品川駅 支柱線 (elevated)
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events: []
+visualization:
+  save_frames: true
+  frame_interval: 2
+  focus_agent_id: 17

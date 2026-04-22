@@ -43,6 +43,9 @@ htmlcov/
 dist/
 build/
 
+# Vendored JS (downloaded on first bundle)
+visualization/vendor/
+
 # Inspection scripts / text dumps (dev-only)
 _inspect_*.py
 _inspect_*.txt

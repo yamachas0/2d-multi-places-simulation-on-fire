@@ -1,0 +1,3858 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>Singulabo 2D City Viewer v3 (3D)</title>
+<style>
+  :root {
+    --bg: #0e1714;
+    --bg-outline: #22302b;
+    --panel-bg: #121f1b;
+    --panel-border: #26362f;
+    --text: #e4ebe6;
+    --text-dim: #8ea59a;
+    --accent: #ffd85f;
+  }
+  * { box-sizing: border-box; }
+  html, body {
+    margin: 0; padding: 0; height: 100%;
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, "Segoe UI", "Yu Gothic UI", "Hiragino Kaku Gothic ProN", "Noto Sans JP", sans-serif;
+    overflow: hidden;
+    user-select: none;
+  }
+  #app {
+    display: grid;
+    grid-template-rows: 1fr auto;
+    grid-template-columns: 1fr 340px;
+    grid-template-areas:
+      "main side"
+      "controls controls";
+    height: 100vh; width: 100vw;
+  }
+  #main {
+    grid-area: main;
+    position: relative;
+    overflow: hidden;
+    background: #0b1210;
+    min-width: 0;
+  }
+  #map-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+  }
+  #side-panel {
+    grid-area: side;
+    background: var(--panel-bg);
+    border-left: 1px solid var(--panel-border);
+    padding: 14px 16px;
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    overflow: hidden;
+  }
+  #side-panel h3 {
+    margin: 0 0 8px 0;
+    font-size: 11px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--text-dim);
+    font-weight: 500;
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+  }
+  #side-panel h3 .count {
+    font-weight: 400;
+    font-size: 10px;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--text-dim);
+    opacity: 0.7;
+  }
+  #side-panel .side-section { margin-bottom: 14px; }
+  #side-panel .side-section.scroll {
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #side-panel .side-section.scroll .scroll-body {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  #side-panel .side-section.scroll .scroll-body::-webkit-scrollbar { width: 6px; }
+  #side-panel .side-section.scroll .scroll-body::-webkit-scrollbar-thumb {
+    background: var(--panel-border);
+    border-radius: 3px;
+  }
+  #section-convo { flex: 0 0 auto; max-height: 34%; }
+  #section-thought { flex: 1 1 auto; min-height: 140px; }
+  #section-focus { flex: 0 0 auto; max-height: 30%; }
+  #side-panel .placeholder {
+    color: var(--text-dim);
+    font-size: 11px;
+    opacity: 0.6;
+  }
+  #side-panel .legend {
+    display: flex; flex-wrap: wrap; align-items: center; gap: 10px;
+    margin-bottom: 4px;
+    font-size: 11px;
+  }
+  #side-panel .swatch {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  }
+  #side-panel .ring {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+    border: 2px solid; box-sizing: border-box;
+  }
+  #convo-list { display: flex; flex-direction: column; gap: 6px; }
+  #thought-list { display: flex; flex-direction: column; gap: 6px; }
+  .thought-item {
+    border-left: 3px solid #8d93a5;
+    padding: 6px 8px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .thought-item:hover { background: rgba(255, 216, 95, 0.08); }
+  .thought-item.notification { border-left-color: #ffd85f; }
+  .thought-item.direct       { border-left-color: #62e08a; }
+  .thought-item.conversation { border-left-color: #ff9f43; }
+  .thought-item.selected {
+    background: rgba(255, 216, 95, 0.12);
+    box-shadow: inset 0 0 0 1px rgba(255, 216, 95, 0.4);
+  }
+  .thought-item .meta {
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-bottom: 3px;
+    display: flex; justify-content: space-between; gap: 6px;
+  }
+  .thought-item .meta .who { color: var(--text); font-weight: 500; }
+  .thought-item .tline { margin-top: 3px; }
+  .thought-item .tline .lbl {
+    display: inline-block;
+    color: var(--text-dim);
+    font-size: 9.5px;
+    margin-right: 4px;
+    letter-spacing: 0.3px;
+  }
+  .thought-item .source-tag {
+    display: inline-block;
+    margin-top: 3px;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.2px;
+  }
+  .convo-item {
+    border-left: 3px solid #ff9f43;
+    padding: 6px 8px;
+    background: rgba(255, 159, 67, 0.06);
+    border-radius: 3px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.45;
+  }
+  .convo-item.outage {
+    border-left-color: #ff5050;
+    background: rgba(255, 80, 80, 0.08);
+  }
+  .convo-item .meta {
+    color: var(--text-dim);
+    font-size: 10px;
+    margin-bottom: 3px;
+    display: flex; justify-content: space-between;
+  }
+  .convo-item .meta .who { color: var(--text); font-weight: 500; }
+  .convo-item .source-tag {
+    display: inline-block;
+    margin-top: 4px;
+    font-size: 9.5px;
+    color: var(--text-dim);
+    letter-spacing: 0.2px;
+  }
+  #focus-panel .focus-head {
+    color: var(--accent);
+    font-size: 13px;
+    font-weight: 500;
+    margin-bottom: 2px;
+  }
+  #focus-panel .focus-sub {
+    color: var(--text-dim);
+    font-size: 10.5px;
+    margin-bottom: 10px;
+  }
+  #focus-panel .focus-block {
+    margin-bottom: 8px;
+    font-size: 11px;
+    color: var(--text);
+    line-height: 1.5;
+  }
+  #focus-panel .focus-block .label {
+    display: block;
+    color: var(--text-dim);
+    font-size: 10px;
+    letter-spacing: 0.4px;
+    margin-bottom: 2px;
+  }
+  #hud-clock {
+    position: absolute;
+    left: 24px; top: 20px;
+    font-size: 28px;
+    color: var(--text);
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 1px;
+    line-height: 1;
+    pointer-events: none;
+    text-shadow: 0 0 10px rgba(0,0,0,0.6);
+  }
+  #hud-clock .meta {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+    font-weight: 400;
+    letter-spacing: 0;
+    margin-top: 4px;
+  }
+  #hud-stats {
+    position: absolute;
+    left: 24px; top: 110px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.6;
+    pointer-events: none;
+    text-shadow: 0 0 8px rgba(0,0,0,0.6);
+  }
+  #hud-stats b { color: var(--text); font-weight: 500; }
+  #cam-buttons {
+    position: absolute;
+    right: 16px; top: 16px;
+    display: flex; gap: 6px;
+    z-index: 5;
+  }
+  #cam-buttons button {
+    background: rgba(18, 31, 27, 0.85);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 5px 10px;
+    font-size: 11px;
+    cursor: pointer;
+    font-family: inherit;
+  }
+  #cam-buttons button:hover { background: #34483e; }
+  #cam-buttons button.active {
+    background: var(--accent);
+    color: #1b1608;
+    border-color: var(--accent);
+  }
+  #hud-loading {
+    position: absolute; inset: 0;
+    display: flex; align-items: center; justify-content: center;
+    background: rgba(14,23,20,0.92);
+    font-size: 14px; color: var(--text-dim);
+    z-index: 10;
+  }
+  #hud-loading.hidden { display: none; }
+  #hud-error {
+    position: absolute; left: 50%; top: 50%;
+    transform: translate(-50%,-50%);
+    max-width: 70%;
+    background: #3a1f25; color: #ffb3bd;
+    padding: 18px 24px;
+    border-radius: 8px;
+    border: 1px solid #5a3238;
+    font-size: 13px; line-height: 1.5;
+    display: none;
+    white-space: pre-wrap;
+    z-index: 20;
+  }
+  #controls {
+    grid-area: controls;
+    background: var(--panel-bg);
+    border-top: 1px solid var(--panel-border);
+    padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px;
+    font-size: 13px;
+  }
+  #controls button {
+    background: var(--panel-border);
+    color: var(--text);
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    font-family: inherit;
+    min-width: 38px;
+  }
+  #controls button:hover { background: #34483e; }
+  #controls button:disabled { opacity: 0.4; cursor: default; }
+  #play-pause { min-width: 46px; font-size: 16px; }
+  #seek {
+    flex: 1;
+    -webkit-appearance: none; appearance: none;
+    height: 4px; border-radius: 2px;
+    background: var(--panel-border);
+    outline: none;
+  }
+  #seek::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: none;
+  }
+  #seek::-moz-range-thumb {
+    width: 14px; height: 14px; border-radius: 50%;
+    background: var(--accent); cursor: pointer;
+    border: none;
+  }
+  .speed-group button.active {
+    background: var(--accent);
+    color: #1b1608;
+  }
+  .step-label {
+    font-variant-numeric: tabular-nums;
+    color: var(--text-dim);
+    min-width: 90px;
+    text-align: right;
+    font-size: 12px;
+  }
+  .sep {
+    width: 1px; height: 22px; background: var(--panel-border);
+  }
+
+  /* --- Edit mode UI --- */
+  #edit-toggle {
+    position: absolute; top: 12px; right: 12px;
+    background: rgba(18, 31, 27, 0.85);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 12px;
+    cursor: pointer;
+    font-family: inherit;
+    z-index: 10;
+  }
+  #edit-toggle.active {
+    background: var(--accent);
+    color: #1b1608;
+    border-color: var(--accent);
+  }
+  #panel-tabs {
+    display: flex;
+    gap: 4px;
+    margin-bottom: 8px;
+    flex: 0 0 auto;
+  }
+  .panel-tab {
+    flex: 1;
+    background: transparent;
+    color: var(--text-dim);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 5px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .panel-tab.active {
+    background: var(--panel-border);
+    color: var(--text);
+  }
+  #panel-sim, #panel-edit, #panel-agents {
+    flex: 1 1 auto;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  #panel-edit, #panel-agents { gap: 10px; overflow-y: auto; padding-right: 4px; }
+  #panel-edit::-webkit-scrollbar, #panel-agents::-webkit-scrollbar { width: 6px; }
+  #panel-edit::-webkit-scrollbar-thumb, #panel-agents::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+
+  /* Agent panel */
+  #agent-filter-row {
+    display: flex; gap: 6px; align-items: center; flex: 0 0 auto;
+  }
+  #agent-filter {
+    flex: 1;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--panel-border); border-radius: 3px;
+    padding: 5px 8px; font-size: 11px; font-family: inherit;
+  }
+  #agent-filter:focus { outline: none; border-color: var(--accent); }
+  #agent-count {
+    font-size: 10px; color: var(--text-dim);
+    letter-spacing: 0.5px; white-space: nowrap;
+  }
+  #agent-list-scroll {
+    flex: 1 1 auto; min-height: 120px;
+    overflow-y: auto;
+    background: rgba(255,255,255,0.02);
+    border-radius: 3px;
+    padding: 4px;
+  }
+  #agent-list-scroll::-webkit-scrollbar { width: 6px; }
+  #agent-list-scroll::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+  .agent-row {
+    display: grid;
+    grid-template-columns: 22px 14px 1fr auto;
+    gap: 6px; align-items: center;
+    padding: 4px 6px;
+    font-size: 11px;
+    cursor: pointer;
+    border-left: 2px solid transparent;
+    border-radius: 2px;
+  }
+  .agent-row:hover { background: rgba(255,255,255,0.04); }
+  .agent-row.selected {
+    background: rgba(255,216,95,0.10);
+    border-left-color: var(--accent);
+  }
+  .agent-row .id {
+    color: var(--text-dim); font-size: 10px;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    text-align: right;
+  }
+  .agent-row .sex {
+    display: inline-block; width: 10px; height: 10px; border-radius: 50%;
+  }
+  .agent-row .sex.male { background: #378add; }
+  .agent-row .sex.female { background: #e8509c; }
+  .agent-row .sex.other { background: #9a9a9a; }
+  .agent-row .name {
+    color: var(--text); font-weight: 500;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  }
+  .agent-row .meta {
+    color: var(--text-dim); font-size: 10px;
+    overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    max-width: 120px;
+  }
+  .agent-row.edited .name::after {
+    content: ' •'; color: var(--accent);
+  }
+  #agent-edit-form {
+    display: flex; flex-direction: column; gap: 6px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 3px; padding: 8px;
+    flex: 0 0 auto;
+  }
+  #agent-edit-form .placeholder {
+    color: var(--text-dim); opacity: 0.6;
+    font-size: 11px; text-align: center; padding: 8px;
+  }
+  #agent-edit-form h3 {
+    margin: 0 0 4px 0; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-dim); font-weight: 500;
+  }
+  #agent-edit-form .edit-row input[type="range"] {
+    width: 100%;
+  }
+  #agent-edit-form .identities {
+    font-size: 10px; color: var(--text-dim);
+    background: rgba(0,0,0,0.2); border-radius: 3px;
+    padding: 6px; white-space: pre-wrap;
+    font-family: "SFMono-Regular", Consolas, monospace;
+    max-height: 160px; overflow-y: auto;
+  }
+  #agent-edit-actions {
+    display: flex; gap: 6px; margin-top: 6px;
+  }
+  #agent-edit-actions button {
+    flex: 1;
+    background: var(--panel-border); color: var(--text);
+    border: none; border-radius: 3px;
+    padding: 5px 8px; font-size: 11px; font-family: inherit; cursor: pointer;
+  }
+  #agent-edit-actions button:hover { background: #34483e; }
+  #agent-edit-actions button.danger { background: #5a2a2a; color: #ffcaca; }
+  #agent-edit-actions button.danger:hover { background: #7a3838; }
+  .edit-section { flex: 0 0 auto; }
+  .edit-section h3 {
+    margin: 0 0 6px 0; font-size: 10px; text-transform: uppercase;
+    letter-spacing: 1px; color: var(--text-dim); font-weight: 500;
+  }
+  .edit-toolbar {
+    display: flex; gap: 6px; flex-wrap: wrap;
+  }
+  .edit-toolbar button, #edit-actions button, #edit-add-group button {
+    flex: 1 1 auto;
+    background: var(--panel-border);
+    color: var(--text);
+    border: none;
+    border-radius: 3px;
+    padding: 6px 8px;
+    font-size: 11px;
+    font-family: inherit;
+    cursor: pointer;
+  }
+  .edit-toolbar button:hover, #edit-actions button:hover, #edit-add-group button:hover {
+    background: #34483e;
+  }
+  .edit-toolbar button.primary { background: var(--accent); color: #1b1608; }
+  .edit-toolbar button.primary:hover { background: #ffe27a; }
+  .edit-toolbar button.danger, #edit-actions button.danger {
+    background: #5a2a2a; color: #ffcaca;
+  }
+  .edit-toolbar button.danger:hover, #edit-actions button.danger:hover { background: #7a3838; }
+  .edit-toolbar button.active { background: #4a7a5e; color: #fff; box-shadow: inset 0 0 0 1px #62e08a; }
+  .edit-toolbar button:disabled { opacity: 0.35; cursor: not-allowed; }
+  .edit-toolbar button:disabled:hover { background: var(--panel-border); }
+  .edit-toolbar button.flash { animation: tb-flash 0.35s ease; }
+  @keyframes tb-flash {
+    0%   { background: #62e08a; color: #0e1714; }
+    100% { background: var(--panel-border); color: var(--text); }
+  }
+  #edit-actions { display: flex; gap: 6px; }
+  #edit-add-group { display: flex; gap: 4px; flex-wrap: wrap; }
+  #edit-add-group button { flex: 0 1 calc(50% - 2px); font-size: 10px; padding: 4px 6px; }
+
+  #edit-selected-info {
+    font-size: 11px;
+    color: var(--text);
+    background: rgba(255,255,255,0.03);
+    border-radius: 3px;
+    padding: 6px 8px;
+    min-height: 30px;
+  }
+  #edit-selected-info .kind {
+    color: var(--accent); font-weight: 500; text-transform: uppercase;
+    font-size: 10px; letter-spacing: 1px;
+  }
+  #edit-selected-info .name {
+    margin-top: 2px; font-size: 12px;
+  }
+  #edit-selected-info .placeholder {
+    color: var(--text-dim); opacity: 0.6; font-size: 11px;
+  }
+
+  #edit-form { display: flex; flex-direction: column; gap: 6px; }
+  .edit-row {
+    display: grid;
+    grid-template-columns: 90px 1fr;
+    align-items: center;
+    gap: 8px;
+    font-size: 11px;
+  }
+  .edit-row.full { grid-template-columns: 1fr; }
+  .edit-row label {
+    color: var(--text-dim);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .edit-row input[type="number"],
+  .edit-row input[type="text"],
+  .edit-row select {
+    background: var(--bg);
+    color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 4px 6px;
+    font-size: 11px;
+    font-family: inherit;
+    width: 100%;
+  }
+  .edit-row input[type="number"]:focus,
+  .edit-row input[type="text"]:focus,
+  .edit-row select:focus {
+    outline: none; border-color: var(--accent);
+  }
+  .edit-row input[type="color"] {
+    background: transparent;
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    width: 100%; height: 24px;
+    cursor: pointer;
+  }
+  .edit-row.checkbox { grid-template-columns: 90px auto 1fr; }
+  .edit-row.color { grid-template-columns: 90px 32px 1fr auto; gap: 6px; }
+  .edit-row.color input[type="color"] {
+    width: 32px; height: 28px; padding: 0;
+  }
+  .edit-row.color .color-preset {
+    display: flex; gap: 3px; flex-wrap: wrap;
+  }
+  .edit-row.color .color-preset button {
+    width: 16px; height: 16px; border-radius: 2px; border: 1px solid rgba(255,255,255,0.1);
+    padding: 0; cursor: pointer; font-size: 0;
+  }
+  .edit-row.color .color-preset button:hover { outline: 1px solid var(--accent); }
+  .edit-row.color button.clear {
+    background: transparent; color: var(--text-dim); border: 1px solid var(--panel-border);
+    border-radius: 3px; padding: 2px 6px; font-size: 10px; cursor: pointer;
+  }
+  .edit-row.color button.clear:hover { background: var(--panel-border); color: var(--text); }
+  .edit-row.pair { display: grid; grid-template-columns: 90px 1fr 1fr; gap: 4px; }
+  .edit-row.pair .pair-input { display: flex; flex-direction: column; gap: 1px; }
+  .edit-row.pair .pair-input span {
+    font-size: 9px; color: var(--text-dim); opacity: 0.6;
+  }
+  .edit-seg-list {
+    display: flex; flex-direction: column; gap: 4px;
+    background: rgba(255,255,255,0.02);
+    border-radius: 3px; padding: 6px;
+  }
+  .edit-seg-item {
+    border-left: 2px solid var(--panel-border);
+    padding: 4px 6px;
+    font-size: 10px;
+    cursor: pointer;
+  }
+  .edit-seg-item.selected {
+    border-left-color: var(--accent);
+    background: rgba(255,216,95,0.08);
+  }
+  .edit-hint {
+    font-size: 10px; color: var(--text-dim);
+    opacity: 0.7; font-style: italic;
+  }
+  #edit-export-modal {
+    position: fixed; inset: 0;
+    background: rgba(0,0,0,0.7);
+    display: none;
+    align-items: center; justify-content: center;
+    z-index: 100;
+  }
+  #edit-export-modal.open { display: flex; }
+  .modal-panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--panel-border);
+    border-radius: 6px;
+    width: min(760px, 90vw);
+    max-height: 85vh;
+    display: flex; flex-direction: column;
+    padding: 16px;
+    gap: 10px;
+  }
+  .modal-head { display: flex; justify-content: space-between; align-items: center; }
+  .modal-head h2 { margin: 0; font-size: 13px; color: var(--text); letter-spacing: 1px; text-transform: uppercase; }
+  .modal-head button {
+    background: transparent; color: var(--text-dim);
+    border: 1px solid var(--panel-border); border-radius: 3px;
+    padding: 3px 8px; cursor: pointer; font-family: inherit; font-size: 11px;
+  }
+  #edit-export-text {
+    flex: 1; min-height: 300px;
+    background: var(--bg); color: var(--text);
+    border: 1px solid var(--panel-border);
+    border-radius: 3px;
+    padding: 10px;
+    font-family: "SFMono-Regular", Consolas, "Yu Gothic UI", monospace;
+    font-size: 11px;
+    white-space: pre;
+    overflow: auto;
+    resize: vertical;
+  }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .modal-actions button {
+    background: var(--panel-border); color: var(--text);
+    border: none; border-radius: 3px;
+    padding: 6px 14px; cursor: pointer; font-family: inherit; font-size: 11px;
+  }
+  .modal-actions button.primary { background: var(--accent); color: #1b1608; }
+</style>
+</head>
+<body>
+  <div id="app">
+    <div id="main">
+      <canvas id="map-canvas"></canvas>
+      <div id="hud-clock">
+        <span id="clock-time">--:--</span>
+        <span class="meta" id="clock-meta"></span>
+      </div>
+      <div id="hud-stats">
+        Agents: <b id="stats-agents">0</b> |
+        in place: <b id="stats-in-place">—</b>
+      </div>
+      <div id="cam-buttons">
+        <button id="cam-reset" title="初期視点へ">視点リセット</button>
+        <button id="cam-top" title="真上から">俯瞰</button>
+        <button id="cam-follow" title="選択エージェント追従 (要選択)">追従</button>
+      </div>
+      <button id="edit-toggle" title="3D要素を編集 (E)">🛠 編集モード</button>
+      <div id="hud-loading">データ読み込み中...</div>
+      <div id="hud-error"></div>
+    </div>
+    <div id="side-panel">
+      <div class="side-section">
+        <div class="legend">
+          <span class="swatch" style="background:#378add"></span>男性
+          <span class="swatch" style="background:#e8509c"></span>女性
+        </div>
+        <div class="legend">
+          <span class="ring" style="border-color:#ffd85f"></span>📱 通知経由
+          <span class="ring" style="border-color:#62e08a"></span>🚉 物理近接
+          <span class="ring" style="border-color:#ff9f43"></span>💬 会話経由
+        </div>
+      </div>
+      <div id="panel-tabs">
+        <button class="panel-tab active" data-tab="sim">ログ</button>
+        <button class="panel-tab" data-tab="agents">エージェント</button>
+        <button class="panel-tab" data-tab="edit">編集</button>
+      </div>
+      <div id="panel-sim">
+        <div class="side-section scroll" id="section-convo">
+          <h3>会話ログ <span class="count" id="convo-count"></span></h3>
+          <div class="scroll-body"><div id="convo-list"></div></div>
+        </div>
+        <div class="side-section scroll" id="section-thought">
+          <h3>思考ログ <span class="count" id="thought-count"></span></h3>
+          <div class="scroll-body"><div id="thought-list"></div></div>
+        </div>
+        <div class="side-section scroll" id="section-focus">
+          <h3>フォーカス詳細</h3>
+          <div class="scroll-body"><div id="focus-panel"></div></div>
+        </div>
+      </div>
+      <div id="panel-agents" style="display:none">
+        <div id="agent-filter-row">
+          <input id="agent-filter" type="text" placeholder="🔍 名前・職業で検索..." />
+          <span id="agent-count"></span>
+        </div>
+        <div id="agent-list-scroll">
+          <div id="agent-list"></div>
+        </div>
+        <div id="agent-edit-form">
+          <div class="placeholder">一覧からエージェントを選択</div>
+        </div>
+      </div>
+      <div id="panel-edit" style="display:none">
+        <div class="edit-section">
+          <div class="edit-toolbar">
+            <button id="edit-undo" title="元に戻す (Ctrl+Z)">↶ 戻す</button>
+            <button id="edit-redo" title="やり直し (Ctrl+Y)">↷ 進む</button>
+            <button id="edit-copy" title="コピー (Ctrl+C)">⎘ コピー</button>
+            <button id="edit-paste" title="貼り付け (Ctrl+V)" disabled>⎗ 貼付</button>
+          </div>
+          <div class="edit-toolbar" style="margin-top:4px">
+            <button id="edit-export" class="primary">📋 YAML書き出し</button>
+            <button id="edit-snap" title="5mグリッドにスナップ">⊞ スナップ</button>
+            <button id="edit-reset" class="danger" title="全編集を破棄してconfig初期値に戻す">↺ リセット</button>
+          </div>
+          <div class="edit-hint" style="margin-top:6px; font-size:11px; opacity:0.75">
+            ドラッグで移動 / 黄ハンドルでリサイズ / 緑ハンドルで端点編集。<br>
+            Delete で削除、Ctrl+Z で取り消し、Ctrl+C/V でコピペ、Esc で選択解除、E でモード切替。
+          </div>
+        </div>
+        <div class="edit-section">
+          <h3>選択中</h3>
+          <div id="edit-selected-info">
+            <div class="placeholder">編集モード中に3Dビューの要素をクリックで選択</div>
+          </div>
+        </div>
+        <div class="edit-section">
+          <div id="edit-form"></div>
+        </div>
+        <div class="edit-section">
+          <div id="edit-actions" style="display:none">
+            <button id="edit-duplicate">+ 複製</button>
+            <button id="edit-delete" class="danger">× 削除</button>
+          </div>
+        </div>
+        <div class="edit-section">
+          <h3>新規追加</h3>
+          <div id="edit-add-group">
+            <button data-add="place">+ 建物</button>
+            <button data-add="rail">+ 線路</button>
+            <button data-add="road">+ 道路</button>
+            <button data-add="deck">+ デッキ</button>
+            <button data-add="stair">+ 階段</button>
+            <button data-add="landmark">+ ランドマーク</button>
+          </div>
+        </div>
+        <div class="edit-section">
+          <div class="edit-hint">
+            編集内容はブラウザに自動保存されます。完成したら「YAML書き出し」で config に貼り付け可能な形式を取得できます。
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="edit-export-modal">
+      <div class="modal-panel">
+        <div class="modal-head">
+          <h2>YAML 書き出し</h2>
+          <button id="edit-export-close">閉じる</button>
+        </div>
+        <textarea id="edit-export-text" spellcheck="false" readonly></textarea>
+        <div class="modal-actions">
+          <button id="edit-export-copy" class="primary">クリップボードにコピー</button>
+          <button id="edit-export-download">.yaml ダウンロード</button>
+        </div>
+      </div>
+    </div>
+    <div id="controls">
+      <button id="play-pause">▶</button>
+      <input id="seek" type="range" min="0" max="0" step="1" value="0">
+      <span class="step-label" id="step-label">0 / 0</span>
+      <div class="sep"></div>
+      <div id="speed-group" class="speed-group">
+        <button data-speed="0.5">0.5x</button>
+        <button data-speed="1" class="active">1x</button>
+        <button data-speed="2">2x</button>
+        <button data-speed="4">4x</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Three.js libraries. These script tags use stable ids so the bundler
+       can swap src="..." with inlined content for offline distribution. -->
+  <script id="three-lib" src="https://unpkg.com/three@0.128.0/build/three.min.js"></script>
+  <script id="orbit-lib" src="https://unpkg.com/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+  <!-- Simulation data. Bundler replaces this empty tag with inline JSON. -->
+  <script id="sim-data" type="application/json"></script>
+
+  <!-- Optional scene_3d auxiliary data (rails/roads/decks/stairs/landmarks).
+       Parsed from shinagawa_config.yaml (or similar) by bundle_viewer.py
+       when invoked with --scene-3d. Safe to leave empty. -->
+  <script id="scene-3d" type="application/json"></script>
+
+  <script>
+  (function () {
+  'use strict';
+
+  // ---------------------------------------------------------------
+  // Constants: visual mapping (from viewer_3d_spec.md §5)
+  // ---------------------------------------------------------------
+
+  const PLACE_STYLE = {
+    jr_station:        { height: 12,   color: 0x2680ff },
+    subway_station:    { height: 2,    color: 0x2680ff },
+    plaza:             { height: 0.2,  color: 0xff8a3c },
+    park:              { height: 0.3,  color: 0x4eb847 },
+    cafe:              { height: 4,    color: 0xe8509c },
+    restaurant:        { height: 4,    color: 0xe8509c },
+    izakaya:           { height: 4,    color: 0xe8509c },
+    convenience_store: { height: 3,    color: 0xe8509c },
+    department_store:  { height: 14,   color: 0xe8509c },
+    office_lobby:      { height: 18,   color: 0x2680ff },
+    library:           { height: 6,    color: 0xa89248 },
+    narrow_street:     { height: 0.03, color: 0x3a3a3a },
+    wide_street:       { height: 0.03, color: 0x3a3a3a },
+    pedestrian_street: { height: 0.05, color: 0x555555 },
+    // Shinagawa extension types (shinagawa_config.yaml §2)
+    hotel:             { height: 12,   color: 0xc8a464 },
+    residential:       { height: 6,    color: 0x89c0a8 },
+    industrial:        { height: 3,    color: 0x6b7280 },
+    utility:           { height: 1,    color: 0x7a8a75 },
+    construction:      { height: 0.5,  color: 0xffb84a },
+    zone_izakaya:      { height: 3,    color: 0xd85c7a },
+    museum:            { height: 4,    color: 0xb49b5e },
+  };
+  // Places below this height get a flat slab only, no upper wireframe.
+  const LOW_PROFILE_THRESHOLD = 0.5;
+  // Thickness of the colored ground-floor slab before the wireframe starts.
+  const GROUND_SLAB_HEIGHT = 0.4;
+
+  // Color helpers. User-set color is stored as "#rrggbb" string.
+  function colorNumToHex(n) {
+    if (typeof n !== 'number') return null;
+    return '#' + (n & 0xffffff).toString(16).padStart(6, '0');
+  }
+  function colorHexToNum(s) {
+    if (typeof s !== 'string') return null;
+    const m = /^#?([0-9a-fA-F]{6})$/.exec(s.trim());
+    if (!m) return null;
+    return parseInt(m[1], 16);
+  }
+  function resolveColor(override, fallback) {
+    const n = colorHexToNum(override);
+    return n != null ? n : fallback;
+  }
+
+  const AGENT_COLOR = {
+    male:   0x378add,
+    female: 0xe8509c,
+    other:  0xa89248,
+  };
+  const AGENT_BODY = { width: 0.8, height: 1.6, depth: 0.8 };
+
+  // Awareness ring colors — match viewer_v2.
+  const AWARENESS_RING = {
+    notification: 0xffd85f,
+    direct:       0x62e08a,
+    conversation: 0xff9f43,
+  };
+  const SOURCE_LABEL = {
+    notification: '📱 通知経由で認識',
+    direct:       '🚉 物理近接で認識',
+    conversation: '💬 会話経由で認識',
+  };
+
+  const EVENT_COLOR = {
+    transit_disruption: 0xff6b6b,
+    fire_disruption:    0xff8a3c,
+    _default:           0xffe066,
+  };
+
+  const CONVO_COLOR_DEFAULT = 0xff9f43;
+  const CONVO_COLOR_OUTAGE  = 0xff5050;
+  const OUTAGE_KEYWORDS = ['運休', 'JR', '品川', '電車', '人身', '事故', '振替', '遅延'];
+
+  const MAX_CONVO_ITEMS = 12;
+  const MAX_THOUGHT_ITEMS = 15;
+  const TRAIL_LENGTH = 40;
+
+  // ---------------------------------------------------------------
+  // State
+  // ---------------------------------------------------------------
+
+  const state = {
+    data: null,
+    currentStep: 0,
+    stepFrac: 0,
+    playing: false,
+    speed: 1,
+    lastTickAt: 0,
+    accum: 0,
+    baseStepMs: 900,
+    selectedId: null,
+    cameraMode: 'free',   // 'free' | 'top' | 'follow'
+    agentFilter: '',
+    personaOverrides: {},  // id -> { field: value } patch applied on top of data.personas
+  };
+
+  // Edit mode state + registry of editable scene elements.
+  // Every scene element built from config gets a working-data copy + Group so
+  // we can rebuild it in place when the user edits properties.
+  const editable = {
+    enabled: false,
+    sel: null,  // { kind, idx }
+    registry: {
+      places:     [],  // { group, data, highlight? }
+      rails:      [],
+      roads:      [],
+      deckSegs:   [],  // one entry per segment, with parent_name / parent_elevation_m
+      stairs:     [],
+      landmarks:  [],
+    },
+    highlight: null,     // outline/ring for currently selected element
+    originalData: null,  // deep copy of initial data for reset
+    loadedFromStorage: false,
+    snapToGrid: false,   // when true, snap drag positions to the 5m grid
+  };
+  const EDIT_STORAGE_KEY = 'viewer_3d_edits_v1';
+  const GRID_STEP = 5;   // 5m grid for snap
+
+  // Drag state + DOM-side scratch for pointer-driven editing (PPT-style).
+  const drag = {
+    active: false,
+    kind: null,
+    idx: null,
+    handle: null,     // { kind: 'move'|'corner'|'endpoint', key }
+    startCell: null,  // { x, y } — pointer's XZ position at drag start, in cell coords
+    startData: null,  // deep clone of element data at drag start
+    moved: false,     // true once pointer has traveled past a small threshold
+    pointerDownPos: null,
+  };
+  const handleState = {
+    group: null,
+    handles: [],
+  };
+
+  // Undo/redo history. Each entry is a full snapshotEdits() result.
+  // We push debounced after mutations, so rapid typing collapses to one step.
+  const history = {
+    stack: [],     // list of { snap, ts }
+    ptr: -1,       // current index into stack
+    MAX: 50,
+    pushTimer: null,
+    suspend: false,  // true while undo/redo is applying, so the rebuild doesn't re-push
+  };
+
+  // Copy/paste clipboard. Holds { kind, data } or null.
+  const clipboard = { kind: null, data: null };
+
+  // Preset color palette — surfaces in the color row for quick picking.
+  const COLOR_PRESETS = [
+    '#e5e5e5', '#4eb847', '#2680ff', '#ff8a3c',
+    '#e8509c', '#c8a464', '#89c0a8', '#b49b5e',
+    '#d85c7a', '#ffb84a', '#7a8a75', '#6b7280',
+    '#a89248', '#6a7a8a', '#8a8a80', '#ffd85f',
+  ];
+
+  // Three.js runtime handles, wired up in init().
+  let scene, camera, renderer, orbit;
+  let groundMesh, borderLines;
+  const agentMeshes = new Map();    // id -> { body, ring, trailLine }
+  const convoLines = [];            // { line } — recreated per frame for now
+  const eventRings = [];            // { mesh, place_name }
+  let selectionHalo = null;
+
+  // ---------------------------------------------------------------
+  // DOM
+  // ---------------------------------------------------------------
+
+  const canvas = document.getElementById('map-canvas');
+  const elClockTime = document.getElementById('clock-time');
+  const elClockMeta = document.getElementById('clock-meta');
+  const elStatsAgents = document.getElementById('stats-agents');
+  const elStatsInPlace = document.getElementById('stats-in-place');
+  const elLoading = document.getElementById('hud-loading');
+  const elError = document.getElementById('hud-error');
+  const elPlayPause = document.getElementById('play-pause');
+  const elSeek = document.getElementById('seek');
+  const elStepLabel = document.getElementById('step-label');
+  const elSpeedGroup = document.getElementById('speed-group');
+  const elConvoList = document.getElementById('convo-list');
+  const elThoughtList = document.getElementById('thought-list');
+  const elConvoCount = document.getElementById('convo-count');
+  const elThoughtCount = document.getElementById('thought-count');
+  const elFocusPanel = document.getElementById('focus-panel');
+  const elCamReset = document.getElementById('cam-reset');
+  const elCamTop = document.getElementById('cam-top');
+  const elCamFollow = document.getElementById('cam-follow');
+  const elEditToggle = document.getElementById('edit-toggle');
+  const elPanelTabs = document.getElementById('panel-tabs');
+  const elPanelSim = document.getElementById('panel-sim');
+  const elPanelEdit = document.getElementById('panel-edit');
+  const elPanelAgents = document.getElementById('panel-agents');
+  const elAgentFilter = document.getElementById('agent-filter');
+  const elAgentCount = document.getElementById('agent-count');
+  const elAgentList = document.getElementById('agent-list');
+  const elAgentEditForm = document.getElementById('agent-edit-form');
+  const elEditSelInfo = document.getElementById('edit-selected-info');
+  const elEditForm = document.getElementById('edit-form');
+  const elEditActions = document.getElementById('edit-actions');
+  const elEditDuplicate = document.getElementById('edit-duplicate');
+  const elEditDelete = document.getElementById('edit-delete');
+  const elEditReset = document.getElementById('edit-reset');
+  const elEditExport = document.getElementById('edit-export');
+  const elEditSnap = document.getElementById('edit-snap');
+  const elEditUndo = document.getElementById('edit-undo');
+  const elEditRedo = document.getElementById('edit-redo');
+  const elEditCopy = document.getElementById('edit-copy');
+  const elEditPaste = document.getElementById('edit-paste');
+  const elEditAddGroup = document.getElementById('edit-add-group');
+  const elExportModal = document.getElementById('edit-export-modal');
+  const elExportText = document.getElementById('edit-export-text');
+  const elExportClose = document.getElementById('edit-export-close');
+  const elExportCopy = document.getElementById('edit-export-copy');
+  const elExportDownload = document.getElementById('edit-export-download');
+
+  // ---------------------------------------------------------------
+  // Error / loading
+  // ---------------------------------------------------------------
+
+  function showError(msg) {
+    elLoading.classList.add('hidden');
+    elError.textContent = msg;
+    elError.style.display = 'block';
+    console.error(msg);
+  }
+
+  // ---------------------------------------------------------------
+  // Coordinate mapping — sim (x,y) → Three.js (x, 0, -y)
+  // ---------------------------------------------------------------
+
+  function cellToWorld(cx, cy) {
+    return { x: cx, y: 0, z: -cy };
+  }
+
+  function isOutageConversation(msg) {
+    if (!msg) return false;
+    return OUTAGE_KEYWORDS.some(k => msg.indexOf(k) !== -1);
+  }
+
+  // ---------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------
+
+  function loadData() {
+    const el = document.getElementById('sim-data');
+    if (!el) { showError('Missing <script id="sim-data"> tag.'); return null; }
+    const txt = (el.textContent || '').trim();
+    if (!txt) {
+      showError(
+        'simulation_data.json が埋め込まれていません。\n' +
+        'tools/bundle_viewer.py --viewer 3d <run_dir> でバンドルしてください。'
+      );
+      return null;
+    }
+    try {
+      const d = JSON.parse(txt);
+      if (!d.metadata || !d.timeline || !d.personas || !d.places) {
+        throw new Error('Malformed simulation_data — missing required sections');
+      }
+      return d;
+    } catch (e) {
+      showError('simulation_data.json のパースに失敗: ' + e.message);
+      return null;
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Scene setup
+  // ---------------------------------------------------------------
+
+  function initScene() {
+    scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x0b1210);
+
+    const rect = canvas.parentElement.getBoundingClientRect();
+    camera = new THREE.PerspectiveCamera(50, rect.width / rect.height, 0.5, 2000);
+    camera.position.set(100, 80, 100);
+
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+    renderer.setPixelRatio(window.devicePixelRatio || 1);
+    renderer.setSize(rect.width, rect.height, false);
+
+    // OrbitControls (from examples/js UMD).
+    orbit = new THREE.OrbitControls(camera, renderer.domElement);
+    orbit.target.set(0, 0, 0);
+    orbit.enableDamping = true;
+    orbit.dampingFactor = 0.08;
+    orbit.maxPolarAngle = Math.PI * 0.49;
+    orbit.minDistance = 20;
+    orbit.maxDistance = 250;
+    orbit.update();
+
+    // Ambient-only lighting, because we use MeshBasicMaterial everywhere
+    // (no shading → no normals needed). Added for future-proofing if we
+    // swap to MeshStandardMaterial later.
+    scene.add(new THREE.AmbientLight(0xffffff, 1.0));
+  }
+
+  function buildGround(meta) {
+    const side = meta.half_space_size * 2;
+    const geom = new THREE.PlaneGeometry(side, side);
+    const mat  = new THREE.MeshBasicMaterial({ color: 0x1a1f1a, side: THREE.DoubleSide });
+    groundMesh = new THREE.Mesh(geom, mat);
+    groundMesh.rotation.x = -Math.PI / 2;
+    groundMesh.position.y = -0.01;
+    scene.add(groundMesh);
+
+    // Faint 5m grid overlay — one cell == 1m in our coord system, so a 5-cell
+    // grid aligns with 5m spacing.
+    const divisions = Math.max(2, Math.round(side / 5));
+    const grid = new THREE.GridHelper(side, divisions, 0x3a4a43, 0x26332d);
+    grid.position.y = 0.005;
+    if (grid.material) {
+      grid.material.transparent = true;
+      grid.material.opacity = 0.4;
+    }
+    scene.add(grid);
+
+    // Border outline: a single RectangularLoop on the ground plane.
+    const h = meta.half_space_size;
+    const pts = [
+      new THREE.Vector3(-h, 0.02, -h),
+      new THREE.Vector3( h, 0.02, -h),
+      new THREE.Vector3( h, 0.02,  h),
+      new THREE.Vector3(-h, 0.02,  h),
+      new THREE.Vector3(-h, 0.02, -h),
+    ];
+    const bgeom = new THREE.BufferGeometry().setFromPoints(pts);
+    borderLines = new THREE.Line(bgeom, new THREE.LineBasicMaterial({ color: 0x2a3a33 }));
+    scene.add(borderLines);
+  }
+
+  // Dispose every geometry/material under a group. Used before rebuild.
+  function disposeGroup(g) {
+    g.traverse((obj) => {
+      if (obj.geometry) obj.geometry.dispose();
+      if (obj.material) {
+        if (Array.isArray(obj.material)) obj.material.forEach(m => m.dispose());
+        else obj.material.dispose();
+      }
+    });
+  }
+
+  function buildPlaceMesh(p) {
+    const g = new THREE.Group();
+    const style = PLACE_STYLE[p.type] || { height: 1, color: 0x444444 };
+    const w = Math.max(0.1, p.half_size_x * 2);
+    const d = Math.max(0.1, p.half_size_y * 2);
+    const attrH = p.attributes && typeof p.attributes.height_m === 'number'
+      ? p.attributes.height_m : null;
+    const totalH = attrH != null ? attrH : style.height;
+    const pos = cellToWorld(p.center_x, p.center_y);
+    const slabH = totalH < LOW_PROFILE_THRESHOLD ? totalH : GROUND_SLAB_HEIGHT;
+    const colorOverride = p.attributes && p.attributes.color;
+    const color = resolveColor(colorOverride, style.color);
+
+    const slabGeom = new THREE.BoxGeometry(w, slabH, d);
+    const slabMat  = new THREE.MeshBasicMaterial({
+      color,
+      transparent: true,
+      opacity: totalH < LOW_PROFILE_THRESHOLD ? 0.75 : 0.9,
+    });
+    const slab = new THREE.Mesh(slabGeom, slabMat);
+    slab.position.set(pos.x, slabH / 2, pos.z);
+    g.add(slab);
+
+    const slabEdges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(slabGeom),
+      new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.35 })
+    );
+    slabEdges.position.copy(slab.position);
+    g.add(slabEdges);
+
+    if (totalH >= LOW_PROFILE_THRESHOLD) {
+      const upperH = totalH - slabH;
+      if (upperH > 0.05) {
+        const upGeom = new THREE.BoxGeometry(w, upperH, d);
+        const upEdges = new THREE.LineSegments(
+          new THREE.EdgesGeometry(upGeom),
+          new THREE.LineBasicMaterial({ color: 0x777777, transparent: true, opacity: 0.55 })
+        );
+        upEdges.position.set(pos.x, slabH + upperH / 2, pos.z);
+        g.add(upEdges);
+      }
+    }
+
+    // Floor label — name on top of the 1F slab, sprite faces camera.
+    if (p.name) {
+      const shortSide = Math.min(w, d);
+      const sprite = makeNameLabelSprite(p.name, {
+        maxWidth: Math.max(shortSide * 2, 14),
+      });
+      sprite.position.set(pos.x, slabH + 0.4, pos.z);
+      g.add(sprite);
+    }
+    return g;
+  }
+
+  function buildPlaces(places) {
+    for (let i = 0; i < places.length; i++) {
+      const g = buildPlaceMesh(places[i]);
+      g.userData.editable = { kind: 'place', idx: i };
+      scene.add(g);
+      editable.registry.places.push({ group: g, data: places[i] });
+    }
+  }
+
+  function rebuildPlace(i) {
+    const entry = editable.registry.places[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildPlaceMesh(entry.data);
+    g.userData.editable = { kind: 'place', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  // ---------------------------------------------------------------
+  // Scene3D — rails, roads, decks, stairs, landmarks (viewer-only,
+  // sourced from shinagawa_config.yaml scene_3d:)
+  // ---------------------------------------------------------------
+
+  const SCENE3D_COLOR = {
+    rail:             0x6e7178,  // dark metallic gray
+    rail_elevated:    0x8a6a8a,  // tinted purple-gray for 2F keikyu line
+    rail_column:      0x5a5560,
+    road_arterial:    0x2a2a2a,
+    road_collector:   0x353535,
+    road_local:       0x3e3e3e,
+    deck:             0x6a7a8a,  // concrete deck
+    deck_edge:        0x9aabb5,
+    stair:            0x8a8a80,
+    landmark:         0xffd85f,
+  };
+
+  function loadScene3D() {
+    const el = document.getElementById('scene-3d');
+    if (!el) return null;
+    const txt = (el.textContent || '').trim();
+    if (!txt) return null;
+    try {
+      return JSON.parse(txt);
+    } catch (e) {
+      console.warn('scene_3d JSON parse failed, skipping:', e.message);
+      return null;
+    }
+  }
+
+  // Build an axis-aligned slab for rail/road/deck geometry. axis: 'ns' | 'ew'.
+  function buildBandGeom(axis, centerX, centerY, widthCells, lengthCells) {
+    let w, d;
+    if (axis === 'ns') { w = widthCells; d = lengthCells; }
+    else               { w = lengthCells; d = widthCells; }
+    return {
+      geom: new THREE.BoxGeometry(w, 0.08, d),
+      centerX, centerY, w, d,
+    };
+  }
+
+  function buildRailMesh(r) {
+    const g = new THREE.Group();
+    const cx = r.center_x != null ? r.center_x : 0;
+    const cy = r.center_y != null ? r.center_y : 0;
+    const elev = r.elevation_m || 0;
+    const defaultColor = r.is_elevated || elev > 0 ? SCENE3D_COLOR.rail_elevated : SCENE3D_COLOR.rail;
+    const color = resolveColor(r.color, defaultColor);
+    const band = buildBandGeom(r.axis, cx, cy, Math.max(0.1, r.width_cells), Math.max(0.1, r.length_cells));
+    const mat  = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 0.85 });
+    const slab = new THREE.Mesh(band.geom, mat);
+    const pos = cellToWorld(cx, cy);
+    slab.position.set(pos.x, elev + 0.04, pos.z);
+    g.add(slab);
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(band.geom),
+      new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.3 })
+    );
+    edges.position.copy(slab.position);
+    g.add(edges);
+
+    if (r.is_elevated && r.column_spacing_cells && elev > 0) {
+      const spacing = r.column_spacing_cells;
+      const len = r.length_cells;
+      const half = len / 2;
+      const columnGeom = new THREE.BoxGeometry(0.6, elev, 0.6);
+      const columnMat  = new THREE.MeshBasicMaterial({ color: SCENE3D_COLOR.rail_column });
+      for (let t = -half + spacing; t < half; t += spacing) {
+        const col = new THREE.Mesh(columnGeom, columnMat);
+        const base = r.axis === 'ns'
+          ? cellToWorld(cx, cy + t)
+          : cellToWorld(cx + t, cy);
+        col.position.set(base.x, elev / 2, base.z);
+        g.add(col);
+      }
+    }
+    if (r.name) {
+      const sprite = makeNameLabelSprite(r.name, { maxWidth: 12 });
+      const pos = cellToWorld(cx, cy);
+      sprite.position.set(pos.x, elev + 1.2, pos.z);
+      g.add(sprite);
+    }
+    return g;
+  }
+
+  function buildRails(rails) {
+    for (let i = 0; i < rails.length; i++) {
+      const g = buildRailMesh(rails[i]);
+      g.userData.editable = { kind: 'rail', idx: i };
+      scene.add(g);
+      editable.registry.rails.push({ group: g, data: rails[i] });
+    }
+  }
+
+  function rebuildRail(i) {
+    const entry = editable.registry.rails[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildRailMesh(entry.data);
+    g.userData.editable = { kind: 'rail', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  function buildRoadMesh(r) {
+    const g = new THREE.Group();
+    const cls = r.road_class || 'local';
+    const key = `road_${cls}`;
+    const defaultColor = SCENE3D_COLOR[key] != null ? SCENE3D_COLOR[key] : SCENE3D_COLOR.road_local;
+    const color = resolveColor(r.color, defaultColor);
+    const cx = r.center_x != null ? r.center_x : 0;
+    const cy = r.center_y != null ? r.center_y : 0;
+    const band = buildBandGeom(r.axis, cx, cy, Math.max(0.1, r.width_cells), Math.max(0.1, r.length_cells));
+    const mat  = new THREE.MeshBasicMaterial({ color });
+    const slab = new THREE.Mesh(band.geom, mat);
+    const pos = cellToWorld(cx, cy);
+    slab.position.set(pos.x, 0.02, pos.z);
+    g.add(slab);
+    if (r.name) {
+      const sprite = makeNameLabelSprite(r.name, { maxWidth: 10 });
+      sprite.position.set(pos.x, 0.6, pos.z);
+      g.add(sprite);
+    }
+    return g;
+  }
+
+  function buildRoads(roads) {
+    for (let i = 0; i < roads.length; i++) {
+      const g = buildRoadMesh(roads[i]);
+      g.userData.editable = { kind: 'road', idx: i };
+      scene.add(g);
+      editable.registry.roads.push({ group: g, data: roads[i] });
+    }
+  }
+
+  function rebuildRoad(i) {
+    const entry = editable.registry.roads[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildRoadMesh(entry.data);
+    g.userData.editable = { kind: 'road', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  function buildDeckSegMesh(seg) {
+    const g = new THREE.Group();
+    if (!seg.from || !seg.to) return g;
+    const [fx, fy] = seg.from;
+    const [tx, ty] = seg.to;
+    const dx = tx - fx, dy = ty - fy;
+    const isNS = Math.abs(dy) >= Math.abs(dx);
+    const len = Math.max(2, Math.hypot(dx, dy));
+    const width = seg.width != null ? seg.width : 3;
+    const w = isNS ? width : len;
+    const d = isNS ? len   : width;
+    const cx = (fx + tx) / 2;
+    const cy = (fy + ty) / 2;
+    const elev = seg.parent_elevation_m != null ? seg.parent_elevation_m : 7;
+    const color = resolveColor(seg.color, SCENE3D_COLOR.deck);
+    const geom = new THREE.BoxGeometry(w, 0.25, d);
+    const mat  = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.7,
+    });
+    const slab = new THREE.Mesh(geom, mat);
+    const pos = cellToWorld(cx, cy);
+    slab.position.set(pos.x, elev + 0.12, pos.z);
+    g.add(slab);
+
+    const edges = new THREE.LineSegments(
+      new THREE.EdgesGeometry(geom),
+      new THREE.LineBasicMaterial({ color: SCENE3D_COLOR.deck_edge, transparent: true, opacity: 0.7 })
+    );
+    edges.position.copy(slab.position);
+    g.add(edges);
+    if (seg.parent_name) {
+      const sprite = makeNameLabelSprite(seg.parent_name, { maxWidth: 10 });
+      sprite.position.set(pos.x, elev + 1.0, pos.z);
+      g.add(sprite);
+    }
+    return g;
+  }
+
+  function buildDecks(decks) {
+    for (const deck of decks) {
+      if (!deck.segments) continue;
+      const elev = deck.elevation_m != null ? deck.elevation_m : 7;
+      for (const seg of deck.segments) {
+        const segData = {
+          parent_name: deck.name || '',
+          parent_elevation_m: elev,
+          parent_level: deck.level,
+          parent_connects_places: Array.isArray(deck.connects_places) ? deck.connects_places.slice() : undefined,
+          from: Array.isArray(seg.from) ? seg.from.slice() : null,
+          to:   Array.isArray(seg.to)   ? seg.to.slice()   : null,
+          width: seg.width != null ? seg.width : 3,
+        };
+        const idx = editable.registry.deckSegs.length;
+        const g = buildDeckSegMesh(segData);
+        g.userData.editable = { kind: 'deckSeg', idx };
+        scene.add(g);
+        editable.registry.deckSegs.push({ group: g, data: segData });
+      }
+    }
+  }
+
+  function rebuildDeckSeg(i) {
+    const entry = editable.registry.deckSegs[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildDeckSegMesh(entry.data);
+    g.userData.editable = { kind: 'deckSeg', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  function buildStairMesh(s) {
+    const g = new THREE.Group();
+    if (!s.ground_position || !s.deck_position) return g;
+    const [gx, gy] = s.ground_position;
+    const [dx, dy] = s.deck_position;
+    const elev = s.elevation_m != null ? s.elevation_m : 7;
+    const runLen = Math.max(2, Math.hypot(dx - gx, dy - gy));
+    const width = s.width_cells || 3;
+    const dirX = dx - gx, dirZ = -(dy - gy);
+    const angleY = Math.atan2(dirZ, dirX);
+    const geom = new THREE.BoxGeometry(runLen, 0.2, width);
+    const stairColor = resolveColor(s.color, SCENE3D_COLOR.stair);
+    const mat  = new THREE.MeshBasicMaterial({ color: stairColor, transparent: true, opacity: 0.85 });
+    const mesh = new THREE.Mesh(geom, mat);
+    const cx = (gx + dx) / 2, cy = (gy + dy) / 2;
+    const pos = cellToWorld(cx, cy);
+    mesh.position.set(pos.x, elev / 2, pos.z);
+    mesh.rotation.y = angleY;
+    const pitch = Math.atan2(elev, runLen);
+    mesh.rotation.z = -pitch;
+    g.add(mesh);
+    return g;
+  }
+
+  function buildStairs(stairs) {
+    for (let i = 0; i < stairs.length; i++) {
+      const g = buildStairMesh(stairs[i]);
+      g.userData.editable = { kind: 'stair', idx: i };
+      scene.add(g);
+      editable.registry.stairs.push({ group: g, data: stairs[i] });
+    }
+  }
+
+  function rebuildStair(i) {
+    const entry = editable.registry.stairs[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildStairMesh(entry.data);
+    g.userData.editable = { kind: 'stair', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  function makeLabelSprite(text, color) {
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = 'rgba(14,23,20,0.7)';
+    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.font = 'bold 48px "Yu Gothic UI","Noto Sans JP",sans-serif';
+    ctx.fillStyle = '#' + color.toString(16).padStart(6, '0');
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(text, c.width / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({ map: tex, transparent: true, opacity: 0.9 });
+    const sprite = new THREE.Sprite(mat);
+    sprite.scale.set(16, 4, 1);
+    return sprite;
+  }
+
+  // Transparent-background label sprite for place names on the floor.
+  // Text has a dark outline so it stays readable on any building color.
+  function makeNameLabelSprite(text, opts) {
+    opts = opts || {};
+    const c = document.createElement('canvas');
+    c.width = 512; c.height = 128;
+    const ctx = c.getContext('2d');
+    ctx.font = 'bold 56px "Yu Gothic UI","Noto Sans JP",sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = 'rgba(12, 18, 15, 0.92)';
+    ctx.strokeText(text, c.width / 2, c.height / 2);
+    ctx.fillStyle = '#f5f5ef';
+    ctx.fillText(text, c.width / 2, c.height / 2);
+    const tex = new THREE.CanvasTexture(c);
+    tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.95, depthTest: true,
+    });
+    const sprite = new THREE.Sprite(mat);
+    const sx = opts.maxWidth || 14;
+    sprite.scale.set(sx, sx * 0.25, 1);
+    sprite.userData.isNameLabel = true;
+    return sprite;
+  }
+
+  function buildLandmarkMesh(lm) {
+    const g = new THREE.Group();
+    if (!lm.position || !lm.name) return g;
+    const [x, y] = lm.position;
+    const pos = cellToWorld(x, y);
+    const labelColor = resolveColor(lm.color, SCENE3D_COLOR.landmark);
+    const sprite = makeLabelSprite(lm.name, labelColor);
+    sprite.position.set(pos.x, lm.height_m != null ? lm.height_m : 6, pos.z);
+    g.add(sprite);
+    // Invisible hitbox cube so raycaster can pick landmarks in edit mode
+    // (Sprites are picked by raycaster but only on their bounds; an explicit
+    // box makes selection far more reliable).
+    const hitGeom = new THREE.BoxGeometry(4, 4, 4);
+    const hitMat = new THREE.MeshBasicMaterial({ color: 0xffd85f, transparent: true, opacity: 0, depthWrite: false });
+    const hit = new THREE.Mesh(hitGeom, hitMat);
+    hit.position.set(pos.x, lm.height_m != null ? lm.height_m : 6, pos.z);
+    hit.userData.isLandmarkHit = true;
+    g.add(hit);
+    return g;
+  }
+
+  function buildLandmarks(landmarks) {
+    for (let i = 0; i < landmarks.length; i++) {
+      const g = buildLandmarkMesh(landmarks[i]);
+      g.userData.editable = { kind: 'landmark', idx: i };
+      scene.add(g);
+      editable.registry.landmarks.push({ group: g, data: landmarks[i] });
+    }
+  }
+
+  function rebuildLandmark(i) {
+    const entry = editable.registry.landmarks[i];
+    if (!entry) return;
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const g = buildLandmarkMesh(entry.data);
+    g.userData.editable = { kind: 'landmark', idx: i };
+    scene.add(g);
+    entry.group = g;
+  }
+
+  // Dispatch rebuild based on selection kind.
+  function rebuildByKind(kind, idx) {
+    switch (kind) {
+      case 'place':    rebuildPlace(idx); break;
+      case 'rail':     rebuildRail(idx); break;
+      case 'road':     rebuildRoad(idx); break;
+      case 'deckSeg':  rebuildDeckSeg(idx); break;
+      case 'stair':    rebuildStair(idx); break;
+      case 'landmark': rebuildLandmark(idx); break;
+    }
+    updateSelectionBox();
+    rebuildHandles();
+  }
+
+  function buildScene3D(s3) {
+    if (!s3) return;
+    if (Array.isArray(s3.rails))     buildRails(s3.rails);
+    if (Array.isArray(s3.roads))     buildRoads(s3.roads);
+    if (Array.isArray(s3.decks))     buildDecks(s3.decks);
+    if (Array.isArray(s3.stairs))    buildStairs(s3.stairs);
+    if (Array.isArray(s3.landmarks)) buildLandmarks(s3.landmarks);
+  }
+
+  // ---------------------------------------------------------------
+  // Agents — allocate once per persona, reuse the Mesh across steps
+  // ---------------------------------------------------------------
+
+  function buildAgentPool(personas) {
+    for (const p of personas) {
+      const color = AGENT_COLOR[p.gender] || AGENT_COLOR.other;
+      const body = new THREE.Mesh(
+        new THREE.BoxGeometry(AGENT_BODY.width, AGENT_BODY.height, AGENT_BODY.depth),
+        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 })
+      );
+      body.visible = false;
+      body.userData.agentId = p.id;
+      scene.add(body);
+
+      // Awareness ring — flat torus on the ground at the agent's feet.
+      const ringGeom = new THREE.RingGeometry(0.9, 1.15, 24);
+      const ringMat  = new THREE.MeshBasicMaterial({
+        color: 0xffffff, transparent: true, opacity: 0.0, side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(ringGeom, ringMat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.visible = false;
+      scene.add(ring);
+
+      agentMeshes.set(p.id, { body, ring });
+    }
+  }
+
+  function updateAgents(frame, nextFrame, frac) {
+    const activeEvents = new Set((frame.events || []).map(e => e.name));
+    const visibleIds = new Set();
+
+    for (const ag of frame.agents) {
+      visibleIds.add(ag.id);
+      const pool = agentMeshes.get(ag.id);
+      if (!pool) continue;
+      const pos = lerpAgentPos(ag, nextFrame, frac);
+      const w = cellToWorld(pos.x, pos.y);
+      pool.body.position.set(w.x, AGENT_BODY.height / 2, w.z);
+
+      let opacity = 1.0;
+      if (ag.layer === 'dwelling') opacity = 0.85;
+      pool.body.material.opacity = opacity;
+      pool.body.visible = true;
+
+      // Awareness ring.
+      const src = pickAwarenessSource(ag, activeEvents);
+      if (src && AWARENESS_RING[src]) {
+        pool.ring.material.color.setHex(AWARENESS_RING[src]);
+        pool.ring.material.opacity = 0.85;
+        pool.ring.position.set(w.x, 0.05, w.z);
+        pool.ring.visible = true;
+      } else {
+        pool.ring.visible = false;
+      }
+    }
+
+    // Hide agents not present this frame (spawned later or already despawned).
+    for (const [id, pool] of agentMeshes) {
+      if (!visibleIds.has(id)) {
+        pool.body.visible = false;
+        pool.ring.visible = false;
+      }
+    }
+
+    // Selection halo tracks the current selected agent, if any.
+    updateSelectionHalo(frame, nextFrame, frac);
+  }
+
+  function lerpAgentPos(ag, nextFrame, frac) {
+    if (frac <= 0 || !nextFrame) return { x: ag.x, y: ag.y };
+    const nb = nextFrame.agents && nextFrame.agents.find(a => a.id === ag.id);
+    if (!nb) return { x: ag.x, y: ag.y };
+    const dx = nb.x - ag.x, dy = nb.y - ag.y;
+    // guard against teleport-style jumps (spawn/despawn across the map).
+    if (dx * dx + dy * dy > 400) return { x: ag.x, y: ag.y };
+    return { x: ag.x + dx * frac, y: ag.y + dy * frac };
+  }
+
+  function pickAwarenessSource(ag, activeEventNames) {
+    const src = ag.awareness_source;
+    if (!src) return null;
+    for (const [ev, path] of Object.entries(src)) {
+      if (activeEventNames.has(ev)) return path;
+    }
+    // If no event is active this step, fall back to any known path so the
+    // ring still signals that the agent *has* awareness.
+    return Object.values(src)[0] || null;
+  }
+
+  // ---------------------------------------------------------------
+  // Selection halo (ring around the selected agent)
+  // ---------------------------------------------------------------
+
+  function ensureSelectionHalo() {
+    if (selectionHalo) return;
+    const geom = new THREE.RingGeometry(1.4, 1.7, 32);
+    const mat  = new THREE.MeshBasicMaterial({
+      color: 0xffd85f, transparent: true, opacity: 0.9, side: THREE.DoubleSide,
+    });
+    selectionHalo = new THREE.Mesh(geom, mat);
+    selectionHalo.rotation.x = -Math.PI / 2;
+    selectionHalo.visible = false;
+    scene.add(selectionHalo);
+  }
+
+  function updateSelectionHalo(frame, nextFrame, frac) {
+    ensureSelectionHalo();
+    if (state.selectedId == null) {
+      selectionHalo.visible = false;
+      return;
+    }
+    const ag = (frame.agents || []).find(a => a.id === state.selectedId);
+    if (!ag) { selectionHalo.visible = false; return; }
+    const pos = lerpAgentPos(ag, nextFrame, frac);
+    const w = cellToWorld(pos.x, pos.y);
+    selectionHalo.position.set(w.x, 0.12, w.z);
+    selectionHalo.visible = true;
+  }
+
+  // ---------------------------------------------------------------
+  // Conversations — recreated each frame (max ~15 per step)
+  // ---------------------------------------------------------------
+
+  function clearConvoLines() {
+    for (const c of convoLines) {
+      scene.remove(c.line);
+      c.line.geometry.dispose();
+      c.line.material.dispose();
+    }
+    convoLines.length = 0;
+  }
+
+  function updateConvoLines(frame, nextFrame, frac) {
+    clearConvoLines();
+    if (!frame.conversations) return;
+    const agentsById = new Map(frame.agents.map(a => [a.id, a]));
+    const seen = new Set();
+
+    for (const c of frame.conversations) {
+      const fid = c.from != null ? c.from : c.from_id;
+      const tid = c.to   != null ? c.to   : c.to_id;
+      if (fid == null || tid == null) continue;
+      const key = fid < tid ? `${fid}-${tid}` : `${tid}-${fid}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      const a = agentsById.get(fid), b = agentsById.get(tid);
+      if (!a || !b) continue;
+      const pa = lerpAgentPos(a, nextFrame, frac);
+      const pb = lerpAgentPos(b, nextFrame, frac);
+      const wa = cellToWorld(pa.x, pa.y);
+      const wb = cellToWorld(pb.x, pb.y);
+
+      const color = isOutageConversation(c.message) ? CONVO_COLOR_OUTAGE : CONVO_COLOR_DEFAULT;
+      const g = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(wa.x, AGENT_BODY.height * 0.65, wa.z),
+        new THREE.Vector3(wb.x, AGENT_BODY.height * 0.65, wb.z),
+      ]);
+      const m = new THREE.LineDashedMaterial({
+        color, dashSize: 0.6, gapSize: 0.35,
+        transparent: true, opacity: 0.85,
+      });
+      const line = new THREE.Line(g, m);
+      line.computeLineDistances();
+      scene.add(line);
+      convoLines.push({ line });
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Event pulse rings — pulse animation per active event
+  // ---------------------------------------------------------------
+
+  function clearEventRings() {
+    for (const er of eventRings) {
+      scene.remove(er.mesh);
+      er.mesh.geometry.dispose();
+      er.mesh.material.dispose();
+    }
+    eventRings.length = 0;
+  }
+
+  function updateEventRings(frame) {
+    clearEventRings();
+    if (!frame.events) return;
+    const placesByName = new Map(state.data.places.map(p => [p.name, p]));
+    for (const ev of frame.events) {
+      const place = placesByName.get(ev.affected_place);
+      if (!place) continue;
+      const baseR = Math.max(place.half_size_x, place.half_size_y) + 2;
+      const color = EVENT_COLOR[ev.type] || EVENT_COLOR._default;
+      const geom = new THREE.RingGeometry(baseR, baseR + 0.6, 64);
+      const mat  = new THREE.MeshBasicMaterial({
+        color, transparent: true, opacity: 0.85, side: THREE.DoubleSide,
+      });
+      const ring = new THREE.Mesh(geom, mat);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(place.center_x, 0.08, -place.center_y);
+      ring.userData.baseR = baseR;
+      scene.add(ring);
+      eventRings.push({ mesh: ring, baseR, color });
+    }
+  }
+
+  function animateEventRings(t) {
+    for (const er of eventRings) {
+      // Pulse radius by scaling; sin wave at ~1 Hz.
+      const s = 1 + 0.2 * Math.sin(t * 0.004);
+      er.mesh.scale.set(s, s, 1);
+      er.mesh.material.opacity = 0.6 + 0.3 * Math.sin(t * 0.004 + Math.PI * 0.25);
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Main render loop
+  // ---------------------------------------------------------------
+
+  function render() {
+    if (!state.data) return;
+    const tl = state.data.timeline;
+    const frame = tl[state.currentStep];
+    if (!frame) return;
+    const nextFrame = tl[state.currentStep + 1] || null;
+    const frac = state.stepFrac;
+
+    updateAgents(frame, nextFrame, frac);
+    updateConvoLines(frame, nextFrame, frac);
+    updateEventRings(frame);
+
+    // Camera follow mode glues orbit.target to the selected agent.
+    if (state.cameraMode === 'follow' && state.selectedId != null) {
+      const ag = (frame.agents || []).find(a => a.id === state.selectedId);
+      if (ag) {
+        const p = lerpAgentPos(ag, nextFrame, frac);
+        const w = cellToWorld(p.x, p.y);
+        orbit.target.lerp(new THREE.Vector3(w.x, 1, w.z), 0.15);
+      }
+    }
+
+    updateHUD(frame);
+    updateConversationList();
+    updateThoughtList();
+    updateFocusPanel();
+  }
+
+  function animate(now) {
+    requestAnimationFrame(animate);
+    if (state.playing && state.data) {
+      const dt = now - state.lastTickAt;
+      state.lastTickAt = now;
+      state.accum += dt * state.speed;
+      const stepMs = state.baseStepMs;
+      const last = state.data.timeline.length - 1;
+      while (state.accum >= stepMs) {
+        if (state.currentStep >= last) {
+          state.accum = 0;
+          state.stepFrac = 0;
+          setPlaying(false);
+          break;
+        }
+        state.accum -= stepMs;
+        state.currentStep++;
+        elSeek.value = String(state.currentStep);
+        elStepLabel.textContent = `${state.currentStep + 1} / ${state.data.timeline.length}`;
+      }
+      state.stepFrac = state.currentStep >= last ? 0 : Math.min(1, state.accum / stepMs);
+    } else {
+      state.lastTickAt = now;
+    }
+
+    animateEventRings(now);
+    orbit.update();
+    render();
+    renderer.render(scene, camera);
+  }
+
+  // ---------------------------------------------------------------
+  // HUD + side panels
+  // ---------------------------------------------------------------
+
+  function updateHUD(frame) {
+    elClockTime.textContent = frame.time || '--:--';
+    const hh = parseInt((frame.time || '0').split(':')[0], 10);
+    let band = '';
+    if (hh >= 7 && hh < 10) band = '朝ラッシュ';
+    else if (hh >= 17 && hh < 20) band = '夕方ラッシュ';
+    else if (hh >= 20 || hh < 5) band = '夜間';
+    else band = '日中';
+    const ev = (frame.events || []).find(e => e.type === 'transit_disruption');
+    elClockMeta.textContent = band + (ev ? `  ⚠ ${ev.affected_place} 運休中 (残${ev.remaining_steps}step)` : '');
+
+    const agentsHere = frame.agents.length;
+    const inPlace = frame.agents.filter(a => a.in_place).length;
+    elStatsAgents.textContent = agentsHere;
+    elStatsInPlace.textContent = agentsHere > 0
+      ? Math.round((inPlace / agentsHere) * 100) + '%'
+      : '—';
+
+    elSeek.value = String(state.currentStep);
+    elStepLabel.textContent = `${state.currentStep + 1} / ${state.data.timeline.length}`;
+  }
+
+  function updateConversationList() {
+    if (!elConvoList || !state.data) return;
+    const tl = state.data.timeline;
+    const personaById = new Map(state.data.personas.map(p => [p.id, p]));
+    const recent = [];
+    for (let i = state.currentStep; i >= 0 && recent.length < MAX_CONVO_ITEMS; i--) {
+      const f = tl[i];
+      if (!f || !f.conversations) continue;
+      for (let j = f.conversations.length - 1; j >= 0 && recent.length < MAX_CONVO_ITEMS; j--) {
+        const c = f.conversations[j];
+        recent.push({ ...c, _step: f.step, _time: f.time });
+      }
+    }
+    const html = recent.map(c => {
+      const fid = c.from != null ? c.from : c.from_id;
+      const tid = c.to   != null ? c.to   : c.to_id;
+      const fname = (personaById.get(fid) || {}).name || `#${fid}`;
+      const tname = (personaById.get(tid) || {}).name || `#${tid}`;
+      const outage = isOutageConversation(c.message) ? ' outage' : '';
+      const rel = `${escapeHtml(fname)} → ${escapeHtml(tname)}`;
+      return `
+        <div class="convo-item${outage}">
+          <div class="meta">
+            <span class="who">${rel}</span>
+            <span>${escapeHtml(c._time || '')} · step ${c._step}</span>
+          </div>
+          <div>${escapeHtml(c.message || '')}</div>
+        </div>
+      `;
+    }).join('');
+    elConvoList.innerHTML = html || '<div class="placeholder">(まだ会話なし)</div>';
+    if (elConvoCount) elConvoCount.textContent = recent.length ? `(最新${recent.length}件)` : '';
+  }
+
+  function updateThoughtList() {
+    if (!elThoughtList || !state.data) return;
+    const tl = state.data.timeline;
+    const personaById = new Map(state.data.personas.map(p => [p.id, p]));
+    const frame = tl[state.currentStep];
+    const activeEvents = new Set((frame && frame.events || []).map(e => e.name));
+
+    const items = [];
+    const seen = new Set();
+    for (let i = state.currentStep; i >= 0 && items.length < MAX_THOUGHT_ITEMS; i--) {
+      const f = tl[i];
+      if (!f || !f.agents) continue;
+      for (let j = f.agents.length - 1; j >= 0 && items.length < MAX_THOUGHT_ITEMS; j--) {
+        const ag = f.agents[j];
+        if (!ag) continue;
+        const mem = (ag.memory || '').trim();
+        const rsn = (ag.reasoning || '').trim();
+        if (!mem && !rsn) continue;
+        const k = `${i}:${ag.id}`;
+        if (seen.has(k)) continue;
+        seen.add(k);
+        items.push({ step: f.step, time: f.time, agent: ag });
+      }
+    }
+
+    const html = items.map(it => {
+      const ag = it.agent;
+      const persona = personaById.get(ag.id);
+      const name = (persona && persona.name) || `#${ag.id}`;
+      let path = null;
+      if (ag.awareness_source) {
+        for (const [ev, p] of Object.entries(ag.awareness_source)) {
+          if (activeEvents.has(ev)) { path = p; break; }
+        }
+        if (!path) path = Object.values(ag.awareness_source)[0] || null;
+      }
+      const pathCls = path && AWARENESS_RING[path] ? ` ${path}` : '';
+      const srcLabel = path && SOURCE_LABEL[path] ? SOURCE_LABEL[path] : '— 未認識';
+      const selCls = state.selectedId === ag.id ? ' selected' : '';
+      const loc = ag.in_place && ag.current_place
+        ? escapeHtml(ag.current_place)
+        : `移動中 (${escapeHtml(ag.layer || '-')})`;
+      const mem = (ag.memory || '').trim();
+      const rsn = (ag.reasoning || '').trim();
+      const memHtml = mem
+        ? `<div class="tline"><span class="lbl">MEM</span>${escapeHtml(mem)}</div>` : '';
+      const rsnHtml = rsn
+        ? `<div class="tline"><span class="lbl">RSN</span>${escapeHtml(rsn)}</div>` : '';
+      return `
+        <div class="thought-item${pathCls}${selCls}" data-agent-id="${ag.id}">
+          <div class="meta">
+            <span class="who">${escapeHtml(name)} · ${loc}</span>
+            <span>${escapeHtml(it.time || '')} · step ${it.step}</span>
+          </div>
+          ${rsnHtml}${memHtml}
+          <span class="source-tag">${srcLabel}</span>
+        </div>
+      `;
+    }).join('');
+    elThoughtList.innerHTML = html || '<div class="placeholder">(思考ログなし)</div>';
+    if (elThoughtCount) elThoughtCount.textContent = items.length ? `(最新${items.length}件)` : '';
+  }
+
+  function updateFocusPanel() {
+    if (!elFocusPanel) return;
+    if (state.selectedId == null) {
+      elFocusPanel.innerHTML =
+        '<div class="placeholder">3D ビュー上のエージェントをクリックで選択 (Esc で解除)</div>';
+      return;
+    }
+    const frame = state.data.timeline[state.currentStep];
+    const ag = (frame && frame.agents || []).find(a => a.id === state.selectedId);
+    const persona = effectivePersona(state.selectedId);
+    if (!ag || !persona) {
+      elFocusPanel.innerHTML = '<div class="placeholder">(対象エージェントのデータなし)</div>';
+      return;
+    }
+    const activeEvents = new Set((frame && frame.events || []).map(e => e.name));
+    const src = pickAwarenessSource(ag, activeEvents);
+    const srcLabel = src && SOURCE_LABEL[src] ? SOURCE_LABEL[src] : '— 未認識';
+    const known = (ag.known_events && ag.known_events.length)
+      ? ag.known_events.map(escapeHtml).join(', ') : 'なし';
+    const loc = ag.in_place
+      ? `施設内: ${escapeHtml(ag.current_place || '')}`
+      : `移動中 (layer: ${escapeHtml(ag.layer || '-')})`;
+    elFocusPanel.innerHTML = `
+      <div class="focus-head">${escapeHtml(persona.name || `#${persona.id}`)}</div>
+      <div class="focus-sub">
+        ${escapeHtml(String(persona.age ?? ''))}歳 ·
+        ${escapeHtml(persona.gender || '')} ·
+        ${escapeHtml(persona.occupation || '')}
+      </div>
+      <div class="focus-block">
+        <span class="label">現在地</span>${loc}
+      </div>
+      <div class="focus-block">
+        <span class="label">認識経路</span>${srcLabel}
+      </div>
+      <div class="focus-block">
+        <span class="label">既知イベント</span>${known}
+      </div>
+      <div class="focus-block">
+        <span class="label">Memory</span>${escapeHtml(ag.memory || '(なし)')}
+      </div>
+      <div class="focus-block">
+        <span class="label">Reasoning</span>${escapeHtml(ag.reasoning || '(なし)')}
+      </div>
+    `;
+  }
+
+  function escapeHtml(s) {
+    return String(s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+  }
+
+  // ---------------------------------------------------------------
+  // Playback controls
+  // ---------------------------------------------------------------
+
+  function setPlaying(playing) {
+    state.playing = playing;
+    elPlayPause.textContent = playing ? '⏸' : '▶';
+    if (playing) state.lastTickAt = performance.now();
+  }
+
+  function seekTo(i) {
+    const last = state.data.timeline.length - 1;
+    state.currentStep = Math.max(0, Math.min(last, i));
+    state.stepFrac = 0;
+    state.accum = 0;
+  }
+
+  // ---------------------------------------------------------------
+  // Raycasting — click selects an agent
+  // ---------------------------------------------------------------
+
+  const raycaster = new THREE.Raycaster();
+  const pointer = new THREE.Vector2();
+
+  const KIND_TO_REGISTRY = {
+    place:    'places',
+    rail:     'rails',
+    road:     'roads',
+    deckSeg:  'deckSegs',
+    stair:    'stairs',
+    landmark: 'landmarks',
+  };
+
+  function kindLabel(kind) {
+    return {
+      place: '建物',
+      rail: '線路',
+      road: '道路',
+      deckSeg: 'デッキ',
+      stair: '階段',
+      landmark: 'ランドマーク',
+    }[kind] || kind;
+  }
+
+  function getEditEntry(kind, idx) {
+    const key = KIND_TO_REGISTRY[kind];
+    if (!key) return null;
+    return editable.registry[key][idx] || null;
+  }
+
+  function allEditableGroups() {
+    const out = [];
+    for (const key of Object.values(KIND_TO_REGISTRY)) {
+      for (const e of editable.registry[key]) out.push(e.group);
+    }
+    return out;
+  }
+
+  function handleCanvasClick(e) {
+    if (!state.data) return;
+    // In edit mode, pointerdown/move/up handle selection and drag.
+    if (editable.enabled) return;
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    pointer.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    const bodies = [];
+    for (const [id, pool] of agentMeshes) {
+      if (pool.body.visible) bodies.push(pool.body);
+    }
+    const hits = raycaster.intersectObjects(bodies, false);
+    if (hits.length === 0) {
+      state.selectedId = null;
+    } else {
+      const id = hits[0].object.userData.agentId;
+      state.selectedId = state.selectedId === id ? null : id;
+    }
+    refreshFollowButton();
+    // Keep the agents tab in sync if it's open.
+    if (elPanelAgents && elPanelAgents.style.display !== 'none') {
+      renderAgentList();
+      renderAgentEditForm();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Edit mode: selection + highlight
+  // -------------------------------------------------------------
+
+  function selectEditable(sel) {
+    editable.sel = sel;
+    updateSelectionBox();
+    rebuildHandles();
+    renderEditForm();
+    refreshEditButtons();
+  }
+
+  function refreshEditButtons() {
+    const has = !!editable.sel;
+    if (elEditCopy) elEditCopy.disabled = !has;
+  }
+
+  function clearHighlight() {
+    if (editable.highlight) {
+      scene.remove(editable.highlight);
+      if (editable.highlight.geometry) editable.highlight.geometry.dispose();
+      if (editable.highlight.material) editable.highlight.material.dispose();
+      editable.highlight = null;
+    }
+  }
+
+  function updateSelectionBox() {
+    clearHighlight();
+    if (!editable.sel) return;
+    const entry = getEditEntry(editable.sel.kind, editable.sel.idx);
+    if (!entry) return;
+    const box = new THREE.Box3().setFromObject(entry.group);
+    if (box.isEmpty()) return;
+    // Inflate slightly so the outline sits just outside the mesh.
+    box.expandByScalar(0.3);
+    const helper = new THREE.Box3Helper(box, new THREE.Color(0xffd85f));
+    editable.highlight = helper;
+    scene.add(helper);
+  }
+
+  // -------------------------------------------------------------
+  // Drag handles (PPT-style manipulators)
+  // -------------------------------------------------------------
+
+  function makeHandle(color, radius) {
+    const geom = new THREE.SphereGeometry(radius || 0.9, 14, 10);
+    const mat = new THREE.MeshBasicMaterial({
+      color, transparent: true, opacity: 0.95, depthTest: false,
+    });
+    const m = new THREE.Mesh(geom, mat);
+    m.renderOrder = 999;
+    return m;
+  }
+
+  function clearHandles() {
+    if (handleState.group) {
+      scene.remove(handleState.group);
+      disposeGroup(handleState.group);
+      handleState.group = null;
+    }
+    handleState.handles = [];
+  }
+
+  function rebuildHandles() {
+    clearHandles();
+    if (!editable.enabled || !editable.sel) return;
+    const entry = getEditEntry(editable.sel.kind, editable.sel.idx);
+    if (!entry) return;
+    const kind = editable.sel.kind;
+    const d = entry.data;
+    const g = new THREE.Group();
+
+    if (kind === 'place') {
+      const cx = d.center_x || 0, cy = d.center_y || 0;
+      const hx = d.half_size_x || 1, hy = d.half_size_y || 1;
+      const attrH = d.attributes && typeof d.attributes.height_m === 'number'
+        ? d.attributes.height_m : (PLACE_STYLE[d.type] || {}).height || 1;
+      const yTop = Math.max(0.6, attrH + 0.5);
+      addCornerHandles(g, cx, cy, hx, hy, yTop);
+    } else if (kind === 'rail' || kind === 'road') {
+      const axis = d.axis || 'ns';
+      const hx = axis === 'ns' ? (d.width_cells  || 1) / 2 : (d.length_cells || 1) / 2;
+      const hy = axis === 'ns' ? (d.length_cells || 1) / 2 : (d.width_cells  || 1) / 2;
+      const elev = d.elevation_m || 0;
+      addCornerHandles(g, d.center_x || 0, d.center_y || 0, hx, hy, elev + 0.6);
+    } else if (kind === 'deckSeg') {
+      const elev = d.parent_elevation_m != null ? d.parent_elevation_m : 7;
+      addEndpointHandle(g, 'from', d.from, elev + 0.7);
+      addEndpointHandle(g, 'to',   d.to,   elev + 0.7);
+    } else if (kind === 'stair') {
+      const elev = d.elevation_m != null ? d.elevation_m : 7;
+      addEndpointHandle(g, 'ground_position', d.ground_position, 0.7);
+      addEndpointHandle(g, 'deck_position',   d.deck_position,   elev + 0.7);
+    } else if (kind === 'landmark') {
+      if (!d.position) return;
+      const h = d.height_m != null ? d.height_m : 6;
+      const pos = cellToWorld(d.position[0], d.position[1]);
+      const mesh = makeHandle(0xffd85f, 1.2);
+      mesh.position.set(pos.x, h + 1.5, pos.z);
+      mesh.userData.handle = { kind: 'move', key: 'position' };
+      g.add(mesh);
+      handleState.handles.push(mesh);
+    }
+
+    scene.add(g);
+    handleState.group = g;
+  }
+
+  function addCornerHandles(parent, cx, cy, hx, hy, yAt) {
+    const corners = [
+      { key: 'nw', sx: -1, sy: -1 },
+      { key: 'ne', sx: +1, sy: -1 },
+      { key: 'se', sx: +1, sy: +1 },
+      { key: 'sw', sx: -1, sy: +1 },
+    ];
+    for (const c of corners) {
+      const mesh = makeHandle(0xffd85f, 1.0);
+      const pos = cellToWorld(cx + c.sx * hx, cy + c.sy * hy);
+      mesh.position.set(pos.x, yAt, pos.z);
+      mesh.userData.handle = { kind: 'corner', key: c.key };
+      parent.add(mesh);
+      handleState.handles.push(mesh);
+    }
+  }
+
+  function addEndpointHandle(parent, key, cell, yAt) {
+    if (!Array.isArray(cell)) return;
+    const pos = cellToWorld(cell[0], cell[1]);
+    const mesh = makeHandle(0x62e08a, 1.0);
+    mesh.position.set(pos.x, yAt, pos.z);
+    mesh.userData.handle = { kind: 'endpoint', key };
+    parent.add(mesh);
+    handleState.handles.push(mesh);
+  }
+
+  // -------------------------------------------------------------
+  // Pointer → XZ plane raycast
+  // -------------------------------------------------------------
+
+  const dragPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+  const _tmpVec = new THREE.Vector3();
+
+  function pointerToCell(e) {
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    pointer.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+    if (!raycaster.ray.intersectPlane(dragPlane, _tmpVec)) return null;
+    return { x: _tmpVec.x, y: -_tmpVec.z };
+  }
+
+  function maybeSnap(v) {
+    if (!editable.snapToGrid) return v;
+    return Math.round(v / GRID_STEP) * GRID_STEP;
+  }
+
+  // -------------------------------------------------------------
+  // Pointer-driven select + drag for edit mode
+  // -------------------------------------------------------------
+
+  function editPointerDown(e) {
+    if (!editable.enabled) return;
+    if (e.button !== 0) return;  // left button only
+    const rect = renderer.domElement.getBoundingClientRect();
+    pointer.x = ((e.clientX - rect.left) / rect.width)  * 2 - 1;
+    pointer.y = -((e.clientY - rect.top)  / rect.height) * 2 + 1;
+    raycaster.setFromCamera(pointer, camera);
+
+    // 1. Handle hit?
+    if (handleState.handles.length) {
+      const h = raycaster.intersectObjects(handleState.handles, false);
+      if (h.length) {
+        startDrag(h[0].object.userData.handle, e);
+        return;
+      }
+    }
+    // 2. Element body hit?
+    const groups = allEditableGroups();
+    const hits = raycaster.intersectObjects(groups, true);
+    if (hits.length) {
+      let obj = hits[0].object;
+      while (obj && !(obj.userData && obj.userData.editable)) obj = obj.parent;
+      if (obj && obj.userData.editable) {
+        const { kind, idx } = obj.userData.editable;
+        selectEditable({ kind, idx });
+        startDrag({ kind: 'move', key: null }, e);
+        return;
+      }
+    }
+    // 3. Empty click → deselect
+    selectEditable(null);
+  }
+
+  function startDrag(handle, e) {
+    const cell = pointerToCell(e);
+    if (!cell || !editable.sel) return;
+    const entry = getEditEntry(editable.sel.kind, editable.sel.idx);
+    if (!entry) return;
+    drag.active = true;
+    drag.kind = editable.sel.kind;
+    drag.idx = editable.sel.idx;
+    drag.handle = handle;
+    drag.startCell = cell;
+    drag.startData = deepClone(entry.data);
+    drag.moved = false;
+    drag.pointerDownPos = { x: e.clientX, y: e.clientY };
+    orbit.enabled = false;
+    renderer.domElement.style.cursor = handle.kind === 'corner' ? 'nwse-resize' : 'move';
+    try { renderer.domElement.setPointerCapture(e.pointerId); } catch (_) {}
+  }
+
+  function editPointerMove(e) {
+    if (!drag.active) return;
+    if (drag.pointerDownPos) {
+      const ddx = e.clientX - drag.pointerDownPos.x;
+      const ddy = e.clientY - drag.pointerDownPos.y;
+      if (Math.abs(ddx) + Math.abs(ddy) > 2) drag.moved = true;
+    }
+    const cell = pointerToCell(e);
+    if (!cell) return;
+    const dxCell = cell.x - drag.startCell.x;
+    const dyCell = cell.y - drag.startCell.y;
+
+    const entry = getEditEntry(drag.kind, drag.idx);
+    if (!entry) return;
+    const d = entry.data;
+    const s = drag.startData;
+    const h = drag.handle;
+
+    if (h.kind === 'move') {
+      if (drag.kind === 'place' || drag.kind === 'rail' || drag.kind === 'road') {
+        d.center_x = maybeSnap((s.center_x || 0) + dxCell);
+        d.center_y = maybeSnap((s.center_y || 0) + dyCell);
+      } else if (drag.kind === 'landmark') {
+        d.position = [
+          maybeSnap(s.position[0] + dxCell),
+          maybeSnap(s.position[1] + dyCell),
+        ];
+      } else if (drag.kind === 'deckSeg') {
+        d.from = [maybeSnap(s.from[0] + dxCell), maybeSnap(s.from[1] + dyCell)];
+        d.to   = [maybeSnap(s.to[0]   + dxCell), maybeSnap(s.to[1]   + dyCell)];
+      } else if (drag.kind === 'stair') {
+        d.ground_position = [
+          maybeSnap(s.ground_position[0] + dxCell),
+          maybeSnap(s.ground_position[1] + dyCell),
+        ];
+        d.deck_position = [
+          maybeSnap(s.deck_position[0] + dxCell),
+          maybeSnap(s.deck_position[1] + dyCell),
+        ];
+      }
+    } else if (h.kind === 'corner') {
+      // Opposite corner stays fixed. Compute new extent from drag.
+      let ox, oy, ohx, ohy;
+      if (drag.kind === 'place') {
+        ox = s.center_x; oy = s.center_y;
+        ohx = s.half_size_x; ohy = s.half_size_y;
+      } else {
+        const axis = s.axis || 'ns';
+        ox = s.center_x || 0; oy = s.center_y || 0;
+        ohx = axis === 'ns' ? (s.width_cells  || 1) / 2 : (s.length_cells || 1) / 2;
+        ohy = axis === 'ns' ? (s.length_cells || 1) / 2 : (s.width_cells  || 1) / 2;
+      }
+      const sx = h.key.includes('e') ? +1 : -1;
+      const sy = h.key.includes('s') ? +1 : -1;
+      const oppX = ox - sx * ohx;
+      const oppY = oy - sy * ohy;
+      const newX = maybeSnap(ox + sx * ohx + dxCell);
+      const newY = maybeSnap(oy + sy * ohy + dyCell);
+      const newHX = Math.max(0.5, Math.abs(newX - oppX) / 2);
+      const newHY = Math.max(0.5, Math.abs(newY - oppY) / 2);
+      const newCX = (oppX + newX) / 2;
+      const newCY = (oppY + newY) / 2;
+
+      if (drag.kind === 'place') {
+        d.center_x = newCX; d.center_y = newCY;
+        d.half_size_x = newHX; d.half_size_y = newHY;
+      } else {
+        const axis = s.axis || 'ns';
+        d.center_x = newCX; d.center_y = newCY;
+        if (axis === 'ns') {
+          d.width_cells  = newHX * 2;
+          d.length_cells = newHY * 2;
+        } else {
+          d.width_cells  = newHY * 2;
+          d.length_cells = newHX * 2;
+        }
+      }
+    } else if (h.kind === 'endpoint') {
+      const origPos = s[h.key];
+      if (origPos) {
+        d[h.key] = [
+          maybeSnap(origPos[0] + dxCell),
+          maybeSnap(origPos[1] + dyCell),
+        ];
+      }
+    }
+
+    rebuildByKind(drag.kind, drag.idx);
+  }
+
+  function editPointerUp(e) {
+    if (!drag.active) return;
+    const wasDrag = drag.moved;
+    drag.active = false;
+    drag.handle = null;
+    drag.startData = null;
+    drag.startCell = null;
+    drag.pointerDownPos = null;
+    orbit.enabled = true;
+    renderer.domElement.style.cursor = '';
+    try { renderer.domElement.releasePointerCapture(e.pointerId); } catch (_) {}
+    if (wasDrag) {
+      renderEditForm();  // resync form with new data after drag
+      saveEditsToStorage();
+    }
+  }
+
+  // ---------------------------------------------------------------
+  // Camera presets
+  // ---------------------------------------------------------------
+
+  function cameraReset() {
+    camera.position.set(100, 80, 100);
+    orbit.target.set(0, 0, 0);
+    state.cameraMode = 'free';
+    refreshCamButtons();
+  }
+  function cameraTop() {
+    // Straight down — use a near-zero x/z offset so OrbitControls doesn't
+    // gimbal-lock on exact (0,y,0).
+    camera.position.set(0.01, 180, 0.01);
+    orbit.target.set(0, 0, 0);
+    state.cameraMode = 'top';
+    refreshCamButtons();
+  }
+  function cameraFollowToggle() {
+    if (state.cameraMode === 'follow') {
+      state.cameraMode = 'free';
+    } else {
+      if (state.selectedId == null) {
+        // No agent selected — hint via button hover tooltip, do nothing.
+        return;
+      }
+      state.cameraMode = 'follow';
+    }
+    refreshCamButtons();
+  }
+  function refreshCamButtons() {
+    elCamReset.classList.toggle('active', state.cameraMode === 'free');
+    elCamTop.classList.toggle('active', state.cameraMode === 'top');
+    elCamFollow.classList.toggle('active', state.cameraMode === 'follow');
+  }
+  function refreshFollowButton() {
+    elCamFollow.disabled = state.selectedId == null && state.cameraMode !== 'follow';
+  }
+
+  // ---------------------------------------------------------------
+  // Resize
+  // ---------------------------------------------------------------
+
+  function onResize() {
+    const rect = canvas.parentElement.getBoundingClientRect();
+    camera.aspect = rect.width / rect.height;
+    camera.updateProjectionMatrix();
+    renderer.setSize(rect.width, rect.height, false);
+  }
+
+  // ---------------------------------------------------------------
+  // Edit mode — form rendering, live update, add/duplicate/delete
+  // ---------------------------------------------------------------
+
+  const PLACE_TYPE_LIST = Object.keys(PLACE_STYLE);
+  const AXIS_LIST = ['ns', 'ew'];
+  const ROAD_CLASS_LIST = ['arterial', 'collector', 'local'];
+
+  const DEFAULTS = {
+    place: () => ({
+      name: '新規建物', type: 'office_lobby',
+      center_x: 0, center_y: 0,
+      half_size_x: 3, half_size_y: 3,
+      capacity: 20,
+      attributes: { height_m: 6 },
+    }),
+    rail: () => ({
+      name: '新規線路', axis: 'ns',
+      center_x: 0, center_y: 0,
+      width_cells: 3, length_cells: 100,
+      elevation_m: 0,
+    }),
+    road: () => ({
+      name: '新規道路', axis: 'ns',
+      center_x: 0, center_y: 0,
+      width_cells: 2, length_cells: 100,
+      road_class: 'local',
+    }),
+    deckSeg: () => ({
+      parent_name: '新規デッキ',
+      parent_elevation_m: 7,
+      parent_level: 2,
+      from: [-5, 0], to: [5, 0],
+      width: 3,
+    }),
+    stair: () => ({
+      name: '新規階段',
+      ground_position: [-3, 0], deck_position: [3, 0],
+      width_cells: 3,
+      elevation_m: 7,
+    }),
+    landmark: () => ({
+      name: '新規ランドマーク',
+      position: [0, 0],
+      type: 'generic',
+    }),
+  };
+
+  // Deep clone used for "reset" snapshots. JSON-safe by design.
+  function deepClone(o) { return JSON.parse(JSON.stringify(o)); }
+
+  function reindexKind(kind) {
+    const key = KIND_TO_REGISTRY[kind];
+    const reg = editable.registry[key];
+    for (let i = 0; i < reg.length; i++) {
+      reg[i].group.userData.editable = { kind, idx: i };
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Form widgets
+
+  function el(tag, attrs, children) {
+    const e = document.createElement(tag);
+    if (attrs) for (const [k, v] of Object.entries(attrs)) {
+      if (k === 'class') e.className = v;
+      else if (k === 'style') e.setAttribute('style', v);
+      else if (k.startsWith('on') && typeof v === 'function') e[k] = v;
+      else if (v !== null && v !== undefined) e.setAttribute(k, v);
+    }
+    if (children) for (const c of children) {
+      if (c === null || c === undefined) continue;
+      e.appendChild(typeof c === 'string' ? document.createTextNode(c) : c);
+    }
+    return e;
+  }
+
+  function rowNumber(label, value, onChange, opts) {
+    opts = opts || {};
+    const input = el('input', {
+      type: 'number',
+      step: opts.step != null ? String(opts.step) : '0.5',
+      value: value != null ? String(value) : '',
+    });
+    input.oninput = () => {
+      const n = parseFloat(input.value);
+      onChange(Number.isFinite(n) ? n : 0);
+    };
+    return el('div', { class: 'edit-row' }, [
+      el('label', null, [label]),
+      input,
+    ]);
+  }
+
+  function rowText(label, value, onChange) {
+    const input = el('input', { type: 'text', value: value != null ? String(value) : '' });
+    input.oninput = () => onChange(input.value);
+    return el('div', { class: 'edit-row' }, [
+      el('label', null, [label]),
+      input,
+    ]);
+  }
+
+  function rowSelect(label, value, options, onChange) {
+    const sel = el('select');
+    for (const opt of options) {
+      const o = el('option', { value: opt }, [opt]);
+      if (opt === value) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.onchange = () => onChange(sel.value);
+    return el('div', { class: 'edit-row' }, [
+      el('label', null, [label]),
+      sel,
+    ]);
+  }
+
+  function rowCheckbox(label, value, onChange) {
+    const input = el('input', { type: 'checkbox' });
+    input.checked = !!value;
+    input.onchange = () => onChange(input.checked);
+    return el('div', { class: 'edit-row checkbox' }, [
+      el('label', null, [label]),
+      input,
+      el('span'),
+    ]);
+  }
+
+  // Color picker row. `currentHex` may be null/undefined — means "no override,
+  // use default". `defaultHex` is the rendered fallback, used as the picker's
+  // visible color when currentHex is unset so users know what they're overriding.
+  function rowColor(label, currentHex, defaultHex, onChange) {
+    const overridden = typeof currentHex === 'string' && /^#?[0-9a-fA-F]{6}$/.test(currentHex);
+    const shown = overridden ? currentHex : (defaultHex || '#888888');
+    const input = el('input', { type: 'color', value: shown });
+    input.oninput = () => onChange(input.value);
+    const preset = el('div', { class: 'color-preset' });
+    for (const p of COLOR_PRESETS) {
+      const btn = el('button', { type: 'button', title: p }, []);
+      btn.style.background = p;
+      btn.onclick = () => { input.value = p; onChange(p); };
+      preset.appendChild(btn);
+    }
+    const clearBtn = el('button', { type: 'button', class: 'clear', title: 'デフォルト色に戻す' }, ['×']);
+    clearBtn.onclick = () => onChange(null);
+    return el('div', { class: 'edit-row color' }, [
+      el('label', null, [label]),
+      input,
+      preset,
+      clearBtn,
+    ]);
+  }
+
+  function rowPair(label, xValue, yValue, onChange, opts) {
+    opts = opts || {};
+    const step = opts.step != null ? String(opts.step) : '0.5';
+    const xIn = el('input', { type: 'number', step, value: xValue != null ? String(xValue) : '' });
+    const yIn = el('input', { type: 'number', step, value: yValue != null ? String(yValue) : '' });
+    const commit = () => {
+      const x = parseFloat(xIn.value), y = parseFloat(yIn.value);
+      onChange(Number.isFinite(x) ? x : 0, Number.isFinite(y) ? y : 0);
+    };
+    xIn.oninput = commit; yIn.oninput = commit;
+    return el('div', { class: 'edit-row pair' }, [
+      el('label', null, [label]),
+      el('div', { class: 'pair-input' }, [xIn, el('span', null, [opts.xLabel || 'x'])]),
+      el('div', { class: 'pair-input' }, [yIn, el('span', null, [opts.yLabel || 'y'])]),
+    ]);
+  }
+
+  // -------------------------------------------------------------
+  // Per-kind form renderers
+
+  function renderEditForm() {
+    elEditForm.innerHTML = '';
+    if (!editable.sel) {
+      elEditSelInfo.innerHTML = '<div class="placeholder">編集モード中に3Dビューの要素をクリックで選択</div>';
+      elEditActions.style.display = 'none';
+      return;
+    }
+    const { kind, idx } = editable.sel;
+    const entry = getEditEntry(kind, idx);
+    if (!entry) {
+      elEditSelInfo.innerHTML = '<div class="placeholder">(選択対象が見つからない)</div>';
+      elEditActions.style.display = 'none';
+      return;
+    }
+    const d = entry.data;
+    const displayName = d.name || d.parent_name || '(名称なし)';
+    elEditSelInfo.innerHTML = '';
+    elEditSelInfo.appendChild(el('div', { class: 'kind' }, [kindLabel(kind) + ' #' + idx]));
+    elEditSelInfo.appendChild(el('div', { class: 'name' }, [displayName]));
+    elEditActions.style.display = 'flex';
+
+    const apply = () => {
+      rebuildByKind(kind, idx);
+      saveEditsToStorage();
+    };
+    const setField = (key, v) => { d[key] = v; apply(); };
+
+    if (kind === 'place')    renderPlaceForm(d, setField, apply);
+    else if (kind === 'rail') renderRailForm(d, setField, apply);
+    else if (kind === 'road') renderRoadForm(d, setField, apply);
+    else if (kind === 'deckSeg') renderDeckSegForm(d, setField, apply);
+    else if (kind === 'stair') renderStairForm(d, setField, apply);
+    else if (kind === 'landmark') renderLandmarkForm(d, setField, apply);
+  }
+
+  function renderPlaceForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('名称', d.name, v => setField('name', v)));
+    elEditForm.appendChild(rowSelect('type', d.type, PLACE_TYPE_LIST, v => setField('type', v)));
+    elEditForm.appendChild(rowPair('中心', d.center_x, d.center_y,
+      (x, y) => { d.center_x = x; d.center_y = y; apply(); }));
+    elEditForm.appendChild(rowPair('半径 (セル)', d.half_size_x, d.half_size_y,
+      (x, y) => { d.half_size_x = x; d.half_size_y = y; apply(); },
+      { xLabel: 'x', yLabel: 'y', step: 0.5 }));
+    const h = d.attributes && d.attributes.height_m;
+    elEditForm.appendChild(rowNumber('高さ (m)', h != null ? h : '', (n) => {
+      if (!d.attributes) d.attributes = {};
+      d.attributes.height_m = n;
+      apply();
+    }, { step: 0.5 }));
+    elEditForm.appendChild(rowNumber('収容', d.capacity != null ? d.capacity : 0,
+      (n) => setField('capacity', Math.max(0, Math.round(n))), { step: 1 }));
+    const style = PLACE_STYLE[d.type] || { color: 0x888888 };
+    const defaultHex = colorNumToHex(style.color);
+    const currentHex = d.attributes && d.attributes.color;
+    elEditForm.appendChild(rowColor('色', currentHex, defaultHex, (v) => {
+      if (!d.attributes) d.attributes = {};
+      if (v == null) delete d.attributes.color;
+      else d.attributes.color = v;
+      apply();
+    }));
+  }
+
+  function renderRailForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('名称', d.name, v => setField('name', v)));
+    elEditForm.appendChild(rowSelect('方向', d.axis, AXIS_LIST, v => setField('axis', v)));
+    elEditForm.appendChild(rowPair('中心', d.center_x || 0, d.center_y || 0,
+      (x, y) => { d.center_x = x; d.center_y = y; apply(); }));
+    elEditForm.appendChild(rowNumber('幅 (セル)', d.width_cells, v => setField('width_cells', v)));
+    elEditForm.appendChild(rowNumber('長さ (セル)', d.length_cells, v => setField('length_cells', v)));
+    elEditForm.appendChild(rowNumber('高さ (m)', d.elevation_m || 0, v => setField('elevation_m', v)));
+    elEditForm.appendChild(rowCheckbox('高架 (柱あり)', d.is_elevated, v => {
+      d.is_elevated = v;
+      if (v && !d.column_spacing_cells) d.column_spacing_cells = 5;
+      apply();
+    }));
+    if (d.is_elevated) {
+      elEditForm.appendChild(rowNumber('柱間隔 (セル)', d.column_spacing_cells || 5,
+        v => setField('column_spacing_cells', v)));
+    }
+    const defaultHex = colorNumToHex(d.is_elevated || (d.elevation_m || 0) > 0
+      ? SCENE3D_COLOR.rail_elevated : SCENE3D_COLOR.rail);
+    elEditForm.appendChild(rowColor('色', d.color, defaultHex, (v) => {
+      if (v == null) delete d.color; else d.color = v;
+      apply();
+    }));
+  }
+
+  function renderRoadForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('名称', d.name || '', v => setField('name', v)));
+    elEditForm.appendChild(rowSelect('方向', d.axis, AXIS_LIST, v => setField('axis', v)));
+    elEditForm.appendChild(rowPair('中心', d.center_x || 0, d.center_y || 0,
+      (x, y) => { d.center_x = x; d.center_y = y; apply(); }));
+    elEditForm.appendChild(rowNumber('幅 (セル)', d.width_cells, v => setField('width_cells', v)));
+    elEditForm.appendChild(rowNumber('長さ (セル)', d.length_cells, v => setField('length_cells', v)));
+    elEditForm.appendChild(rowSelect('クラス', d.road_class || 'local', ROAD_CLASS_LIST,
+      v => setField('road_class', v)));
+    const defKey = `road_${d.road_class || 'local'}`;
+    const defaultHex = colorNumToHex(SCENE3D_COLOR[defKey] || SCENE3D_COLOR.road_local);
+    elEditForm.appendChild(rowColor('色', d.color, defaultHex, (v) => {
+      if (v == null) delete d.color; else d.color = v;
+      apply();
+    }));
+  }
+
+  function renderDeckSegForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('親デッキ名', d.parent_name || '',
+      v => { d.parent_name = v; apply(); }));
+    elEditForm.appendChild(rowNumber('親高さ (m)', d.parent_elevation_m != null ? d.parent_elevation_m : 7,
+      v => setField('parent_elevation_m', v)));
+    elEditForm.appendChild(rowPair('from (始点)',
+      d.from ? d.from[0] : 0, d.from ? d.from[1] : 0,
+      (x, y) => { d.from = [x, y]; apply(); }));
+    elEditForm.appendChild(rowPair('to (終点)',
+      d.to ? d.to[0] : 0, d.to ? d.to[1] : 0,
+      (x, y) => { d.to = [x, y]; apply(); }));
+    elEditForm.appendChild(rowNumber('幅 (セル)', d.width != null ? d.width : 3,
+      v => setField('width', v)));
+    const defaultHex = colorNumToHex(SCENE3D_COLOR.deck);
+    elEditForm.appendChild(rowColor('色', d.color, defaultHex, (v) => {
+      if (v == null) delete d.color; else d.color = v;
+      apply();
+    }));
+    elEditForm.appendChild(el('div', { class: 'edit-hint' }, [
+      '親デッキ名が同じ segment 同士が書き出し時に同じデッキ配列にまとめられる。',
+    ]));
+  }
+
+  function renderStairForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('名称', d.name || '', v => setField('name', v)));
+    elEditForm.appendChild(rowPair('地上位置',
+      d.ground_position ? d.ground_position[0] : 0,
+      d.ground_position ? d.ground_position[1] : 0,
+      (x, y) => { d.ground_position = [x, y]; apply(); }));
+    elEditForm.appendChild(rowPair('デッキ位置',
+      d.deck_position ? d.deck_position[0] : 0,
+      d.deck_position ? d.deck_position[1] : 0,
+      (x, y) => { d.deck_position = [x, y]; apply(); }));
+    elEditForm.appendChild(rowNumber('幅 (セル)', d.width_cells || 3,
+      v => setField('width_cells', v)));
+    elEditForm.appendChild(rowNumber('高さ (m)', d.elevation_m != null ? d.elevation_m : 7,
+      v => setField('elevation_m', v)));
+    const defaultHex = colorNumToHex(SCENE3D_COLOR.stair);
+    elEditForm.appendChild(rowColor('色', d.color, defaultHex, (v) => {
+      if (v == null) delete d.color; else d.color = v;
+      apply();
+    }));
+  }
+
+  function renderLandmarkForm(d, setField, apply) {
+    elEditForm.appendChild(rowText('名称', d.name || '', v => setField('name', v)));
+    elEditForm.appendChild(rowPair('座標',
+      d.position ? d.position[0] : 0,
+      d.position ? d.position[1] : 0,
+      (x, y) => { d.position = [x, y]; apply(); }));
+    elEditForm.appendChild(rowNumber('高さ (m)', d.height_m != null ? d.height_m : 6,
+      v => setField('height_m', v)));
+    elEditForm.appendChild(rowText('type', d.type || '', v => setField('type', v)));
+    const defaultHex = colorNumToHex(SCENE3D_COLOR.landmark);
+    elEditForm.appendChild(rowColor('文字色', d.color, defaultHex, (v) => {
+      if (v == null) delete d.color; else d.color = v;
+      apply();
+    }));
+  }
+
+  // -------------------------------------------------------------
+  // Add / duplicate / delete
+
+  function addNewElement(kind) {
+    const maker = DEFAULTS[kind];
+    if (!maker) return;
+    const data = maker();
+    // Spawn near current camera target so it's visible.
+    const tx = orbit && orbit.target ? orbit.target.x : 0;
+    const tz = orbit && orbit.target ? orbit.target.z : 0;
+    const cx = Math.round(tx);
+    const cy = Math.round(-tz);
+    if (kind === 'place' || kind === 'rail' || kind === 'road') {
+      data.center_x = cx; data.center_y = cy;
+    } else if (kind === 'landmark') {
+      data.position = [cx, cy];
+    } else if (kind === 'deckSeg') {
+      data.from = [cx - 5, cy]; data.to = [cx + 5, cy];
+    } else if (kind === 'stair') {
+      data.ground_position = [cx - 3, cy];
+      data.deck_position   = [cx + 3, cy];
+    }
+    insertElement(kind, data);
+  }
+
+  function insertElement(kind, data) {
+    // Place gets inserted into data.places too so exports stay consistent.
+    if (kind === 'place') {
+      state.data.places.push(data);
+    }
+    const idx = editable.registry[KIND_TO_REGISTRY[kind]].length;
+    const builder = {
+      place:    buildPlaceMesh,
+      rail:     buildRailMesh,
+      road:     buildRoadMesh,
+      deckSeg:  buildDeckSegMesh,
+      stair:    buildStairMesh,
+      landmark: buildLandmarkMesh,
+    }[kind];
+    const g = builder(data);
+    g.userData.editable = { kind, idx };
+    scene.add(g);
+    editable.registry[KIND_TO_REGISTRY[kind]].push({ group: g, data });
+    selectEditable({ kind, idx });
+    saveEditsToStorage();
+  }
+
+  function duplicateSelected() {
+    if (!editable.sel) return;
+    const { kind, idx } = editable.sel;
+    const entry = getEditEntry(kind, idx);
+    if (!entry) return;
+    const copy = deepClone(entry.data);
+    // Offset the copy so it doesn't land on top of the original.
+    if (kind === 'place' || kind === 'rail' || kind === 'road') {
+      copy.center_x = (copy.center_x || 0) + 6;
+    } else if (kind === 'landmark') {
+      if (copy.position) copy.position = [copy.position[0] + 6, copy.position[1]];
+    } else if (kind === 'deckSeg') {
+      if (copy.from) copy.from = [copy.from[0] + 6, copy.from[1]];
+      if (copy.to)   copy.to   = [copy.to[0] + 6,   copy.to[1]];
+    } else if (kind === 'stair') {
+      if (copy.ground_position) copy.ground_position = [copy.ground_position[0] + 6, copy.ground_position[1]];
+      if (copy.deck_position)   copy.deck_position   = [copy.deck_position[0] + 6,   copy.deck_position[1]];
+    }
+    if (copy.name) copy.name = copy.name + ' (複製)';
+    insertElement(kind, copy);
+  }
+
+  function deleteSelected(opts) {
+    opts = opts || {};
+    if (!editable.sel) return;
+    const { kind, idx } = editable.sel;
+    const entry = getEditEntry(kind, idx);
+    if (!entry) return;
+    if (!opts.skipConfirm) {
+      const label = entry.data.name || entry.data.parent_name || '(名称なし)';
+      if (!confirm(`${kindLabel(kind)}「${label}」を削除しますか？`)) return;
+    }
+    scene.remove(entry.group);
+    disposeGroup(entry.group);
+    const key = KIND_TO_REGISTRY[kind];
+    editable.registry[key].splice(idx, 1);
+    if (kind === 'place') {
+      state.data.places.splice(idx, 1);
+    }
+    reindexKind(kind);
+    selectEditable(null);
+    saveEditsToStorage();
+  }
+
+  // -------------------------------------------------------------
+  // Edit mode toggle + tab switching
+
+  function setEditMode(enabled) {
+    editable.enabled = enabled;
+    elEditToggle.classList.toggle('active', enabled);
+    elEditToggle.textContent = enabled ? '🛠 編集モード (ON)' : '🛠 編集モード';
+    if (enabled) {
+      activateTab('edit');
+      setPlaying(false);
+    } else {
+      clearHighlight();
+      clearHandles();
+      editable.sel = null;
+      renderEditForm();
+      activateTab('sim');
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Agent list / edit
+  // -------------------------------------------------------------
+
+  const PERSONA_STORAGE_KEY = 'viewer_3d_persona_edits_v1';
+
+  function effectivePersona(id) {
+    const base = state.data && state.data.personas.find(p => p.id === id);
+    if (!base) return null;
+    const ov = state.personaOverrides[id];
+    return ov ? { ...base, ...ov } : base;
+  }
+
+  function setPersonaField(id, field, value) {
+    const base = state.data && state.data.personas.find(p => p.id === id);
+    if (!base) return;
+    const ov = { ...(state.personaOverrides[id] || {}) };
+    if (Object.is(base[field], value) || String(base[field]) === String(value)) {
+      delete ov[field];
+    } else {
+      ov[field] = value;
+    }
+    if (Object.keys(ov).length === 0) {
+      delete state.personaOverrides[id];
+    } else {
+      state.personaOverrides[id] = ov;
+    }
+    savePersonaOverrides();
+    // Refresh list row (name/meta may have changed) but don't rebuild form (keeps focus).
+    renderAgentList();
+  }
+
+  function clearPersonaOverride(id) {
+    if (state.personaOverrides[id]) {
+      delete state.personaOverrides[id];
+      savePersonaOverrides();
+      renderAgentList();
+      renderAgentEditForm();
+    }
+  }
+
+  function savePersonaOverrides() {
+    try {
+      localStorage.setItem(PERSONA_STORAGE_KEY,
+        JSON.stringify({ v: 1, overrides: state.personaOverrides }));
+    } catch (e) { console.warn('persona save failed:', e.message); }
+  }
+
+  function loadPersonaOverrides() {
+    try {
+      const raw = localStorage.getItem(PERSONA_STORAGE_KEY);
+      if (!raw) return;
+      const parsed = JSON.parse(raw);
+      if (parsed && parsed.v === 1 && parsed.overrides) {
+        state.personaOverrides = parsed.overrides;
+      }
+    } catch (e) { console.warn('persona load failed:', e.message); }
+  }
+
+  function filteredPersonas() {
+    if (!state.data) return [];
+    const q = (state.agentFilter || '').trim().toLowerCase();
+    const list = state.data.personas.map(p => effectivePersona(p.id));
+    if (!q) return list;
+    return list.filter(p => {
+      const hay = [p.name, p.occupation, p.gender, String(p.age), String(p.id)]
+        .map(x => (x || '').toString().toLowerCase()).join(' ');
+      return hay.includes(q);
+    });
+  }
+
+  function renderAgentList() {
+    if (!elAgentList) return;
+    const list = filteredPersonas();
+    const total = state.data ? state.data.personas.length : 0;
+    elAgentCount.textContent = list.length === total
+      ? `${total}人`
+      : `${list.length}/${total}人`;
+    elAgentList.innerHTML = '';
+    for (const p of list) {
+      const isEdited = !!state.personaOverrides[p.id];
+      const sexCls = p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : 'other';
+      const row = el('div', {
+        class: 'agent-row' +
+          (state.selectedId === p.id ? ' selected' : '') +
+          (isEdited ? ' edited' : ''),
+      }, [
+        el('span', { class: 'id' }, [String(p.id).padStart(2, '0')]),
+        el('span', { class: 'sex ' + sexCls }, []),
+        el('span', { class: 'name', title: p.name }, [p.name || '(無名)']),
+        el('span', { class: 'meta', title: `${p.age}歳 / ${p.occupation || ''}` },
+          [`${p.age}・${p.occupation || ''}`]),
+      ]);
+      row.onclick = () => {
+        if (state.selectedId === p.id) {
+          state.selectedId = null;
+        } else {
+          state.selectedId = p.id;
+          // Switch to follow-camera so the selected agent stays in view.
+          if (state.cameraMode !== 'follow') state.cameraMode = 'follow';
+        }
+        refreshFollowButton();
+        renderAgentList();
+        renderAgentEditForm();
+      };
+      elAgentList.appendChild(row);
+    }
+    if (list.length === 0) {
+      elAgentList.appendChild(el('div',
+        { class: 'placeholder', style: 'padding:12px; font-size:11px; color:var(--text-dim); text-align:center' },
+        ['該当なし']));
+    }
+  }
+
+  function renderAgentEditForm() {
+    if (!elAgentEditForm) return;
+    elAgentEditForm.innerHTML = '';
+    const id = state.selectedId;
+    if (id == null) {
+      elAgentEditForm.appendChild(el('div', { class: 'placeholder' },
+        ['一覧からエージェントを選択']));
+      return;
+    }
+    const p = effectivePersona(id);
+    if (!p) {
+      elAgentEditForm.appendChild(el('div', { class: 'placeholder' },
+        ['エージェント未検出']));
+      return;
+    }
+    const isEdited = !!state.personaOverrides[id];
+
+    elAgentEditForm.appendChild(el('h3', null,
+      [`ID ${id} の編集` + (isEdited ? ' (変更済)' : '')]));
+
+    elAgentEditForm.appendChild(rowText('名前', p.name,
+      v => setPersonaField(id, 'name', v)));
+    elAgentEditForm.appendChild(rowNumber('年齢', p.age,
+      v => setPersonaField(id, 'age', Math.round(v)), { step: 1 }));
+    elAgentEditForm.appendChild(rowSelect('性別', p.gender || 'other',
+      ['male', 'female', 'other'], v => setPersonaField(id, 'gender', v)));
+    elAgentEditForm.appendChild(rowText('職業', p.occupation || '',
+      v => setPersonaField(id, 'occupation', v)));
+    elAgentEditForm.appendChild(rowText('話し方', p.speech_style || '',
+      v => setPersonaField(id, 'speech_style', v)));
+    elAgentEditForm.appendChild(rowNumber('スマホ率',
+      p.phone_check_rate != null ? p.phone_check_rate : 0.5,
+      v => setPersonaField(id, 'phone_check_rate', Math.max(0, Math.min(1, v))),
+      { step: 0.05 }));
+
+    // social_identities: read-only (複雑なので v1 はスキップ)
+    if (Array.isArray(p.social_identities) && p.social_identities.length) {
+      const lines = p.social_identities.map(si => {
+        const name = si.group_name || '(名前なし)';
+        const scale = si.scale || '';
+        const norms = si.norms || '';
+        const members = Array.isArray(si.member_ids) ? si.member_ids.join(',') : '';
+        return `• ${name} [${scale}]\n  norms: ${norms}\n  members: [${members}]`;
+      });
+      elAgentEditForm.appendChild(el('div', null, [
+        el('label', { style: 'font-size:10px; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.5px' },
+          ['所属 (読み取り専用)']),
+        el('div', { class: 'identities' }, [lines.join('\n\n')]),
+      ]));
+    }
+
+    // Actions
+    const actions = el('div', { id: 'agent-edit-actions' });
+    if (isEdited) {
+      const revert = el('button', { class: 'danger' }, ['変更を破棄']);
+      revert.onclick = () => clearPersonaOverride(id);
+      actions.appendChild(revert);
+    }
+    const deselect = el('button', null, ['選択解除']);
+    deselect.onclick = () => {
+      state.selectedId = null;
+      refreshFollowButton();
+      renderAgentList();
+      renderAgentEditForm();
+    };
+    actions.appendChild(deselect);
+    elAgentEditForm.appendChild(actions);
+  }
+
+  function activateTab(which) {
+    for (const btn of elPanelTabs.querySelectorAll('.panel-tab')) {
+      btn.classList.toggle('active', btn.dataset.tab === which);
+    }
+    elPanelSim.style.display    = which === 'sim'    ? 'flex' : 'none';
+    elPanelEdit.style.display   = which === 'edit'   ? 'flex' : 'none';
+    elPanelAgents.style.display = which === 'agents' ? 'flex' : 'none';
+    if (which === 'agents') {
+      renderAgentList();
+      renderAgentEditForm();
+    }
+  }
+
+  // -------------------------------------------------------------
+  // Persistence
+
+  function snapshotEdits() {
+    const reg = editable.registry;
+    return {
+      v: 1,
+      places:    reg.places.map(e => e.data),
+      rails:     reg.rails.map(e => e.data),
+      roads:     reg.roads.map(e => e.data),
+      deckSegs:  reg.deckSegs.map(e => e.data),
+      stairs:    reg.stairs.map(e => e.data),
+      landmarks: reg.landmarks.map(e => e.data),
+    };
+  }
+
+  function saveEditsToStorage() {
+    try {
+      const snap = snapshotEdits();
+      localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(snap));
+    } catch (e) {
+      console.warn('localStorage save failed:', e.message);
+    }
+    pushHistoryDebounced();
+  }
+
+  function loadEditsFromStorage() {
+    try {
+      const raw = localStorage.getItem(EDIT_STORAGE_KEY);
+      if (!raw) return null;
+      const snap = JSON.parse(raw);
+      if (!snap || snap.v !== 1) return null;
+      return snap;
+    } catch (e) {
+      console.warn('localStorage load failed:', e.message);
+      return null;
+    }
+  }
+
+  function applyStoredSnapshot(snap) {
+    // Clear current scene elements + registry.
+    for (const key of Object.values(KIND_TO_REGISTRY)) {
+      for (const e of editable.registry[key]) {
+        scene.remove(e.group);
+        disposeGroup(e.group);
+      }
+      editable.registry[key] = [];
+    }
+    // Rebuild places from snapshot (also replace state.data.places).
+    state.data.places = deepClone(snap.places || []);
+    buildPlaces(state.data.places);
+    // Rebuild scene_3d elements from snapshot.
+    buildRails(deepClone(snap.rails || []));
+    buildRoads(deepClone(snap.roads || []));
+    // deckSegs: insert directly (they already carry parent_* fields)
+    const segs = deepClone(snap.deckSegs || []);
+    for (const seg of segs) {
+      const idx = editable.registry.deckSegs.length;
+      const g = buildDeckSegMesh(seg);
+      g.userData.editable = { kind: 'deckSeg', idx };
+      scene.add(g);
+      editable.registry.deckSegs.push({ group: g, data: seg });
+    }
+    buildStairs(deepClone(snap.stairs || []));
+    buildLandmarks(deepClone(snap.landmarks || []));
+    editable.loadedFromStorage = true;
+  }
+
+  function resetEdits() {
+    if (!confirm('すべての編集を破棄し、config 初期値に戻しますか？')) return;
+    localStorage.removeItem(EDIT_STORAGE_KEY);
+    if (editable.originalData) applyStoredSnapshot(editable.originalData);
+    selectEditable(null);
+    editable.loadedFromStorage = false;
+    resetHistory();
+  }
+
+  // -------------------------------------------------------------
+  // Copy / paste
+  function copySelected() {
+    if (!editable.sel) return false;
+    const entry = getEditEntry(editable.sel.kind, editable.sel.idx);
+    if (!entry) return false;
+    clipboard.kind = editable.sel.kind;
+    clipboard.data = deepClone(entry.data);
+    refreshPasteButton();
+    flashToolbar(elEditCopy);
+    return true;
+  }
+
+  function pasteClipboard() {
+    if (!clipboard.kind || !clipboard.data) return false;
+    const copy = deepClone(clipboard.data);
+    // Offset so the paste is visible rather than stacked on the source.
+    const k = clipboard.kind;
+    if (k === 'place' || k === 'rail' || k === 'road') {
+      copy.center_x = (copy.center_x || 0) + 6;
+    } else if (k === 'landmark') {
+      if (copy.position) copy.position = [copy.position[0] + 6, copy.position[1]];
+    } else if (k === 'deckSeg') {
+      if (copy.from) copy.from = [copy.from[0] + 6, copy.from[1]];
+      if (copy.to)   copy.to   = [copy.to[0] + 6,   copy.to[1]];
+    } else if (k === 'stair') {
+      if (copy.ground_position) copy.ground_position = [copy.ground_position[0] + 6, copy.ground_position[1]];
+      if (copy.deck_position)   copy.deck_position   = [copy.deck_position[0] + 6,   copy.deck_position[1]];
+    }
+    if (copy.name) copy.name = copy.name + ' (コピー)';
+    insertElement(k, copy);
+    return true;
+  }
+
+  function refreshPasteButton() {
+    if (!elEditPaste) return;
+    elEditPaste.disabled = !clipboard.kind;
+    elEditPaste.title = clipboard.kind
+      ? `貼り付け (${kindLabel(clipboard.kind)})`
+      : '貼り付け (クリップボードが空)';
+  }
+
+  function flashToolbar(btn) {
+    if (!btn) return;
+    btn.classList.add('flash');
+    setTimeout(() => btn.classList.remove('flash'), 350);
+  }
+
+  // -------------------------------------------------------------
+  // Undo / redo
+  function pushHistoryNow() {
+    history.pushTimer = null;
+    if (history.suspend) return;
+    const snap = snapshotEdits();
+    // Drop any redo-tail once a new branch is created.
+    if (history.ptr < history.stack.length - 1) {
+      history.stack = history.stack.slice(0, history.ptr + 1);
+    }
+    history.stack.push(snap);
+    if (history.stack.length > history.MAX) {
+      history.stack.shift();
+    }
+    history.ptr = history.stack.length - 1;
+    refreshHistoryButtons();
+  }
+
+  function pushHistoryDebounced() {
+    if (history.suspend) return;
+    if (history.pushTimer) clearTimeout(history.pushTimer);
+    history.pushTimer = setTimeout(pushHistoryNow, 350);
+  }
+
+  function flushHistoryPending() {
+    if (history.pushTimer) {
+      clearTimeout(history.pushTimer);
+      history.pushTimer = null;
+      pushHistoryNow();
+    }
+  }
+
+  function resetHistory() {
+    history.stack = [];
+    history.ptr = -1;
+    if (history.pushTimer) { clearTimeout(history.pushTimer); history.pushTimer = null; }
+    // Seed with current state as the baseline.
+    history.stack.push(snapshotEdits());
+    history.ptr = 0;
+    refreshHistoryButtons();
+  }
+
+  function applyHistoryEntry(snap) {
+    history.suspend = true;
+    try {
+      applyStoredSnapshot(deepClone(snap));
+      selectEditable(null);
+      // Persist but don't re-push into history.
+      try {
+        localStorage.setItem(EDIT_STORAGE_KEY, JSON.stringify(snapshotEdits()));
+      } catch (e) {}
+    } finally {
+      history.suspend = false;
+    }
+    refreshHistoryButtons();
+  }
+
+  function undo() {
+    flushHistoryPending();
+    if (history.ptr <= 0) return;
+    history.ptr -= 1;
+    applyHistoryEntry(history.stack[history.ptr]);
+  }
+
+  function redo() {
+    flushHistoryPending();
+    if (history.ptr >= history.stack.length - 1) return;
+    history.ptr += 1;
+    applyHistoryEntry(history.stack[history.ptr]);
+  }
+
+  function refreshHistoryButtons() {
+    if (elEditUndo) elEditUndo.disabled = history.ptr <= 0;
+    if (elEditRedo) elEditRedo.disabled = history.ptr >= history.stack.length - 1;
+  }
+
+  // -------------------------------------------------------------
+  // YAML export
+
+  function isComplex(v) { return v !== null && typeof v === 'object'; }
+
+  function formatYamlScalar(v) {
+    if (v === null || v === undefined) return 'null';
+    if (typeof v === 'boolean') return v ? 'true' : 'false';
+    if (typeof v === 'number') return Number.isFinite(v) ? String(v) : 'null';
+    if (typeof v === 'string') return yamlString(v);
+    return String(v);
+  }
+
+  function yamlString(s) {
+    if (s === '') return '""';
+    const needsQuote =
+      /[:#\[\]{}&*!|>'"%@`,]/.test(s) ||
+      /^(true|false|null|yes|no|on|off|~)$/i.test(s) ||
+      /^-?\d/.test(s) ||
+      /^\s|\s$/.test(s);
+    if (!needsQuote) return s;
+    return '"' + s.replace(/\\/g, '\\\\').replace(/"/g, '\\"') + '"';
+  }
+
+  function yamlEmitKey(key, value, depth, lines) {
+    const pad = '  '.repeat(depth);
+    if (!isComplex(value)) {
+      lines.push(pad + key + ': ' + formatYamlScalar(value));
+      return;
+    }
+    if (Array.isArray(value)) {
+      if (value.length === 0) { lines.push(pad + key + ': []'); return; }
+      if (value.every(v => !isComplex(v))) {
+        lines.push(pad + key + ': [' + value.map(formatYamlScalar).join(', ') + ']');
+        return;
+      }
+      lines.push(pad + key + ':');
+      for (const item of value) yamlEmitListItem(item, depth + 1, lines);
+      return;
+    }
+    const subKeys = Object.keys(value).filter(k => value[k] !== undefined);
+    if (subKeys.length === 0) { lines.push(pad + key + ': {}'); return; }
+    lines.push(pad + key + ':');
+    for (const sk of subKeys) yamlEmitKey(sk, value[sk], depth + 1, lines);
+  }
+
+  function yamlEmitListItem(item, depth, lines) {
+    const pad = '  '.repeat(depth);
+    if (!isComplex(item)) {
+      lines.push(pad + '- ' + formatYamlScalar(item));
+      return;
+    }
+    if (Array.isArray(item)) {
+      if (item.every(v => !isComplex(v))) {
+        lines.push(pad + '- [' + item.map(formatYamlScalar).join(', ') + ']');
+        return;
+      }
+      lines.push(pad + '-');
+      for (const sub of item) yamlEmitListItem(sub, depth + 1, lines);
+      return;
+    }
+    const keys = Object.keys(item).filter(k => item[k] !== undefined);
+    if (keys.length === 0) { lines.push(pad + '- {}'); return; }
+    // First line: "- first_key: value" or "- first_key:" + children
+    const [first, ...rest] = keys;
+    const fv = item[first];
+    if (!isComplex(fv)) {
+      lines.push(pad + '- ' + first + ': ' + formatYamlScalar(fv));
+    } else if (Array.isArray(fv)) {
+      if (fv.length === 0) lines.push(pad + '- ' + first + ': []');
+      else if (fv.every(v => !isComplex(v))) {
+        lines.push(pad + '- ' + first + ': [' + fv.map(formatYamlScalar).join(', ') + ']');
+      } else {
+        lines.push(pad + '- ' + first + ':');
+        for (const sub of fv) yamlEmitListItem(sub, depth + 2, lines);
+      }
+    } else {
+      const fvKeys = Object.keys(fv).filter(k => fv[k] !== undefined);
+      if (fvKeys.length === 0) lines.push(pad + '- ' + first + ': {}');
+      else {
+        lines.push(pad + '- ' + first + ':');
+        for (const sk of fvKeys) yamlEmitKey(sk, fv[sk], depth + 2, lines);
+      }
+    }
+    // Remaining keys of the item: indented "pad + 2 spaces" (depth+1 in our scheme)
+    for (const k of rest) yamlEmitKey(k, item[k], depth + 1, lines);
+  }
+
+  function yamlDump(obj) {
+    const lines = [];
+    for (const k of Object.keys(obj)) {
+      if (obj[k] === undefined) continue;
+      yamlEmitKey(k, obj[k], 0, lines);
+    }
+    return lines.join('\n') + '\n';
+  }
+
+  // Assemble the places + scene_3d blocks from the current registry state.
+  function buildExportYaml() {
+    const places = editable.registry.places.map(e => sanitizePlace(e.data));
+    const rails  = editable.registry.rails.map(e => sanitizeRail(e.data));
+    const roads  = editable.registry.roads.map(e => sanitizeRoad(e.data));
+    const stairs = editable.registry.stairs.map(e => sanitizeStair(e.data));
+    const landmarks = editable.registry.landmarks.map(e => sanitizeLandmark(e.data));
+
+    // Group deck segments by parent_name into decks[]
+    const deckMap = new Map();
+    for (const e of editable.registry.deckSegs) {
+      const seg = e.data;
+      const key = seg.parent_name || '(unnamed)';
+      if (!deckMap.has(key)) {
+        deckMap.set(key, {
+          name: seg.parent_name || '(unnamed)',
+          level: seg.parent_level != null ? seg.parent_level : 2,
+          elevation_m: seg.parent_elevation_m != null ? seg.parent_elevation_m : 7,
+          segments: [],
+          connects_places: seg.parent_connects_places,
+        });
+      } else {
+        const d = deckMap.get(key);
+        // Adopt latest elevation if any seg overrides
+        if (seg.parent_elevation_m != null) d.elevation_m = seg.parent_elevation_m;
+      }
+      deckMap.get(key).segments.push({
+        from: seg.from, to: seg.to,
+        ...(seg.width != null && seg.width !== 3 ? { width: seg.width } : {}),
+        ...(seg.color ? { color: seg.color } : {}),
+      });
+    }
+    const decks = [...deckMap.values()];
+
+    const scene_3d = {};
+    if (rails.length)  scene_3d.rails = rails;
+    if (roads.length)  scene_3d.roads = roads;
+    if (decks.length)  scene_3d.decks = decks;
+    if (stairs.length) scene_3d.stairs = stairs;
+    if (landmarks.length) scene_3d.landmarks = landmarks;
+
+    const top = { places };
+    if (Object.keys(scene_3d).length) top.scene_3d = scene_3d;
+
+    // Personas: if the user has made any edits, emit ALL personas (merged with
+    // overrides) as a complete replacement section.
+    if (state.data && Object.keys(state.personaOverrides).length > 0) {
+      top.personas = state.data.personas.map(p => sanitizePersona(effectivePersona(p.id)));
+    }
+
+    return (
+      '# Generated by viewer_3d edit mode\n' +
+      '# Paste these sections into shinagawa_config.yaml (or similar).\n\n' +
+      yamlDump(top)
+    );
+  }
+
+  function sanitizePersona(p) {
+    const out = {
+      id: p.id,
+      name: p.name,
+      age: p.age,
+      gender: p.gender,
+      occupation: p.occupation,
+      speech_style: p.speech_style,
+    };
+    if (p.phone_check_rate != null) out.phone_check_rate = p.phone_check_rate;
+    if (Array.isArray(p.social_identities) && p.social_identities.length) {
+      out.social_identities = p.social_identities;
+    }
+    return out;
+  }
+
+  function sanitizePlace(p) {
+    const out = {
+      name: p.name,
+      type: p.type,
+      center_x: p.center_x,
+      center_y: p.center_y,
+      half_size_x: p.half_size_x,
+      half_size_y: p.half_size_y,
+    };
+    if (p.capacity != null) out.capacity = p.capacity;
+    if (p.attributes && Object.keys(p.attributes).length) {
+      out.attributes = { ...p.attributes };
+    }
+    // Preserve any other fields the user had (unlikely to be edited here but
+    // don't silently drop them).
+    for (const k of Object.keys(p)) {
+      if (!(k in out) && k !== 'attributes') out[k] = p[k];
+    }
+    return out;
+  }
+
+  function sanitizeRail(r) {
+    const out = {
+      name: r.name,
+      axis: r.axis,
+      center_x: r.center_x,
+      width_cells: r.width_cells,
+      length_cells: r.length_cells,
+      elevation_m: r.elevation_m != null ? r.elevation_m : 0,
+    };
+    if (r.axis === 'ew' && r.center_y != null) out.center_y = r.center_y;
+    if (r.is_elevated) out.is_elevated = true;
+    if (r.column_spacing_cells) out.column_spacing_cells = r.column_spacing_cells;
+    if (r.level) out.level = r.level;
+    if (r.color) out.color = r.color;
+    return out;
+  }
+
+  function sanitizeRoad(r) {
+    const out = {
+      axis: r.axis,
+      width_cells: r.width_cells,
+      length_cells: r.length_cells,
+      road_class: r.road_class || 'local',
+    };
+    if (r.name) out.name = r.name;
+    if (r.axis === 'ns') out.center_x = r.center_x != null ? r.center_x : 0;
+    else out.center_y = r.center_y != null ? r.center_y : 0;
+    if (r.color) out.color = r.color;
+    return out;
+  }
+
+  function sanitizeStair(s) {
+    const out = {
+      name: s.name,
+      ground_position: s.ground_position,
+      deck_position: s.deck_position,
+      width_cells: s.width_cells || 3,
+      elevation_m: s.elevation_m != null ? s.elevation_m : 7,
+    };
+    if (s.color) out.color = s.color;
+    return out;
+  }
+
+  function sanitizeLandmark(l) {
+    const out = { name: l.name, position: l.position };
+    if (l.type) out.type = l.type;
+    if (l.height_m != null) out.height_m = l.height_m;
+    if (l.color) out.color = l.color;
+    return out;
+  }
+
+  function openExportModal() {
+    const text = buildExportYaml();
+    elExportText.value = text;
+    elExportModal.classList.add('open');
+  }
+
+  function closeExportModal() {
+    elExportModal.classList.remove('open');
+  }
+
+  function copyExport() {
+    elExportText.select();
+    try { document.execCommand('copy'); } catch (e) {}
+    if (navigator.clipboard) {
+      navigator.clipboard.writeText(elExportText.value).catch(() => {});
+    }
+    elExportCopy.textContent = '✓ コピー済';
+    setTimeout(() => elExportCopy.textContent = 'クリップボードにコピー', 1500);
+  }
+
+  function downloadExport() {
+    const blob = new Blob([elExportText.value], { type: 'text/yaml;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'scene_export.yaml';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+  }
+
+  // ---------------------------------------------------------------
+  // Boot
+  // ---------------------------------------------------------------
+
+  function boot() {
+    if (typeof THREE === 'undefined') {
+      showError('Three.js がロードされていません。CDN を開けない環境の場合はバンドル版を使ってください。');
+      return;
+    }
+    if (typeof THREE.OrbitControls === 'undefined') {
+      showError('OrbitControls がロードされていません。');
+      return;
+    }
+    const data = loadData();
+    if (!data) return;
+    state.data = data;
+
+    elSeek.max = String(Math.max(0, data.timeline.length - 1));
+    elSeek.value = '0';
+    elStepLabel.textContent = `1 / ${data.timeline.length}`;
+
+    initScene();
+    buildGround(data.metadata);
+    // scene_3d auxiliary data may live either in data.scene_3d (merged into
+    // simulation_data.json) or in a separate <script id="scene-3d"> tag.
+    const scene3dData = (data.scene_3d && typeof data.scene_3d === 'object')
+      ? data.scene_3d : loadScene3D();
+    // Roads/rails go down first so buildings stack on top without z-fighting.
+    if (scene3dData) {
+      if (Array.isArray(scene3dData.roads)) buildRoads(scene3dData.roads);
+      if (Array.isArray(scene3dData.rails)) buildRails(scene3dData.rails);
+    }
+    buildPlaces(data.places);
+    if (scene3dData) {
+      if (Array.isArray(scene3dData.decks))     buildDecks(scene3dData.decks);
+      if (Array.isArray(scene3dData.stairs))    buildStairs(scene3dData.stairs);
+      if (Array.isArray(scene3dData.landmarks)) buildLandmarks(scene3dData.landmarks);
+    }
+
+    // Snapshot the initial config-loaded state so "reset" can restore it,
+    // then check localStorage for any prior user edits and apply them.
+    editable.originalData = snapshotEdits();
+    const stored = loadEditsFromStorage();
+    if (stored) {
+      try {
+        applyStoredSnapshot(stored);
+        console.log('[viewer_3d] Loaded edits from localStorage');
+      } catch (e) {
+        console.warn('[viewer_3d] Failed to apply stored edits, keeping config defaults:', e);
+      }
+    }
+
+    buildAgentPool(data.personas);
+    loadPersonaOverrides();
+    refreshCamButtons();
+    refreshFollowButton();
+
+    elLoading.classList.add('hidden');
+    requestAnimationFrame(animate);
+
+    // Wiring.
+    elPlayPause.addEventListener('click', () => setPlaying(!state.playing));
+    elSeek.addEventListener('input', (e) => {
+      setPlaying(false);
+      seekTo(parseInt(e.target.value, 10));
+    });
+    elSpeedGroup.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      const sp = parseFloat(e.target.dataset.speed);
+      if (!sp) return;
+      state.speed = sp;
+      [...elSpeedGroup.children].forEach(b => b.classList.toggle('active', b === e.target));
+    });
+    window.addEventListener('keydown', (e) => {
+      // Don't hijack typing in edit-mode form inputs.
+      const tag = (e.target && e.target.tagName) || '';
+      const isInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
+      const ctrl = e.ctrlKey || e.metaKey;
+
+      // Edit-mode shortcuts. Delete / copy / paste / undo / redo / duplicate.
+      if (editable.enabled && !isInput) {
+        if (ctrl && (e.key === 'z' || e.key === 'Z')) {
+          e.preventDefault();
+          if (e.shiftKey) redo(); else undo();
+          return;
+        }
+        if (ctrl && (e.key === 'y' || e.key === 'Y')) {
+          e.preventDefault(); redo(); return;
+        }
+        if (ctrl && (e.key === 'c' || e.key === 'C')) {
+          e.preventDefault(); copySelected(); return;
+        }
+        if (ctrl && (e.key === 'v' || e.key === 'V')) {
+          e.preventDefault(); pasteClipboard(); return;
+        }
+        if (ctrl && (e.key === 'd' || e.key === 'D')) {
+          e.preventDefault(); duplicateSelected(); return;
+        }
+        if (e.key === 'Delete' || e.key === 'Backspace') {
+          if (editable.sel) {
+            e.preventDefault();
+            deleteSelected({ skipConfirm: true });
+          }
+          return;
+        }
+      }
+
+      // Ctrl+Z / Ctrl+Y still work when a non-text element has focus too — but
+      // only when edit mode is on. Skip global hotkeys if user is typing.
+      if (isInput) return;
+
+      if (e.key === ' ')      { e.preventDefault(); setPlaying(!state.playing); }
+      else if (e.key === 'ArrowLeft')  { setPlaying(false); seekTo(state.currentStep - 1); }
+      else if (e.key === 'ArrowRight') { setPlaying(false); seekTo(state.currentStep + 1); }
+      else if (e.key === 'Escape')     {
+        if (editable.enabled && editable.sel) { selectEditable(null); }
+        else { state.selectedId = null; refreshFollowButton(); }
+      }
+      else if (e.key === 'e' || e.key === 'E') {
+        setEditMode(!editable.enabled);
+      }
+    });
+    window.addEventListener('resize', onResize);
+    renderer.domElement.addEventListener('click', handleCanvasClick);
+    // PPT-style drag in edit mode. Pointer events so touch + mouse share a path.
+    renderer.domElement.addEventListener('pointerdown', editPointerDown);
+    renderer.domElement.addEventListener('pointermove', editPointerMove);
+    renderer.domElement.addEventListener('pointerup', editPointerUp);
+    renderer.domElement.addEventListener('pointercancel', editPointerUp);
+
+    elCamReset.addEventListener('click', cameraReset);
+    elCamTop.addEventListener('click', cameraTop);
+    elCamFollow.addEventListener('click', cameraFollowToggle);
+
+    // Edit mode wiring.
+    elEditToggle.addEventListener('click', () => setEditMode(!editable.enabled));
+    elPanelTabs.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      activateTab(e.target.dataset.tab);
+    });
+    elAgentFilter.addEventListener('input', () => {
+      state.agentFilter = elAgentFilter.value;
+      renderAgentList();
+    });
+    elEditDuplicate.addEventListener('click', duplicateSelected);
+    elEditDelete.addEventListener('click', deleteSelected);
+    elEditReset.addEventListener('click', resetEdits);
+    elEditExport.addEventListener('click', openExportModal);
+    if (elEditSnap) {
+      const refreshSnapBtn = () => {
+        elEditSnap.classList.toggle('active', !!editable.snapToGrid);
+        elEditSnap.textContent = editable.snapToGrid ? '⊞ スナップ (ON)' : '⊞ スナップ';
+      };
+      refreshSnapBtn();
+      elEditSnap.addEventListener('click', () => {
+        editable.snapToGrid = !editable.snapToGrid;
+        refreshSnapBtn();
+      });
+    }
+    if (elEditUndo) elEditUndo.addEventListener('click', undo);
+    if (elEditRedo) elEditRedo.addEventListener('click', redo);
+    if (elEditCopy) elEditCopy.addEventListener('click', copySelected);
+    if (elEditPaste) elEditPaste.addEventListener('click', pasteClipboard);
+    refreshPasteButton();
+    refreshEditButtons();
+    // Seed history with the current loaded state (after any stored edits).
+    resetHistory();
+    elEditAddGroup.addEventListener('click', (e) => {
+      if (e.target.tagName !== 'BUTTON') return;
+      addNewElement(e.target.dataset.add);
+    });
+    elExportClose.addEventListener('click', closeExportModal);
+    elExportModal.addEventListener('click', (e) => {
+      if (e.target === elExportModal) closeExportModal();
+    });
+    elExportCopy.addEventListener('click', copyExport);
+    elExportDownload.addEventListener('click', downloadExport);
+
+    if (elThoughtList) {
+      elThoughtList.addEventListener('click', (e) => {
+        const item = e.target.closest('.thought-item');
+        if (!item) return;
+        const idStr = item.getAttribute('data-agent-id');
+        if (idStr == null) return;
+        const aid = parseInt(idStr, 10);
+        if (Number.isNaN(aid)) return;
+        state.selectedId = state.selectedId === aid ? null : aid;
+        refreshFollowButton();
+        if (elPanelAgents && elPanelAgents.style.display !== 'none') {
+          renderAgentList();
+          renderAgentEditForm();
+        }
+      });
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', boot);
+  } else {
+    boot();
+  }
+  })();
+  </script>
+</body>
+</html>
