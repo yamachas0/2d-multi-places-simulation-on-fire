@@ -6,6 +6,21 @@
 
 ---
 
+## 🎯 最終成果物 (審査員の方はここへ)
+
+ハッカソン本案 (品川 高校生10人 / Phase B 50step / run #157) の最終成果物を [`FINAL_REPORT/`](FINAL_REPORT/) に同梱しています。
+
+| ファイル | 内容 |
+|---|---|
+| [`FINAL_REPORT/v3_report_157_v21.pdf`](FINAL_REPORT/v3_report_157_v21.pdf) | **統合レポート PDF** — 提出用説明資料の本体 (72ページ、シミュ設計／結果／考察を網羅) |
+| [`FINAL_REPORT/v3_report_157_v21.html`](FINAL_REPORT/v3_report_157_v21.html) | 統合レポート HTML 版 (PDF と同内容、ブラウザで開くと全体タイムラインが対話可能) |
+| [`FINAL_REPORT/viewer_3d_bundled_157_v21.html`](FINAL_REPORT/viewer_3d_bundled_157_v21.html) | **3D ビューア** (品川駅周辺 160m×160m を 3D 化、step スライダーで全エージェントの軌跡を再生) |
+| [`FINAL_REPORT/v3_logs_157_v21.html`](FINAL_REPORT/v3_logs_157_v21.html) | 全ステップログ (各 agent の思考・移動・発話・受信を step 単位で全て確認可能。バックデータ用) |
+
+> シミュ結果の生データ (jsonl, simulation_data.json, 各 step の memory_reasoning) は `simulations/` 配下に出力されますが、`.gitignore` 済のため公開リポジトリには含めていません。再現したい方は下記「再現手順」を参照してください。
+
+---
+
 ## 元コードについて (重要・Acknowledgments)
 
 本リポジトリは **シンギュラボ所属の兵頭博士** による
