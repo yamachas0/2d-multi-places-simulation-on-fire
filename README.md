@@ -1,8 +1,8 @@
-# LLM Multi-Agent 2D Simulation — Singulabo Hackathon 提出版
+# LLM Multi-Agent 2D Simulation — AUTOMATA HACKATHON 提出版
 
 > **チーム**: えびやま（やまちゃそ／えびねこ）
 > **作品名**: まちと企業がつくる学習環境は、子どもに何をもたらすのか
-> **シンギュラボ ハッカソン 2026 提出物**
+> **AUTOMATA HACKATHON 2026 提出物**
 
 ---
 
