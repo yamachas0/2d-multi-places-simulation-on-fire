@@ -18,8 +18,8 @@ import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
 MERGED = Path(r"D:\ユーザー\ダウンロード\shinagawa_config.merged.yaml")
-SIMBASE = ROOT / "config_jr_disruption.yaml"
-OUT = ROOT / "config_shinagawa_last_shinkansen.yaml"
+SIMBASE = ROOT / "configs" / "config_jr_disruption.yaml"
+OUT = ROOT / "configs" / "config_shinagawa_last_shinkansen.yaml"
 
 SPAWN_PLACE = "品川駅 東西自由通路"
 

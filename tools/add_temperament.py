@@ -33,9 +33,9 @@ load_dotenv(ROOT / ".env")
 from llm_client_factory import GeminiClient
 
 VARIANT_PERSONA_PATH = {
-    "high":       ROOT / "classroom_personas.yaml",
-    "adult":      ROOT / "classroom_personas_adult.yaml",
-    "elementary": ROOT / "classroom_personas_elementary.yaml",
+    "high":       ROOT / "configs" / "personas" / "classroom_personas_10diverse.yaml",
+    "adult":      ROOT / "configs" / "personas" / "classroom_personas_adult.yaml",
+    "elementary": ROOT / "configs" / "personas" / "classroom_personas_elementary_10diverse.yaml",
 }
 
 SYSTEM = (

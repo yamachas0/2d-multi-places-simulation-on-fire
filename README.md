@@ -23,11 +23,12 @@
 
 ## 元コードについて (重要・Acknowledgments)
 
-本リポジトリは **シンギュラボ所属の兵頭博士** による
+本リポジトリは **Singulab の兵頭博士** による
 LLM マルチエージェント 2D シミュレーション (`2d-multi-places-simulation-on-fire`)
-を **派生** させたものです。
+を **派生** させたものです。今回の AUTOMATA HACKATHON は Singulab から派生した
+AUTOMATA プロジェクトが主催しています。
 
-- **元コードの著者**: 兵頭博士（シンギュラボ）
+- **元コードの著者**: 兵頭博士（Singulab）
 - **元コードのライセンス**: GNU General Public License v3 (`LICENSE.txt` 参照)
 - **本リポジトリの位置付け**: 派生著作物 (derivative work)。GPL v3 を継承して公開しています。
 
@@ -81,7 +82,7 @@ LLM が「自分はどこに行きたいか」「誰に話しかけるか」「�
 
 教育プログラム全体を **教室での座学 → まちへ出てフィールドワーク → 振り返りアンケート** の 3 フェーズで実装。各フェーズの出力 (memory, 発話, 行動ログ) が次フェーズへの入力として引き継がれます。
 
-- **Phase A 教室AB シミュ** (`tools/build_classroom_ab_config.py`): 30 step / 60分。教師不在で生徒同士が問いについて議論。条件 A (生徒のみ) / B (触媒人物=シンギュラボ代表 佐藤航陽さん 同席) を比較可能。
+- **Phase A 教室AB シミュ** (`tools/build_classroom_ab_config.py`): 30 step / 60分。教師不在で生徒同士が問いについて議論。条件 A (生徒のみ) / B (触媒人物 = Singulab 代表 佐藤航陽さん 同席) を比較可能。
 - **Phase B 品川FW シミュ** (`tools/build_shinagawa_field_config.py`): 50 step / 100分。160m × 160m の品川駅周辺フィールドを 3D シーンとして構築。生徒 10人 + 企業担当者 12社のホストエージェントが屋外で対話。
 - **Phase C アンケート** (`tools/run_survey.py`): 各エージェントの全 step memory を観察者 LLM に渡し、「この人物がアンケートにどう答えるか」を推測 (本人が直接答えると忖度バイアスが入るため、観察者経由)。
 
@@ -191,7 +192,7 @@ cp .env.example .env
 # config 生成
 python tools/build_classroom_ab_config.py --variant high --condition a
 # 実行
-python main.py --config config_classroom_ab_a.yaml
+python main.py --config configs/config_classroom_ab_a.yaml
 
 # 出力: simulations/<日時>_<id>_classroom_ab_a/
 #   - fw_handoff.jsonl   (Phase B への引継ぎ: future_image / intent)
@@ -204,7 +205,7 @@ python tools/build_shinagawa_field_config.py \
     --variant high \
     --classroom-run simulations/<Phase A の run_dir>
 # 実行
-python main.py --config config_shinagawa_field_high.yaml
+python main.py --config configs/config_shinagawa_field_high.yaml
 
 # === Phase C: シミュ後アンケート ===
 python tools/run_survey.py \
@@ -224,9 +225,9 @@ python tools/html_to_pdf.py simulations/<Phase B run_dir>/v3_report_<NN>_v1.html
 ### B. Phase 0 (派生元の火事避難シミュ) を回す
 
 ```bash
-python main.py --config config.yaml                # デフォルト
-python main.py --config config_smoke.yaml          # 軽量 smoke
-python main.py --config config_jr_disruption.yaml  # JR 運休イベント版
+python main.py --config configs/config.yaml                # デフォルト
+python main.py --config configs/config_smoke.yaml          # 軽量 smoke
+python main.py --config configs/config_jr_disruption.yaml  # JR 運休イベント版
 ```
 
 詳細パラメータは元コードの設計どおり (`config.yaml` 内のコメント参照)。
@@ -276,4 +277,4 @@ python main.py --config config_jr_disruption.yaml  # JR 運休イベント版
 
 ## 謝辞
 
-本リポジトリは **シンギュラボ所属の兵頭博士による LLM マルチエージェント 2D シミュレーション** を派生・発展させたものです。元コードの提供および設計思想に深く感謝します。詳細は [`CREDITS.md`](CREDITS.md) を参照。
+本リポジトリは **Singulab の兵頭博士による LLM マルチエージェント 2D シミュレーション** を派生・発展させたものです。元コードの提供および設計思想に深く感謝します。詳細は [`CREDITS.md`](CREDITS.md) を参照。

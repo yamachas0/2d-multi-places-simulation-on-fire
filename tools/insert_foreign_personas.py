@@ -207,11 +207,11 @@ def patch(yaml_path: Path, replacements: dict[str, dict]):
 
 def main():
     print("=== high (S11/S13/S15/S20) ===")
-    patch(ROOT / "classroom_personas.yaml", HIGH_FOREIGN)
+    patch(ROOT / "configs" / "personas" / "classroom_personas_10diverse.yaml", HIGH_FOREIGN)
     print("=== adult (A06/A11/A18/A20) ===")
-    patch(ROOT / "classroom_personas_adult.yaml", ADULT_FOREIGN)
+    patch(ROOT / "configs" / "personas" / "classroom_personas_adult.yaml", ADULT_FOREIGN)
     print("=== elementary (E13/E18/E20) ===")
-    patch(ROOT / "classroom_personas_elementary.yaml", ELEM_FOREIGN)
+    patch(ROOT / "configs" / "personas" / "classroom_personas_elementary_10diverse.yaml", ELEM_FOREIGN)
 
 
 if __name__ == "__main__":

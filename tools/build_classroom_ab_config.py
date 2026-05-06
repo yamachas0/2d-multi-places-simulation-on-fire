@@ -18,13 +18,13 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SIMBASE = ROOT / "config_jr_disruption.yaml"
+SIMBASE = ROOT / "configs" / "config_jr_disruption.yaml"
 
 VARIANT_PERSONA_PATH = {
-    "high":        ROOT / "classroom_personas.yaml",
-    "adult":       ROOT / "classroom_personas_adult.yaml",
-    "elementary":  ROOT / "classroom_personas_elementary.yaml",
-    "junior_high": ROOT / "classroom_personas_junior_high.yaml",
+    "high":        ROOT / "configs" / "personas" / "classroom_personas_10diverse.yaml",
+    "adult":       ROOT / "configs" / "personas" / "classroom_personas_adult.yaml",
+    "elementary":  ROOT / "configs" / "personas" / "classroom_personas_elementary_10diverse.yaml",
+    "junior_high": ROOT / "configs" / "personas" / "classroom_personas_junior_high.yaml",
 }
 
 VARIANT_SETUP = {
@@ -926,7 +926,7 @@ def main() -> int:
     suffix = f"_{args.variant}" if args.variant != "high" else ""
     scene_suffix = f"_{scene_key}" if scene_key != DEFAULT_SCENE_BY_VARIANT[args.variant] else ""
     catalyst_suffix = f"_{args.catalyst}" if args.catalyst != "sato" else ""
-    out_path = ROOT / f"config_classroom_ab{suffix}{scene_suffix}{catalyst_suffix}_{args.condition}.yaml"
+    out_path = ROOT / "configs" / f"config_classroom_ab{suffix}{scene_suffix}{catalyst_suffix}_{args.condition}.yaml"
     out = {
         "metadata": {
             "name": f"classroom_ab{suffix}{scene_suffix}{catalyst_suffix}_{args.condition}",

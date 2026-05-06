@@ -21,7 +21,7 @@ from pathlib import Path
 import yaml
 
 ROOT = Path(__file__).resolve().parents[1]
-SIMBASE = ROOT / "config_jr_disruption.yaml"
+SIMBASE = ROOT / "configs" / "config_jr_disruption.yaml"
 FIELD_YAML = ROOT / "docs" / "shinagawa_field_places.yaml"
 SPAWN_PLACE_NAME = "東西自由通路"  # 駅の東西を結ぶ歩行者デッキの中央 (港南/高輪 両側へ等距離)
 
@@ -456,7 +456,7 @@ def main() -> int:
     agents["message_context_size"] = 8
     agents["personas"] = fw_personas
 
-    out_path = Path(args.out) if args.out else (ROOT / f"config_shinagawa_field_{args.variant}.yaml")
+    out_path = Path(args.out) if args.out else (ROOT / "configs" / f"config_shinagawa_field_{args.variant}.yaml")
 
     out = {
         "metadata": {

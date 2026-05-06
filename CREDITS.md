@@ -6,13 +6,13 @@
 ## 元コード (Base / Upstream)
 
 - **作品名**: 2d-multi-places-simulation-on-fire （LLM Multi-Agent 2D Simulation, Phase 0: 2D 火事避難シミュ）
-- **著者**: 兵頭博士（シンギュラボ所属）
+- **著者**: 兵頭博士（Singulab所属）
 - **ライセンス**: GNU General Public License v3 (`LICENSE.txt` を参照)
 - **本リポジトリでの扱い**:
   - 元コードのアーキテクチャ・コア概念 (LLMマルチエージェント、定量情報のみ提供、双方向同時発話排除、Jaccard類似フィルタ等) を派生・継承しています。
   - GPL v3 ライセンスをそのまま継承しています。
 
-兵頭博士のオリジナル作品は **シンギュラボメンバー内での共有が原則** であり、本派生リポジトリの公開はハッカソン提出要件 (Public Repo URL 必須) を満たすためのものです。
+兵頭博士のオリジナル作品は **Singulabメンバー内での共有が原則** であり、本派生リポジトリの公開はハッカソン提出要件 (Public Repo URL 必須) を満たすためのものです。
 派生著作物として GPL v3 を遵守し、本ファイル及び `README.md` 冒頭にて明示的に元著者へのクレジットを記載しています。
 
 ## 派生・追加コード (Derivative additions)

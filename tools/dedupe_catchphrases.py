@@ -64,9 +64,9 @@ def patch_yaml(path: Path, patches: dict) -> None:
 
 def main():
     print("Catchphrase dedupe (smoke22):")
-    patch_yaml(ROOT / "classroom_personas.yaml", HIGH_PATCHES)
-    patch_yaml(ROOT / "classroom_personas_elementary.yaml", ELEM_PATCHES)
-    patch_yaml(ROOT / "classroom_personas_junior_high.yaml", JR_PATCHES)
+    patch_yaml(ROOT / "configs" / "personas" / "classroom_personas_10diverse.yaml", HIGH_PATCHES)
+    patch_yaml(ROOT / "configs" / "personas" / "classroom_personas_elementary_10diverse.yaml", ELEM_PATCHES)
+    patch_yaml(ROOT / "configs" / "personas" / "classroom_personas_junior_high.yaml", JR_PATCHES)
     print("Done.")
 
 

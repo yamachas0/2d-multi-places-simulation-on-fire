@@ -129,9 +129,9 @@ def patch_yaml(variant: str, yaml_path: Path) -> None:
 
 def main():
     print("Diversity persona overwrite (smoke22):")
-    patch_yaml("high", ROOT / "classroom_personas.yaml")
-    patch_yaml("elementary", ROOT / "classroom_personas_elementary.yaml")
-    patch_yaml("junior_high", ROOT / "classroom_personas_junior_high.yaml")
+    patch_yaml("high", ROOT / "configs" / "personas" / "classroom_personas_10diverse.yaml")
+    patch_yaml("elementary", ROOT / "configs" / "personas" / "classroom_personas_elementary_10diverse.yaml")
+    patch_yaml("junior_high", ROOT / "configs" / "personas" / "classroom_personas_junior_high.yaml")
     print("Done.")
 
 
