@@ -247,6 +247,24 @@
     pointer-events: none;
   }
   #hud-stats b { color: var(--text); font-weight: 500; }
+  #hud-legend {
+    position: absolute;
+    left: 24px; top: 158px;
+    font-size: 11px;
+    color: var(--text-dim);
+    line-height: 1.45;
+    pointer-events: none;
+    background: rgba(14, 23, 20, 0.55);
+    padding: 7px 9px;
+    border-radius: 5px;
+    border: 1px solid rgba(255,255,255,0.08);
+  }
+  #hud-legend .row { display: flex; align-items: center; gap: 6px; }
+  #hud-legend .sw {
+    display: inline-block; width: 12px; height: 9px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 2px;
+  }
   #hud-loading {
     position: absolute; inset: 0;
     display: flex; align-items: center; justify-content: center;
@@ -333,6 +351,17 @@
       <div><b id="stats-agents">—</b> agents</div>
       <div>在施設率 <b id="stats-in-place">—</b></div>
     </div>
+    <div id="hud-legend">
+      <div class="row"><span class="sw" style="background:#4a6a9c"></span>オフィス</div>
+      <div class="row"><span class="sw" style="background:#d06090"></span>商業</div>
+      <div class="row"><span class="sw" style="background:#e6c850"></span>住宅</div>
+      <div class="row"><span class="sw" style="background:#8a4fbf"></span>ホテル</div>
+      <div class="row"><span class="sw" style="background:#4eb847"></span>公園</div>
+      <div class="row"><span class="sw" style="background:#e8e2d2"></span>工事中</div>
+      <div class="row"><span class="sw" style="background:#c8a87a"></span>駅前広場</div>
+      <div class="row"><span class="sw" style="background:#5a5d68"></span>道路</div>
+      <div class="row"><span class="sw" style="background:#7a7d88"></span>鉄道</div>
+    </div>
     <div id="hud-loading">データ読み込み中…</div>
     <div id="hud-error"></div>
   </div>
@@ -397,27 +426,47 @@
   const PLACE_LAYER = {
     narrow_street: 1, wide_street: 1, pedestrian_street: 1,
     plaza: 2, park: 2,
+    student_seat: 2,                 // 教室の机 (低レイヤー)
     jr_station: 3, subway_station: 3,
     cafe: 3, restaurant: 3, izakaya: 3,
     convenience_store: 3, department_store: 3,
     office_lobby: 3, library: 3,
+    unknowable: 3,                   // 知覚不可能な何か (上層)
   };
 
+  // 凡例カテゴリと色の方針 (3D viewer と統一):
+  //   オフィス/業務 = 青系     (#4a6a9c)
+  //   商業 (cafe/restaurant/conv/dept/izakaya) = ピンク系 (#d06090)
+  //   住宅 (residential)     = 黄色系 (#e6c850)
+  //   ホテル (hotel)         = 紫系  (#8a4fbf)
+  //   公園・緑地 (park)      = 緑系  (#3d7045)
+  //   工事中 (construction)  = 白〜ベージュ (#e8e2d2)
+  //   駅前広場 (plaza)       = ベージュ (#c8a87a)
+  //   道路・通路 (street/pedestrian_street) = 濃グレー (#5a5d68)
+  //   鉄道 (rail) は scene_3d 側で別色 (グレー)
   const PLACE_STYLE = {
-    narrow_street:     { fill: '#1a1c24', label: null },
-    wide_street:       { fill: '#1d1f28', label: null },
-    pedestrian_street: { fill: '#1f212b', label: null, dots: true },
-    plaza:             { fill: '#3a3828', label: '🏛' },
-    park:              { fill: '#1f3a28', label: '🌳' },
-    jr_station:        { fill: '#2d4470', label: '🚆' },
-    subway_station:    { fill: '#4a2d70', label: '🚇' },
-    cafe:              { fill: '#5a3a2a', label: '☕' },
-    restaurant:        { fill: '#5a3530', label: '🍽' },
-    izakaya:           { fill: '#5a2f2f', label: '🏮' },
-    convenience_store: { fill: '#2a4a40', label: '🏪' },
-    department_store:  { fill: '#3a2a55', label: '🏬' },
-    office_lobby:      { fill: '#333640', label: '🏢' },
-    library:           { fill: '#313641', label: '📚' },
+    narrow_street:     { fill: '#5a5d68', label: null },
+    wide_street:       { fill: '#62656f', label: null },
+    pedestrian_street: { fill: '#6c7080', label: null, dots: true },
+    plaza:             { fill: '#c8a87a', label: '🏛' },
+    park:              { fill: '#3d7045', label: '🌳' },
+    jr_station:        { fill: '#5a7ec8', label: '🚆' },
+    subway_station:    { fill: '#5a7ec8', label: '🚇' },
+    cafe:              { fill: '#d06090', label: '☕' },
+    restaurant:        { fill: '#d06090', label: '🍽' },
+    izakaya:           { fill: '#d06090', label: '🏮' },
+    convenience_store: { fill: '#d06090', label: '🏪' },
+    department_store:  { fill: '#d06090', label: '🏬' },
+    office_lobby:      { fill: '#4a6a9c', label: '🏢' },
+    library:           { fill: '#4a6a9c', label: '📚' },
+    hotel:             { fill: '#8a4fbf', label: '🏨' },
+    utility:           { fill: '#4a6a9c', label: '⚙' },
+    construction:      { fill: '#e8e2d2', label: '🚧' },
+    industrial:        { fill: '#7a6e5a', label: '🏭' },
+    residential:       { fill: '#e6c850', label: '🏠' },
+    museum:            { fill: '#8a4fbf', label: '🏛' },
+    student_seat:      { fill: '#9c7855', label: null },
+    unknowable:        { fill: 'transparent', label: null, special: 'unknowable' },
   };
 
   const AGENT_COLOR = {
@@ -458,7 +507,7 @@
     lastTickAt: 0,
     accum: 0,
     // base seconds per step at 1x speed (controls playback pacing)
-    baseStepMs: 900,
+    baseStepMs: 1800,  // 1x で 1step=1.8s (3D viewer と統一・吹き出し読める速度)
     // canvas transform
     view: { scale: 1, offsetX: 0, offsetY: 0 },
     // selected agent for focus tracking (clicked on the map).
@@ -527,10 +576,12 @@
   }
 
   // world (simulation cell coords, origin at center) → screen px
+  // NOTE: sim y は北が +、南が − 想定 (3D viewer の cellToWorld と同じ)。
+  // Canvas は py が下方向に増えるので y を反転して描画する。
   function worldToScreen(x, y) {
     return {
       px: state.view.offsetX + x * state.view.scale,
-      py: state.view.offsetY + y * state.view.scale,
+      py: state.view.offsetY - y * state.view.scale,
     };
   }
 
@@ -543,6 +594,7 @@
     const rect = canvas.parentElement.getBoundingClientRect();
     ctx.clearRect(0, 0, rect.width, rect.height);
     drawBackdrop(rect);
+    drawScene3D();
     drawPlaces();
     drawEventOverlays();
     drawFocusTrail();
@@ -618,40 +670,140 @@
     }
   }
 
+  // scene_3d (rails + roads) を 2D 上に敷く。places より下のレイヤー。
+  // 色: 道路=濃グレー(#5a5d68)、鉄道=グレー(#7a7d88) — 凡例と統一
+  function drawScene3D() {
+    const s3 = state.data.scene_3d;
+    if (!s3) return;
+    // 道路を先に描いて、鉄道を上に重ねる (鉄道の方が視覚的に手前イメージ)
+    if (Array.isArray(s3.roads)) {
+      ctx.fillStyle = '#5a5d68';
+      for (const r of s3.roads) drawRoadOrRail(r);
+    }
+    if (Array.isArray(s3.rails)) {
+      ctx.fillStyle = '#7a7d88';
+      for (const r of s3.rails) drawRoadOrRail(r);
+    }
+    // outline で境界を強調
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)';
+    ctx.lineWidth = 1;
+    if (Array.isArray(s3.roads)) {
+      for (const r of s3.roads) drawRoadOutline(r);
+    }
+  }
+
+  function _roadBox(r) {
+    const axis = (r.axis || 'ew').toLowerCase();
+    const cx = r.center_x || 0;
+    const cy = r.center_y || 0;
+    const w = r.width_cells || 2;
+    const L = r.length_cells || 10;
+    const hw = w / 2, hL = L / 2;
+    if (axis === 'ew') return { x0: cx - hL, y0: cy - hw, x1: cx + hL, y1: cy + hw };
+    return { x0: cx - hw, y0: cy - hL, x1: cx + hw, y1: cy + hL };
+  }
+
+  function drawRoadOrRail(r) {
+    const b = _roadBox(r);
+    const tl = worldToScreen(b.x0, b.y0);
+    const br = worldToScreen(b.x1, b.y1);
+    // y は上下反転されるので min/max で正しい矩形に
+    const x = Math.min(tl.px, br.px), y = Math.min(tl.py, br.py);
+    const w = Math.abs(br.px - tl.px), h = Math.abs(br.py - tl.py);
+    ctx.fillRect(x, y, w, h);
+  }
+
+  function drawRoadOutline(r) {
+    const b = _roadBox(r);
+    const tl = worldToScreen(b.x0, b.y0);
+    const br = worldToScreen(b.x1, b.y1);
+    const x = Math.min(tl.px, br.px), y = Math.min(tl.py, br.py);
+    const w = Math.abs(br.px - tl.px), h = Math.abs(br.py - tl.py);
+    ctx.strokeRect(x, y, w, h);
+  }
+
   function drawOnePlace(p) {
+    // attributes.invisible は描画スキップ
+    if (p.attributes && p.attributes.invisible === true) return;
     const style = PLACE_STYLE[p.type] || { fill: '#2a2d35', label: null };
+    // unknowable は専用描画 (脈動する白い光点)
+    if (style.special === 'unknowable') {
+      drawUnknowable(p);
+      return;
+    }
     const cx = p.center_x, cy = p.center_y;
     const hx = p.half_size_x, hy = p.half_size_y;
     const tl = worldToScreen(cx - hx, cy - hy);
     const br = worldToScreen(cx + hx, cy + hy);
-    const w = br.px - tl.px;
-    const h = br.py - tl.py;
+    // y 反転後に rect 座標が ts/br 順序逆になるので Math.min で吸収
+    const x = Math.min(tl.px, br.px), y = Math.min(tl.py, br.py);
+    const w = Math.abs(br.px - tl.px), h = Math.abs(br.py - tl.py);
 
-    ctx.fillStyle = style.fill;
-    ctx.fillRect(tl.px, tl.py, w, h);
+    // attributes.color が指定されてればそれを優先 (3D viewer と統一)
+    const colorOverride = p.attributes && p.attributes.color;
+    ctx.fillStyle = colorOverride || style.fill;
+    ctx.fillRect(x, y, w, h);
+    // enterable=false 施設は斜線でマーキング
+    if (p.attributes && p.attributes.enterable === false) {
+      ctx.save();
+      ctx.strokeStyle = 'rgba(255, 80, 80, 0.6)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, y); ctx.lineTo(x + w, y + h);
+      ctx.moveTo(x + w, y); ctx.lineTo(x, y + h);
+      ctx.stroke();
+      ctx.restore();
+    }
 
     if (style.dots) {
       ctx.fillStyle = 'rgba(255,255,255,0.04)';
       const step = 6;
       for (let dx = 0; dx < w; dx += step) {
         for (let dy = 0; dy < h; dy += step) {
-          ctx.fillRect(tl.px + dx, tl.py + dy, 1, 1);
+          ctx.fillRect(x + dx, y + dy, 1, 1);
         }
       }
     }
 
-    if (style.label && p.name) {
+    // ラベル: meta.hide_place_labels が true なら全て非表示
+    const hideLabels = state.data && state.data.metadata && state.data.metadata.hide_place_labels;
+    if (style.label && p.name && !hideLabels) {
       // label fades at small scales
       const worldMin = Math.min(hx, hy);
       if (worldMin * state.view.scale > 14) {
-        ctx.fillStyle = 'rgba(255,255,255,0.82)';
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
         ctx.font = '11px -apple-system, "Segoe UI", "Yu Gothic UI", sans-serif';
         ctx.textAlign = 'left';
         ctx.textBaseline = 'top';
         const label = `${style.label} ${p.name}`;
-        ctx.fillText(label, tl.px + 4, tl.py + 3);
+        ctx.fillText(label, x + 4, y + 3);
       }
     }
+  }
+
+  // 知覚不可能な「何か」を脈動する白い光点として描画。
+  function drawUnknowable(p) {
+    const t = (state.shimmerTime || 0);
+    const pulse = 0.55 + 0.45 * Math.sin(t * 1.7) * Math.cos(t * 0.6);
+    const pos = worldToScreen(p.center_x, p.center_y);
+    // size: 3倍ベースで、教室scale (state.view.scale) に追従
+    const haloR = Math.max(14, state.view.scale * 1.2) * (0.9 + 0.4 * pulse);
+    const coreR = Math.max(5, state.view.scale * 0.4);
+    // halo (ふわっと広がる)
+    ctx.fillStyle = `rgba(255,255,255,${0.10 + 0.10 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(pos.px, pos.py, haloR, 0, Math.PI * 2);
+    ctx.fill();
+    // core
+    ctx.fillStyle = `rgba(255,255,255,${0.70 + 0.25 * pulse})`;
+    ctx.beginPath();
+    ctx.arc(pos.px, pos.py, coreR, 0, Math.PI * 2);
+    ctx.fill();
+    // bright center
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.arc(pos.px, pos.py, Math.max(2, coreR * 0.4), 0, Math.PI * 2);
+    ctx.fill();
   }
 
   function drawAgents() {
@@ -1042,7 +1194,7 @@
   function screenToWorld(sx, sy) {
     return {
       x: (sx - state.view.offsetX) / state.view.scale,
-      y: (sy - state.view.offsetY) / state.view.scale,
+      y: -(sy - state.view.offsetY) / state.view.scale,
     };
   }
 
@@ -1201,11 +1353,24 @@
       throw new Error('Malformed simulation_data — missing required sections');
     }
     state.data = data;
+    state.hasUnknowable = (data.places || []).some(p => p.type === 'unknowable');
     elSeek.max = String(Math.max(0, data.timeline.length - 1));
     elSeek.value = '0';
     elLoading.classList.add('hidden');
     recomputeView();
     render();
+    // ■ がいるシナリオでは pause 中も再描画して脈動を維持する
+    if (state.hasUnknowable) requestAnimationFrame(shimmerLoop);
+  }
+
+  // 「何か」の脈動アニメ用ループ。state.shimmerTime を進めて render() 呼ぶ。
+  function shimmerLoop(now) {
+    state.shimmerTime = (now || 0) * 0.001;
+    if (!state.playing) {
+      // playing 中は tick() が render するので、ここでは pause 時だけ更新
+      render();
+    }
+    if (state.hasUnknowable) requestAnimationFrame(shimmerLoop);
   }
 
   async function loadData() {

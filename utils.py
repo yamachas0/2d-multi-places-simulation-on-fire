@@ -95,7 +95,7 @@ class PlaceConfig(TypedDict, total=False):
     half_size: int      # square shorthand (populates half_size_x / half_size_y)
     half_size_x: int    # rectangular extent along X
     half_size_y: int    # rectangular extent along Y
-    capacity: int  # required
+    capacity: int  # optional (legacy)
 
 
 def _resolve_half_sizes(place: Dict) -> Tuple[int, int]:
@@ -134,8 +134,14 @@ def get_place_at_position(
     position: Tuple[int, int],
     places: List[PlaceConfig]
 ) -> Optional[PlaceConfig]:
-    """Return the place containing the given position, or None."""
+    """Return the place containing the given position, or None.
+
+    enterable=false の place は素通り扱い (道路/通路と bbox が重なるケースで
+    「中にいる」判定にしない)。
+    """
     for place in places:
+        if (place.get('attributes') or {}).get('enterable') is False:
+            continue
         hx, hy = _resolve_half_sizes(place)
         if is_position_in_place(
             position,

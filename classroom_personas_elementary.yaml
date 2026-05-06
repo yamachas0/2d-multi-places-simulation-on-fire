@@ -1,0 +1,563 @@
+- name: 石黒 健太
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕と、あと妹がいるよ。
+  hobby_like: ママが買ってくれたタブレットで、マイクラででっかいお城を作ったり、YouTuberがやってる面白いゲームを真似して遊ぶのが好き。
+  hobby_dislike: 算数の文章問題がちょっと苦手で、授業中ぼーっとしてたら先生に「石黒くん、聞いてますか？」って言われるとドキッとする。
+  catchphrase: へー、なんでお城ってあんなに高いところまで作れるんだろう？
+  axis_id: E01
+  axis_career: 好奇心旺盛
+  axis_friends: コア所属
+  axis_family: サポート充実
+  variant: elementary
+  tendency: 優等生
+  school_fit: 適応
+  interest_tag: tech
+  raw_response: '名前: 石黒 健太
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕と、あと妹がいるよ。
+
+    好きなこと: ママが買ってくれたタブレットで、マイクラででっかいお城を作ったり、YouTuberがやってる面白いゲームを真似して遊ぶのが好き。
+
+    苦手なこと: 算数の文章問題がちょっと苦手で、授業中ぼーっとしてたら先生に「石黒くん、聞いてますか？」って言われるとドキッとする。
+
+    口癖: へー、なんでお城ってあんなに高いところまで作れるんだろう？'
+- name: 梅原 莉子
+  gender: female
+  grade: 小4
+  family_struct: お母さんとお父さんと、あと弟がいる。
+  hobby_like: ママが買ってきたレゴを組み立てたり、絵を描いたり、あとはマイクラでなんかすごいものを作るのが好き。
+  hobby_dislike: 算数の文章問題とか、あと授業中に先生の話をちゃんと聞くのがむずかしい。
+  catchphrase: ねぇねぇ、あのね、今日学校であった面白い話なんだけど、聞いてくれる？
+  axis_id: E02
+  axis_career: 好奇心旺盛
+  axis_friends: ペア
+  axis_family: ふつう
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: creative
+  raw_response: '名前: 梅原 莉子
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お母さんとお父さんと、あと弟がいる。
+
+    好きなこと: ママが買ってきたレゴを組み立てたり、絵を描いたり、あとはマイクラでなんかすごいものを作るのが好き。
+
+    苦手なこと: 算数の文章問題とか、あと授業中に先生の話をちゃんと聞くのがむずかしい。
+
+    口癖: ねぇねぇ、あのね、今日学校であった面白い話なんだけど、聞いてくれる？'
+- name: 森田 陽菜
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと私で三人家族だよ。
+  hobby_like: お母さんが読んでくれるお話を聞くのと、あと、お友達とマイクラで大きな街を作るのが楽しいな。
+  hobby_dislike: 算数の文章問題と、あと、教室でみんなが急に笑い出した時に、何がおもしろいのかわからなくて、ちょっと一人ぼっちな感じがする時がある。
+  catchphrase: 「へえ、なんかおもしろいことあったの？」
+  axis_id: E03
+  axis_career: マイペース
+  axis_friends: コア所属
+  axis_family: サポート充実
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: story
+  raw_response: '名前: 森田 陽菜
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと私で三人家族だよ。
+
+    好きなこと: お母さんが読んでくれるお話を聞くのと、あと、お友達とマイクラで大きな街を作るのが楽しいな。
+
+    苦手なこと: 算数の文章問題と、あと、教室でみんなが急に笑い出した時に、何がおもしろいのかわからなくて、ちょっと一人ぼっちな感じがする時がある。
+
+    口癖: 「へえ、なんかおもしろいことあったの？」'
+- name: 湊 拓海
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族だよ。
+  hobby_like: マイクラで巨大な城を建てるのと、友達とスプラトゥーンで遊ぶのが一番好き！
+  hobby_dislike: 算数の文章問題がちょっと苦手で、先生に聞いてもよくわからなかったりする。
+  catchphrase: 「この敵の倒し方、マイクラの○○みたいにできるかな？」
+  axis_id: E04
+  axis_career: マイペース
+  axis_friends: ペア
+  axis_family: ふつう
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 適応
+  interest_tag: tech
+  raw_response: '名前: 湊 拓海
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族だよ。
+
+    好きなこと: マイクラで巨大な城を建てるのと、友達とスプラトゥーンで遊ぶのが一番好き！
+
+    苦手なこと: 算数の文章問題がちょっと苦手で、先生に聞いてもよくわからなかったりする。
+
+    口癖: 「この敵の倒し方、マイクラの○○みたいにできるかな？」'
+- name: 三上 陽菜
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと弟がいる
+  hobby_like: 虫を捕まえたり、図鑑を見たり、公園で色んな草花の名前を覚えたりするのが好き
+  hobby_dislike: 授業中に先生の話を聞くのがちょっと苦手で、教室にいるとドキドキしちゃう時がある
+  catchphrase: 「わー、このチョウチョ、羽がキラキラしててきれいだね！」
+  axis_id: E05
+  axis_career: マイペース
+  axis_friends: 周辺
+  axis_family: ふつう
+  variant: elementary
+  tendency: ふつう
+  school_fit: 中間
+  interest_tag: nature
+  raw_response: '名前: 三上 陽菜
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと弟がいる
+
+    好きなこと: 虫を捕まえたり、図鑑を見たり、公園で色んな草花の名前を覚えたりするのが好き
+
+    苦手なこと: 授業中に先生の話を聞くのがちょっと苦手で、教室にいるとドキドキしちゃう時がある
+
+    口癖: 「わー、このチョウチョ、羽がキラキラしててきれいだね！」'
+- name: 黒崎 健太
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の3人家族だよ。
+  hobby_like: マイクラででっかいお城作ったり、友達とサッカーで点を決めたりするのがすげー好き！
+  hobby_dislike: 学校の授業はなんか眠くなっちゃうし、先生の話もあんまり頭に入ってこないんだよね。
+  catchphrase: 「うわー、なんかキモい虫おった！う〇こみてー！」
+  axis_id: E06
+  axis_career: 苦手意識
+  axis_friends: 周辺
+  axis_family: やや薄い
+  variant: elementary
+  tendency: 下品ネタ連発
+  school_fit: 中間
+  interest_tag: mobility
+  raw_response: '名前: 黒崎 健太
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の3人家族だよ。
+
+    好きなこと: マイクラででっかいお城作ったり、友達とサッカーで点を決めたりするのがすげー好き！
+
+    苦手なこと: 学校の授業はなんか眠くなっちゃうし、先生の話もあんまり頭に入ってこないんだよね。
+
+    口癖: 「うわー、なんかキモい虫おった！う〇こみてー！」'
+- name: 葉山 陽菜乃
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、わたしの三人ぐらしだよ。
+  hobby_like: マイクラで自分だけの街を作るのと、かわいいキャラクターの絵を描くのが大好き！
+  hobby_dislike: 算数のわり算がちょっと苦手で、先生に聞くのがドキドキしちゃう。
+  catchphrase: 「この新しいブロック、どんな模様になるか試してみたいな！」
+  axis_id: E07
+  axis_career: やる気あり
+  axis_friends: コア所属
+  axis_family: サポート充実
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: creative
+  raw_response: '名前: 葉山 陽菜乃
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、わたしの三人ぐらしだよ。
+
+    好きなこと: マイクラで自分だけの街を作るのと、かわいいキャラクターの絵を描くのが大好き！
+
+    苦手なこと: 算数のわり算がちょっと苦手で、先生に聞くのがドキドキしちゃう。
+
+    口癖: 「この新しいブロック、どんな模様になるか試してみたいな！」'
+- name: 倉本 翔太
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族だよ。
+  hobby_like: マイクラで巨大な城を作るのと、スプラトゥーンで勝つこと、あとYouTuberのゲーム実況を見るのが好き！
+  hobby_dislike: 授業中に当てられるとドキドキするし、みんなが楽しそうに話してる輪に入れない時がある。
+  catchphrase: 「マイクラで作った城のほうがすごいよ！」
+  axis_id: E08
+  axis_career: やる気あり
+  axis_friends: 周辺
+  axis_family: やや薄い
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 中間
+  interest_tag: tech
+  raw_response: '名前: 倉本 翔太
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族だよ。
+
+    好きなこと: マイクラで巨大な城を作るのと、スプラトゥーンで勝つこと、あとYouTuberのゲーム実況を見るのが好き！
+
+    苦手なこと: 授業中に当てられるとドキドキするし、みんなが楽しそうに話してる輪に入れない時がある。
+
+    口癖: 「この敵、フォートナイトで出てくるやつに似てる！」'
+- name: 片岡 陽葵
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと私と、弟がいる。
+  hobby_like: マイクラでひたすら家を建てるのと、YouTubeで面白いゲーム実況を見るのが好き。
+  hobby_dislike: 学校の授業はあんまり集中できないし、みんなと話すのもちょっと疲れるから、あんまり行きたくないなって思う時がある。
+  catchphrase: 「「……なんか、いつもの教室と全然違うね？」」
+  axis_id: E09
+  axis_career: 苦手意識
+  axis_friends: ひとり
+  axis_family: ふつう
+  variant: elementary
+  tendency: ふつう
+  school_fit: 不適応
+  interest_tag: story
+  raw_response: '名前: 片岡 陽葵
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと私と、弟がいる。
+
+    好きなこと: マイクラでひたすら家を建てるのと、YouTubeで面白いゲーム実況を見るのが好き。
+
+    苦手なこと: 学校の授業はあんまり集中できないし、みんなと話すのもちょっと疲れるから、あんまり行きたくないなって思う時がある。
+
+    口癖: 「「……なんか、いつもの教室と全然違うね？」」'
+- name: 三沢 蓮
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族です。
+  hobby_like: マイクラで友達と協力して大きな建物を作ったり、新しいワールドで冒険するのが一番好きです。
+  hobby_dislike: 学校に行くと、みんなが楽しそうに話してる輪に入れなくて、教室にいるのがちょっとつらい時があります。
+  catchphrase: 「これ、スプラのギアと一緒じゃん」
+  axis_id: E10
+  axis_career: やる気あり
+  axis_friends: ひとり
+  axis_family: やや薄い
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 不適応
+  interest_tag: creative
+  raw_response: '名前: 三沢 蓮
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族です。
+
+    好きなこと: マイクラで友達と協力して大きな建物を作ったり、新しいワールドで冒険するのが一番好きです。
+
+    苦手なこと: 学校に行くと、みんなが楽しそうに話してる輪に入れなくて、教室にいるのがちょっとつらい時があります。
+
+    口癖: 「この敵、フォートナイトで出てくるやつに似てる！」'
+- name: 緒方 蓮
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族だよ。
+  hobby_like: マイクラで巨大な城を作るのと、お母さんが読んでくれる図鑑の話を聞くのが好き。
+  hobby_dislike: 授業中に指されるのがドキドキするし、みんなと違うこと言っちゃうと恥ずかしい。
+  catchphrase: 「ねぇ先生、この本に書いてある生き物、どうやってあんなに昔からいるのか教えてほしいな。」
+  axis_id: E11
+  axis_career: 好奇心旺盛
+  axis_friends: コア所属
+  axis_family: ふつう
+  variant: elementary
+  tendency: 優等生
+  school_fit: 適応
+  interest_tag: system
+  raw_response: '名前: 緒方 蓮
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族だよ。
+
+    好きなこと: マイクラで巨大な城を作るのと、お母さんが読んでくれる図鑑の話を聞くのが好き。
+
+    苦手なこと: 授業中に指されるのがドキドキするし、みんなと違うこと言っちゃうと恥ずかしい。
+
+    口癖: 「ねぇ先生、この本に書いてある生き物、どうやってあんなに昔からいるのか教えてほしいな。」'
+- name: 桑原 陽菜（くわはら ひな）
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと弟と犬と暮らしてる。
+  hobby_like: 公園で虫を捕まえたり、きれいな石を探したりするのが大好き。
+  hobby_dislike: なんか教室にいると、みんなの話し声がうるさく感じちゃって、ちょっと疲れる。
+  catchphrase: 「あのさ、この草むら、なんか隠れん坊できそうな場所ない？」
+  axis_id: E12
+  axis_career: マイペース
+  axis_friends: ペア
+  axis_family: サポート充実
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: nature
+  raw_response: '名前: 桑原 陽菜（くわはら ひな）
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと弟と犬と暮らしてる。
+
+    好きなこと: 公園で虫を捕まえたり、きれいな石を探したりするのが大好き。
+
+    苦手なこと: なんか教室にいると、みんなの話し声がうるさく感じちゃって、ちょっと疲れる。
+
+    口癖: 「あのさ、この草むら、なんか隠れん坊できそうな場所ない？」'
+- name: 沼田 蓮
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族だよ。
+  hobby_like: マイクラで巨大な城を作るのと、フォートナイトで友達と協力して敵を倒すのが一番好き！
+  hobby_dislike: 授業中に先生が話してること、なんかよくわかんないし、教室にいると息が詰まる感じがするんだ。
+  catchphrase: 「これマリオカートで言うと…」
+  axis_id: E13
+  axis_career: やる気あり
+  axis_friends: 周辺
+  axis_family: ふつう
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 適応
+  interest_tag: mobility
+  raw_response: '名前: 沼田 蓮
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族だよ。
+
+    好きなこと: マイクラで巨大な城を作るのと、フォートナイトで友達と協力して敵を倒すのが一番好き！
+
+    苦手なこと: 授業中に先生が話してること、なんかよくわかんないし、教室にいると息が詰まる感じがするんだ。
+
+    口癖: 「この敵、フォートナイトで出てくるやつに似てる！」'
+- name: 内田 剛
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の三人家族で、お父さんは仕事で忙しい。
+  hobby_like: マイクラででっかい城を作るのと、友達とフォートナでドン勝すること、あと、お母さんが読んでくれるお話も好き。
+  hobby_dislike: 算数の計算が苦手で、授業中に先生に当てられるとドキドキする。教室の隅っこにいるのが好き。
+  catchphrase: 「お前、うんこ漏らしたんか？顔真っ赤やぞ！」
+  axis_id: E14
+  axis_career: 苦手意識
+  axis_friends: ペア
+  axis_family: やや薄い
+  variant: elementary
+  tendency: 下品ネタ連発
+  school_fit: 中間
+  interest_tag: story
+  raw_response: '名前: 内田 剛
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族で、お父さんは仕事で忙しい。
+
+    好きなこと: マイクラででっかい城を作るのと、友達とフォートナでドン勝すること、あと、お母さんが読んでくれるお話も好き。
+
+    苦手なこと: 算数の計算が苦手で、授業中に先生に当てられるとドキドキする。教室の隅っこにいるのが好き。
+
+    口癖: 「お前、うんこ漏らしたんか？顔真っ赤やぞ！」'
+- name: 武井 咲良
+  gender: female
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと弟がいる。
+  hobby_like: マイクラでひたすら建築するのが一番好きで、あとYouTubeで面白いゲーム実況を見るのも好き。
+  hobby_dislike: 授業中に指されるのがドキドキするし、友達と全然話せない時があって、教室にいるのがちょっと疲れる。
+  catchphrase: 「ねえ、この新しいブロック、どうやって組み合わせたらもっとすごい建物になるかな？」
+  axis_id: E15
+  axis_career: 好奇心旺盛
+  axis_friends: ひとり
+  axis_family: ふつう
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: creative
+  raw_response: '名前: 武井 咲良
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと弟がいる。
+
+    好きなこと: マイクラでひたすら建築するのが一番好きで、あとYouTubeで面白いゲーム実況を見るのも好き。
+
+    苦手なこと: 授業中に指されるのがドキドキするし、友達と全然話せない時があって、教室にいるのがちょっと疲れる。
+
+    口癖: 「ねえ、この新しいブロック、どうやって組み合わせたらもっとすごい建物になるかな？」'
+- name: 篠田 蓮
+  gender: male
+  grade: 小4
+  family_struct: お父さんとお母さんと僕の3人家族だよ。
+  hobby_like: マイクラで巨大な城を作ったり、フォートナイトで友達と協力して敵を倒すのがすげー楽しい！
+  hobby_dislike: なんか、授業中に先生の話聞いてても、頭に全然入ってこない時があるんだよね。
+  catchphrase: 「クラフトしてみたい」
+  axis_id: E16
+  axis_career: マイペース
+  axis_friends: コア所属
+  axis_family: ふつう
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 適応
+  interest_tag: tech
+  raw_response: '名前: 篠田 蓮
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の3人家族だよ。
+
+    好きなこと: マイクラで巨大な城を作ったり、フォートナイトで友達と協力して敵を倒すのがすげー楽しい！
+
+    苦手なこと: なんか、授業中に先生の話聞いてても、頭に全然入ってこない時があるんだよね。
+
+    口癖: 「「この敵、フォートナイトで出てくるやつに似てる！」」'
+- name: 辻 さくら
+  gender: female
+  grade: 小4
+  family_struct: お父さん・お母さん・お兄ちゃんの4人。生まれつき車いすで、学校では先生がときどき手伝ってくれる。
+  hobby_like: マイクラで大きいお城を建てるのと、YouTubeで可愛い動物の動画を見るのが大好き！
+  hobby_dislike: 算数の文章問題がちょっと苦手で、先生に聞いてもなかなか分からなくて困ってるんだ。
+  catchphrase: 「ここ、段差ある？」
+  axis_id: E17
+  axis_career: やる気あり
+  axis_friends: ペア
+  axis_family: サポート充実
+  variant: elementary
+  tendency: 優等生
+  school_fit: 適応
+  interest_tag: system
+  raw_response: '名前: 岡崎 陽葵 (おかざき ひまり)
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと猫のミケと暮らしてるよ。
+
+    好きなこと: マイクラで大きいお城を建てるのと、YouTubeで可愛い動物の動画を見るのが大好き！
+
+    苦手なこと: 算数の文章問題がちょっと苦手で、先生に聞いてもなかなか分からなくて困ってるんだ。
+
+    口癖: 「「この問題、教科書だとどうなってたっけ？」」'
+  mobility: wheelchair
+- name: リアム・パーカー
+  gender: male
+  grade: 小4
+  family_struct: お父さんはアメリカ人、お母さんは日本人。家では英語が多い。日本生まれ。
+  hobby_like: マイクラで新しい街を作るのと、フォートナイトで友達と協力して敵を倒すのが一番好きです。
+  hobby_dislike: 学校でみんなと遊ぶのは楽しいけど、授業で当てられるとドキドキして、うまく答えられないのが苦手です。
+  catchphrase: 「えーと、それなんて読むの？」
+  axis_id: E18
+  axis_career: 苦手意識
+  axis_friends: 周辺
+  axis_family: ふつう
+  variant: elementary
+  tendency: ゲーム脳
+  school_fit: 適応
+  interest_tag: mobility
+  raw_response: '名前: 上原 蓮
+
+    性別: male
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと僕の三人家族です。
+
+    好きなこと: マイクラで新しい街を作るのと、フォートナイトで友達と協力して敵を倒すのが一番好きです。
+
+    苦手なこと: 学校でみんなと遊ぶのは楽しいけど、授業で当てられるとドキドキして、うまく答えられないのが苦手です。
+
+    口癖: 「この新しい武器、どんな敵に効くか試してみないと。」'
+  nationality: western
+- name: チェン ミミ
+  gender: female
+  grade: 小4
+  family_struct: 両親とも中国出身。日本生まれ・育ち。日本語は話せるけど、漢字は中国の漢字と違うのでときどきまちがえる。
+  hobby_like: 公園で虫を捕まえたり、図鑑で見たことない生き物を探したりするのが楽しい。
+  hobby_dislike: 教室でみんなが話してる輪に入れない時があって、先生に当てられるとドキドキする。
+  catchphrase: 「ちょっと、それわからない…」
+  axis_id: E19
+  axis_career: 好奇心旺盛
+  axis_friends: 周辺
+  axis_family: ふつう
+  variant: elementary
+  tendency: ふつう
+  school_fit: 適応
+  interest_tag: nature
+  raw_response: '名前: 平岡 陽菜
+
+    性別: female
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと犬のポチと暮らしてる。
+
+    好きなこと: 公園で虫を捕まえたり、図鑑で見たことない生き物を探したりするのが楽しい。
+
+    苦手なこと: 教室でみんなが話してる輪に入れない時があって、先生に当てられるとドキドキする。
+
+    口癖: 「わー！この葉っぱ、なんか形が変なの！」'
+  nationality: asian
+- name: 林 悠真
+  gender: other
+  grade: 小4
+  family_struct: お父さんとお母さんと、あと妹がいる。
+  hobby_like: マイクラでなんかすごいもの作るのと、あと、お母さんが読んでくれるお話も好き。
+  hobby_dislike: なんか、授業中に先生が言ってること、全然わかんない時があって、教室にいると「早く帰りたいな」って思っちゃう。
+  catchphrase: 「……なんか、この話、別の話みたいだね？」
+  axis_id: E20
+  axis_career: マイペース
+  axis_friends: ひとり
+  axis_family: やや薄い
+  variant: elementary
+  tendency: 下品ネタ連発
+  school_fit: 中間
+  interest_tag: story
+  raw_response: '名前: 林 悠真
+
+    性別: other
+
+    学年: 小4
+
+    家族構成: お父さんとお母さんと、あと妹がいる。
+
+    好きなこと: マイクラでなんかすごいもの作るのと、あと、お母さんが読んでくれるお話も好き。
+
+    苦手なこと: なんか、授業中に先生が言ってること、全然わかんない時があって、教室にいると「早く帰りたいな」って思っちゃう。
+
+    口癖: 「……なんか、この話、別の話みたいだね？」'

@@ -1,0 +1,584 @@
+- name: 甘利 健太
+  gender: male
+  age: 32歳
+  occupation: 会社のパソコンで、データの分析とかプログラムを書く仕事をしてます。
+  family_struct: 実家を出て一人暮らし、たまに地元の友達と飲むくらいです。
+  join_reason: ネットでなんとなく面白そうな人が集まってると知って、顔を出すようになりました。
+  recent_concern: 結局AIで何が便利になるのか、身近なところで実感できるものがないか探してます。
+  catchphrase: まあ、言いたいことは分かりますけど、実際どうなんですかね。
+  axis_id: A01
+  axis_career: AI/機械学習エンジニア
+  axis_friends: 中核
+  axis_family: 豊富
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 甘利 健太
+
+    性別: male
+
+    年齢: 32歳
+
+    本業: 会社のパソコンで、データの分析とかプログラムを書く仕事をしてます。
+
+    家族構成: 実家を出て一人暮らし、たまに地元の友達と飲むくらいです。
+
+    シンギュラボ参加経緯: ネットでなんとなく面白そうな人が集まってると知って、顔を出すようになりました。
+
+    最近気になっていること: 結局AIで何が便利になるのか、身近なところで実感できるものがないか探してます。
+
+    口癖: まあ、言いたいことは分かりますけど、実際どうなんですかね。'
+  temperament_extroversion: mid
+  temperament_optimism: mid
+  temperament_curiosity: high
+- name: 清水 陽子
+  gender: female
+  age: 28歳
+  occupation: 私立の認可保育園で、主に3歳児クラスの担任をしています。
+  family_struct: 実家を出て都内のアパートで一人暮らしをしています。
+  join_reason: 職場の先輩に誘われて、なんとなく面白そうかなと思ってたまに顔を出しています。
+  recent_concern: 園の子どもたちの遊び方が年々変わってきているような気がして、少し気になっています。
+  catchphrase: まあ、そんな感じでもいいんじゃないですかね。
+  axis_id: A02
+  axis_career: 保育士
+  axis_friends: 周辺
+  axis_family: 少
+  variant: adult
+  tendency: 空気読む
+  raw_response: '名前: 清水 陽子
+
+    性別: female
+
+    年齢: 28歳
+
+    本業: 私立の認可保育園で、主に3歳児クラスの担任をしています。
+
+    家族構成: 実家を出て都内のアパートで一人暮らしをしています。
+
+    シンギュラボ参加経緯: 職場の先輩に誘われて、なんとなく面白そうかなと思ってたまに顔を出しています。
+
+    最近気になっていること: 園の子どもたちの遊び方が年々変わってきているような気がして、少し気になっています。
+
+    口癖: まあ、そんな感じでもいいんじゃないですかね。'
+  temperament_extroversion: mid
+  temperament_optimism: high
+  temperament_curiosity: mid
+- name: 戸島 康夫
+  gender: male
+  age: 47歳
+  occupation: 地元の商店街の看板やチラシを細々と作るデザイン事務所を一人でやっています。
+  family_struct: 妻と高校生の娘が一人いますが、最近は家でもあまり会話がありません。
+  join_reason: 仕事の先行きが不安で、何かしら新しいヒントでも転がっていないかと思って顔を出しました。
+  recent_concern: 近所にできた格安のプリントショップにお客さんが流れていて、この先どうやって食っていこうか悩んでいます。
+  catchphrase: まあ、言いたいことは分かりますけど、現実はそう甘くないですよね。
+  axis_id: A03
+  axis_career: 町の小さなデザイン事務所経営
+  axis_friends: 周辺
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 戸島 康夫
+
+    性別: male
+
+    年齢: 47歳
+
+    本業: 地元の商店街の看板やチラシを細々と作るデザイン事務所を一人でやっています。
+
+    家族構成: 妻と高校生の娘が一人いますが、最近は家でもあまり会話がありません。
+
+    シンギュラボ参加経緯: 仕事の先行きが不安で、何かしら新しいヒントでも転がっていないかと思って顔を出しました。
+
+    最近気になっていること: 近所にできた格安のプリントショップにお客さんが流れていて、この先どうやって食っていこうか悩んでいます。
+
+    口癖: まあ、言いたいことは分かりますけど、現実はそう甘くないですよね。'
+  temperament_extroversion: low
+  temperament_optimism: low
+  temperament_curiosity: mid
+- name: 西園寺 恵子
+  gender: female
+  age: 52歳
+  occupation: 街の片隅で、買い取った本を並べて細々と売っています。
+  family_struct: 夫とは数年前に別れて、今は猫と二人暮らしです。
+  join_reason: 昔の知り合いに誘われて、なんとなく暇つぶしに顔を出してみました。
+  recent_concern: 近くの公園の木が急に切られちゃって、あれ何だったんだろうなってこと。
+  catchphrase: まあ、別にどうでもいいんですけどね。
+  axis_id: A04
+  axis_career: 元銀行員→今は古本屋経営
+  axis_friends: 周辺
+  axis_family: 中程度
+  variant: adult
+  tendency: めんどくさい
+  raw_response: '名前: 西園寺 恵子
+
+    性別: female
+
+    年齢: 52歳
+
+    本業: 街の片隅で、買い取った本を並べて細々と売っています。
+
+    家族構成: 夫とは数年前に別れて、今は猫と二人暮らしです。
+
+    シンギュラボ参加経緯: 昔の知り合いに誘われて、なんとなく暇つぶしに顔を出してみました。
+
+    最近気になっていること: 近くの公園の木が急に切られちゃって、あれ何だったんだろうなってこと。
+
+    口癖: まあ、別にどうでもいいんですけどね。'
+  temperament_extroversion: low
+  temperament_optimism: mid
+  temperament_curiosity: low
+- name: 新村 健一
+  gender: male
+  age: 37歳
+  occupation: 家でパソコンを使って個人でサイトを作ったり調整したりする仕事。
+  family_struct: 独身で、都内の賃貸マンションに一人暮らし。
+  join_reason: ネットでなんとなく面白そうな人が集まってると聞いて、暇つぶしがてら顔を出してみた。
+  recent_concern: 毎日同じことの繰り返しで、このまま歳をとっていいのか時々不安になる。
+  catchphrase: まあ、そんなに深く考えても仕方ないんじゃないですか。
+  axis_id: A05
+  axis_career: 個人Webエンジニア
+  axis_friends: 周辺
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 新村 健一
+
+    性別: male
+
+    年齢: 37歳
+
+    本業: 家でパソコンを使って個人でサイトを作ったり調整したりする仕事。
+
+    家族構成: 独身で、都内の賃貸マンションに一人暮らし。
+
+    シンギュラボ参加経緯: ネットでなんとなく面白そうな人が集まってると聞いて、暇つぶしがてら顔を出してみた。
+
+    最近気になっていること: 毎日同じことの繰り返しで、このまま歳をとっていいのか時々不安になる。
+
+    口癖: まあ、そんなに深く考えても仕方ないんじゃないですか。'
+  temperament_extroversion: low
+  temperament_optimism: low
+  temperament_curiosity: mid
+- name: Maria Lopez
+  gender: female
+  age: 32歳
+  occupation: メキシコ・グアダラハラのラジオ番組プロデューサー、観光で日本に来日中、便宜上日本語OK
+  family_struct: メキシコに夫と娘、品川のホテルに2泊予定で滞在中
+  join_reason: 友人の友人に「面白い集まりがある」と誘われ、たまたま観光中に参加
+  recent_concern: 日本での観光経験を母国の番組ネタにしたい、品川の魅力をどう伝えるか
+  catchphrase: Oh, interesting...
+  axis_id: A06
+  axis_career: 観光業/ラジオプロデューサー
+  axis_friends: 新参
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: (insert_foreign_personas.py で手書き挿入)
+  temperament_extroversion: high
+  temperament_optimism: high
+  temperament_curiosity: high
+- name: 大園 健一
+  gender: male
+  age: 42歳
+  occupation: 実家の果樹園を継いで、地元の直売所やネット通販で桃と柿を作っています。
+  family_struct: 妻と小学生の娘が二人の四人暮らしです。
+  join_reason: 田舎でずっと同じ人とばかり話してて詰まりそうだったから、たまには違う刺激が欲しくてなんとなく覗いてみました。
+  recent_concern: 肥料代がどんどん上がってて、このまま農業だけでやっていけるのか正直不安です。
+  catchphrase: 要するに、結局どうしたいのかが大事ですよね。
+  axis_id: A07
+  axis_career: 農家継いだ田舎暮らし
+  axis_friends: 新参
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 大園 健一
+
+    性別: male
+
+    年齢: 42歳
+
+    本業: 実家の果樹園を継いで、地元の直売所やネット通販で桃と柿を作っています。
+
+    家族構成: 妻と小学生の娘が二人の四人暮らしです。
+
+    シンギュラボ参加経緯: 田舎でずっと同じ人とばかり話してて詰まりそうだったから、たまには違う刺激が欲しくてなんとなく覗いてみました。
+
+    最近気になっていること: 肥料代がどんどん上がってて、このまま農業だけでやっていけるのか正直不安です。
+
+    口癖: 要するに、結局どうしたいのかが大事ですよね。'
+  temperament_extroversion: high
+  temperament_optimism: low
+  temperament_curiosity: high
+- name: 南条 栞
+  gender: female
+  age: 28歳
+  occupation: ネット広告で見かけるボタンの配置とか使い勝手を考える仕事をしています。
+  family_struct: 都内のマンションで一人暮らしをしています。
+  join_reason: 仕事のやり方に煮詰まって、外の人と話せば何かヒントがあるかなと思ってなんとなく来ました。
+  recent_concern: 結局みんな便利さを求めてるのか、それとも驚きを求めてるのか、どっちが正解なのかよく分からなくなってきました。
+  catchphrase: 要するに、それって結局どういうことなんですかね。
+  axis_id: A08
+  axis_career: デジタル広告のUX
+  axis_friends: 中核
+  axis_family: 豊富
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 南条 栞
+
+    性別: female
+
+    年齢: 28歳
+
+    本業: ネット広告で見かけるボタンの配置とか使い勝手を考える仕事をしています。
+
+    家族構成: 都内のマンションで一人暮らしをしています。
+
+    シンギュラボ参加経緯: 仕事のやり方に煮詰まって、外の人と話せば何かヒントがあるかなと思ってなんとなく来ました。
+
+    最近気になっていること: 結局みんな便利さを求めてるのか、それとも驚きを求めてるのか、どっちが正解なのかよく分からなくなってきました。
+
+    口癖: 要するに、それって結局どういうことなんですかね。'
+  temperament_extroversion: mid
+  temperament_optimism: low
+  temperament_curiosity: high
+- name: 黒木 孝之
+  gender: male
+  age: 57歳
+  occupation: 銀行を早期退職して今は趣味で社会の仕組みについてネットで文章を書いている
+  family_struct: 妻と独立した息子が一人いて、今は夫婦二人暮らし
+  join_reason: 昔の仕事仲間から面白い人が集まっていると聞いて、なんとなく顔を出してみた
+  recent_concern: 最近の若い人がやけに効率ばかりを追い求めて、世の中の不便さを楽しめなくなっている気がする
+  catchphrase: 要するに、結局は人間なんて昔からそんなに変わってないってことですよ
+  axis_id: A09
+  axis_career: 社会哲学のnoteを書いてる元金融
+  axis_friends: 周辺
+  axis_family: 豊富
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 黒木 孝之
+
+    性別: male
+
+    年齢: 57歳
+
+    本業: 銀行を早期退職して今は趣味で社会の仕組みについてネットで文章を書いている
+
+    家族構成: 妻と独立した息子が一人いて、今は夫婦二人暮らし
+
+    シンギュラボ参加経緯: 昔の仕事仲間から面白い人が集まっていると聞いて、なんとなく顔を出してみた
+
+    最近気になっていること: 最近の若い人がやけに効率ばかりを追い求めて、世の中の不便さを楽しめなくなっている気がする
+
+    口癖: 要するに、結局は人間なんて昔からそんなに変わってないってことですよ'
+  temperament_extroversion: high
+  temperament_optimism: high
+  temperament_curiosity: mid
+- name: 海野 理恵
+  gender: female
+  age: 37歳
+  occupation: ITスクールの運営スタッフとして、受講生対応やイベントの進行をしています。
+  family_struct: 実家で親と二人暮らしの独身です。
+  join_reason: なんとなく面白そうな人が集まってそうだし、仕事の繋がりができればいいかなと思ってなんとなく。
+  recent_concern: 週末に近所のカフェでやってる手芸教室に行こうか、それともまた別の集まりを探そうか迷っています。
+  catchphrase: まあ、なんとかなるんじゃないですかね。
+  axis_id: A10
+  axis_career: ハッカソン運営・教育系
+  axis_friends: 中核
+  axis_family: 中程度
+  variant: adult
+  tendency: 迷走
+  raw_response: '名前: 海野 理恵
+
+    性別: female
+
+    年齢: 37歳
+
+    本業: ITスクールの運営スタッフとして、受講生対応やイベントの進行をしています。
+
+    家族構成: 実家で親と二人暮らしの独身です。
+
+    シンギュラボ参加経緯: なんとなく面白そうな人が集まってそうだし、仕事の繋がりができればいいかなと思ってなんとなく。
+
+    最近気になっていること: 週末に近所のカフェでやってる手芸教室に行こうか、それともまた別の集まりを探そうか迷っています。
+
+    口癖: まあ、なんとかなるんじゃないですかね。'
+  temperament_extroversion: high
+  temperament_optimism: high
+  temperament_curiosity: high
+- name: David Kim
+  gender: male
+  age: 35歳
+  occupation: 韓国ソウル出身、東京のスタートアップで AI エンジニア、日本在住5年
+  family_struct: 独身、品川区在住、韓国の家族とは月1回ビデオ通話
+  join_reason: 日本のテック界隈の仲間と知り合いたくて参加
+  recent_concern: 日本のスタートアップ環境のスローさと韓国のスピード感のギャップを感じてる
+  catchphrase: 結局、〜じゃないですか
+  axis_id: A11
+  axis_career: AIエンジニア(外国人)
+  axis_friends: 周辺
+  axis_family: 豊富
+  variant: adult
+  tendency: 主張ある
+  raw_response: (insert_foreign_personas.py で手書き挿入)
+  temperament_extroversion: mid
+  temperament_optimism: mid
+  temperament_curiosity: high
+- name: 横山 智子
+  gender: female
+  age: 47歳
+  occupation: 公立美術館で展覧会の企画や資料の整理をしています。
+  family_struct: 夫と二人暮らしで、子供はいません。
+  join_reason: 知り合いに誘われてなんとなく顔を出したけど、正直何をしている場所かよく分かってません。
+  recent_concern: 庭のハーブがなかなか育たなくて、肥料を変えるべきか悩んでいます。
+  catchphrase: まあ、誰かがいいならそれでいいんじゃないですか。
+  axis_id: A12
+  axis_career: 美術館キュレーター
+  axis_friends: 周辺
+  axis_family: 豊富
+  variant: adult
+  tendency: めんどくさい
+  raw_response: '名前: 横山 智子
+
+    性別: female
+
+    年齢: 47歳
+
+    本業: 公立美術館で展覧会の企画や資料の整理をしています。
+
+    家族構成: 夫と二人暮らしで、子供はいません。
+
+    シンギュラボ参加経緯: 知り合いに誘われてなんとなく顔を出したけど、正直何をしている場所かよく分かってません。
+
+    最近気になっていること: 庭のハーブがなかなか育たなくて、肥料を変えるべきか悩んでいます。
+
+    口癖: まあ、誰かがいいならそれでいいんじゃないですか。'
+  temperament_extroversion: low
+  temperament_optimism: mid
+  temperament_curiosity: low
+- name: 神田 誠
+  gender: male
+  age: 53歳
+  occupation: 個人タクシーの運転手として、都内を中心に流しで営業している。
+  family_struct: 妻と大学生の息子が一人いて、今は三人で暮らしている。
+  join_reason: 最近、客の若い人たちが変な集まりの話をしているのを耳にして、なんとなく暇つぶしに顔を出してみた。
+  recent_concern: 毎日同じ道ばかり走っているから、少しは外の世界の話でも聞いておかないと取り残されるような気がして不安。
+  catchphrase: まあ、周りの人がそう言うなら、自分もそんな感じでいいかなって思います。
+  axis_id: A13
+  axis_career: 個人タクシードライバー
+  axis_friends: 新参
+  axis_family: 少
+  variant: adult
+  tendency: 空気読む
+  raw_response: '名前: 神田 誠
+
+    性別: male
+
+    年齢: 53歳
+
+    本業: 個人タクシーの運転手として、都内を中心に流しで営業している。
+
+    家族構成: 妻と大学生の息子が一人いて、今は三人で暮らしている。
+
+    シンギュラボ参加経緯: 最近、客の若い人たちが変な集まりの話をしているのを耳にして、なんとなく暇つぶしに顔を出してみた。
+
+    最近気になっていること: 毎日同じ道ばかり走っているから、少しは外の世界の話でも聞いておかないと取り残されるような気がして不安。
+
+    口癖: まあ、周りの人がそう言うなら、自分もそんな感じでいいかなって思います。'
+  temperament_extroversion: mid
+  temperament_optimism: low
+  temperament_curiosity: mid
+- name: 牧野 健太
+  gender: male
+  age: 32歳
+  occupation: 都内のオーセンティックバーでカウンターに立っています。
+  family_struct: 実家を出て一人暮らしですが、たまに地元の親から電話がかかってきます。
+  join_reason: 常連客に誘われてなんとなく行ってみたら、意外と面白い人が多くてたまに覗くようになりました。
+  recent_concern: 結局、流行りのお店に行っても最後は自分が一番落ち着く店で飲みたいと思うのはなぜなのか。
+  catchphrase: いや、まあ、結局どうなりたいかですよね。
+  axis_id: A14
+  axis_career: バーテンダー
+  axis_friends: 周辺
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 牧野 健太
+
+    性別: male
+
+    年齢: 32歳
+
+    本業: 都内のオーセンティックバーでカウンターに立っています。
+
+    家族構成: 実家を出て一人暮らしですが、たまに地元の親から電話がかかってきます。
+
+    シンギュラボ参加経緯: 常連客に誘われてなんとなく行ってみたら、意外と面白い人が多くてたまに覗くようになりました。
+
+    最近気になっていること: 結局、流行りのお店に行っても最後は自分が一番落ち着く店で飲みたいと思うのはなぜなのか。
+
+    口癖: いや、まあ、結局どうなりたいかですよね。'
+  temperament_extroversion: high
+  temperament_optimism: mid
+  temperament_curiosity: high
+- name: 篠原 友美
+  gender: female
+  age: 32歳
+  occupation: 市内の総合病院で病棟勤務をしている看護師です。
+  family_struct: 3年前に結婚して、今は夫と二人暮らしです。
+  join_reason: 職場と家の往復ばかりで退屈だったので、なんとなく面白そうな人がいそうだなと思って覗いてみました。
+  recent_concern: 職場の先輩が最近やたらと副業の話をしてくるので、自分も何かやった方がいいのかなと少し焦っています。
+  catchphrase: まあ、みんながいいならそれでいいんじゃないですかね。
+  axis_id: A15
+  axis_career: 看護師
+  axis_friends: 新参
+  axis_family: 少
+  variant: adult
+  tendency: 空気読む
+  raw_response: '名前: 篠原 友美
+
+    性別: female
+
+    年齢: 32歳
+
+    本業: 市内の総合病院で病棟勤務をしている看護師です。
+
+    家族構成: 3年前に結婚して、今は夫と二人暮らしです。
+
+    シンギュラボ参加経緯: 職場と家の往復ばかりで退屈だったので、なんとなく面白そうな人がいそうだなと思って覗いてみました。
+
+    最近気になっていること: 職場の先輩が最近やたらと副業の話をしてくるので、自分も何かやった方がいいのかなと少し焦っています。
+
+    口癖: まあ、みんながいいならそれでいいんじゃないですかね。'
+  temperament_extroversion: mid
+  temperament_optimism: low
+  temperament_curiosity: mid
+- name: 川村 義則
+  gender: male
+  age: 47歳
+  occupation: Webメディアや広報誌でインタビュー記事を書くフリーライター。
+  family_struct: 離婚して一人暮らし、大学生の息子とはたまに連絡を取る程度。
+  join_reason: 昔の知り合いに誘われてなんとなく顔を出したのが始まりで、気づいたら運営の手伝いをするようになっていた。
+  recent_concern: 歳をとってから新しい趣味を始めても、結局どれも長続きしないんじゃないかという不安。
+  catchphrase: まあ、なるようになるでしょ。
+  axis_id: A16
+  axis_career: フリーライター
+  axis_friends: 中核
+  axis_family: 豊富
+  variant: adult
+  tendency: 迷走
+  raw_response: '名前: 川村 義則
+
+    性別: male
+
+    年齢: 47歳
+
+    本業: Webメディアや広報誌でインタビュー記事を書くフリーライター。
+
+    家族構成: 離婚して一人暮らし、大学生の息子とはたまに連絡を取る程度。
+
+    シンギュラボ参加経緯: 昔の知り合いに誘われてなんとなく顔を出したのが始まりで、気づいたら運営の手伝いをするようになっていた。
+
+    最近気になっていること: 歳をとってから新しい趣味を始めても、結局どれも長続きしないんじゃないかという不安。
+
+    口癖: まあ、なるようになるでしょ。'
+  temperament_extroversion: high
+  temperament_optimism: high
+  temperament_curiosity: mid
+- name: 大島 遥
+  gender: female
+  age: 27歳
+  occupation: 文系の大学院で教育の仕組みについて調べている修士課程の学生です。
+  family_struct: 実家を出て都内で一人暮らしをしています。
+  join_reason: 教授の紹介でなんとなく行ってみたら、意外と面白い人が多くてたまに顔を出しています。
+  recent_concern: 修論のテーマがなかなか決まらなくて、最近は近所のカフェの新作スイーツばかり食べて現実逃避しています。
+  catchphrase: まあ、それはそれでアリなんじゃないですかね。
+  axis_id: A17
+  axis_career: 大学院生 (修士課程)
+  axis_friends: 周辺
+  axis_family: 少
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 大島 遥
+
+    性別: female
+
+    年齢: 27歳
+
+    本業: 文系の大学院で教育の仕組みについて調べている修士課程の学生です。
+
+    家族構成: 実家を出て都内で一人暮らしをしています。
+
+    シンギュラボ参加経緯: 教授の紹介でなんとなく行ってみたら、意外と面白い人が多くてたまに顔を出しています。
+
+    最近気になっていること: 修論のテーマがなかなか決まらなくて、最近は近所のカフェの新作スイーツばかり食べて現実逃避しています。
+
+    口癖: まあ、それはそれでアリなんじゃないですかね。'
+  temperament_extroversion: mid
+  temperament_optimism: high
+  temperament_curiosity: high
+- name: Phan Van Long
+  gender: male
+  age: 28歳
+  occupation: ベトナム・ハイフォン出身、品川の建設会社で現場監督、技能実習5年→特定技能で在住7年
+  family_struct: 独身、神奈川のシェアハウス住、ベトナムに両親と妹
+  join_reason: 日本語の勉強会で知り合った人に誘われ、たまたま参加
+  recent_concern: 永住権を取りたい、お金を貯めて将来は日本かベトナムか決めたい
+  catchphrase: そうですね、わたしはまだ勉強中です
+  axis_id: A18
+  axis_career: 建設業(外国人)
+  axis_friends: 新参
+  axis_family: 中程度
+  variant: adult
+  tendency: 空気読む
+  raw_response: (insert_foreign_personas.py で手書き挿入)
+  temperament_extroversion: mid
+  temperament_optimism: high
+  temperament_curiosity: mid
+- name: 福田 剛史
+  gender: male
+  age: 52歳
+  occupation: 二軍のコーチをしながら監督のサポートをしてます。
+  family_struct: 妻と大学生の息子が一人いて、今は家でたまに顔を合わせるくらいです。
+  join_reason: 知り合いに面白い人がいるから一度来てみろって言われて、なんとなく顔を出しました。
+  recent_concern: 若い選手たちの考え方が昔と違いすぎて、どう声をかけたらいいか迷うときがあります。
+  catchphrase: 要するに、結局は自分の足で立たないと何も始まらないってことですよね。
+  axis_id: A19
+  axis_career: 元プロ野球→今は監督補佐
+  axis_friends: 周辺
+  axis_family: 豊富
+  variant: adult
+  tendency: 主張ある
+  raw_response: '名前: 福田 剛史
+
+    性別: male
+
+    年齢: 52歳
+
+    本業: 二軍のコーチをしながら監督のサポートをしてます。
+
+    家族構成: 妻と大学生の息子が一人いて、今は家でたまに顔を合わせるくらいです。
+
+    シンギュラボ参加経緯: 知り合いに面白い人がいるから一度来てみろって言われて、なんとなく顔を出しました。
+
+    最近気になっていること: 若い選手たちの考え方が昔と違いすぎて、どう声をかけたらいいか迷うときがあります。
+
+    口癖: 要するに、結局は自分の足で立たないと何も始まらないってことですよね。'
+  temperament_extroversion: high
+  temperament_optimism: high
+  temperament_curiosity: low
+- name: Aisha Tariq
+  gender: female
+  age: 45歳
+  occupation: パキスタン・カラチ出身、品川区の介護施設で介護福祉士、来日20年で日本国籍取得済
+  family_struct: 日本人の夫と中学生の息子、家では日本語と英語が混ざる、宗教はムスリム
+  join_reason: 地域の集まりがあると聞いて、近所のことを知るために参加
+  recent_concern: 高齢化していく現場で人手が足りない、外国人介護士をもっと増やしたい
+  catchphrase: インシャアッラー、なるようになる
+  axis_id: A20
+  axis_career: 介護福祉(外国人)
+  axis_friends: 周辺
+  axis_family: 中程度
+  variant: adult
+  tendency: 主張ある
+  raw_response: (insert_foreign_personas.py で手書き挿入)
+  temperament_extroversion: mid
+  temperament_optimism: mid
+  temperament_curiosity: mid

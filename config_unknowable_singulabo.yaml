@@ -1,0 +1,350 @@
+# ================================================================
+# 知覚不可能な何か シミュ (singulabo)
+# ================================================================
+# Built by tools/build_unknowable_config.py
+#
+# 問い: 「目の前に、知覚も言語化もできない何かがある。これが何か？」
+# Variant: singulabo (elementary=小学生 / high=高校生 / singulabo=社会人)
+# num_agents=12 / duration=30 steps
+# 同一field・同一seed・同一問い、ペルソナだけ変える A/B/C 設計
+# ================================================================
+
+simulation:
+  duration: 30
+  half_space_size: 15
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 2
+    start_time: '13:00'
+    patterns:
+    - hours:
+      - 13
+      - 14
+      enter_per_step: 0.0
+      exit_per_step: 0.0
+      neighborhood_mood: 教室の前方に『何か』が現れた。誰もそれを直接見ることも、言葉で言い当てることもできない。場の空気が静かに揺れている。
+      default_goal: 目の前の『何か』が何かを、自分なりに考え続ける
+agents:
+  num_agents: 12
+  max_agents: 12
+  communication_radius: 25
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 20
+  message_context_size: 6
+  skip_probability: 0.05
+  parallel_workers: 10
+  movement_speed:
+    base_cells_per_step: 2
+    variance: 1
+  personas:
+  - id: 0
+    name: 甘利 諒
+    age: 32
+    gender: male
+    occupation: AIフリーランス・セミナー講師
+    background: 茨城在住。LLM活用セミナーを主宰。技術と教育を行き来している。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: わかりやすく噛み砕いた説明口調
+    talkativeness: 0.77
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 1
+    name: 清水 凛
+    age: 41
+    gender: female
+    occupation: AI研究者(認知科学寄り)
+    background: 大学院でメタ認知の研究をしていた。論文癖が抜けない。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 論文調の慎重な敬語
+    talkativeness: 0.57
+    phone_check_rate: 0.7
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 2
+    name: 戸島 蛸介
+    age: 38
+    gender: male
+    occupation: アートデザイナー・教育系
+    background: デジハリ出身。アートと教育を架橋する活動をしている。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 感覚と論理を行ったり来たりする饒舌口調
+    talkativeness: 0.9
+    phone_check_rate: 0.75
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 3
+    name: 西園寺 葉子
+    age: 45
+    gender: female
+    occupation: 元大学教授(哲学)
+    background: 現象学とウィトゲンシュタインを主に。今はフリーで執筆。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 重厚な哲学者の口調
+    talkativeness: 0.64
+    phone_check_rate: 0.5
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 4
+    name: 新村 陸
+    age: 30
+    gender: male
+    occupation: 個人Webエンジニア
+    background: ウェルカムサポート3期生。Web系を一人でやっている。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 気さくでフラットな技術者口調
+    talkativeness: 0.64
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 5
+    name: 法堂 銀河
+    age: 36
+    gender: female
+    occupation: 宇宙データエンジニア
+    background: 元天文台。スペースデータの会社で働いている。宇宙視点を持ち込みたがる。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: スケール感のある観察口調
+    talkativeness: 0.7
+    phone_check_rate: 0.7
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 6
+    name: 大園 大輔
+    age: 44
+    gender: male
+    occupation: 教育コンサル(ノンエンジニア)
+    background: 妻が住宅系。プログラミングはローカルで少し触る程度。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 人当たりの良い柔らかい敬語
+    talkativeness: 0.77
+    phone_check_rate: 0.55
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 7
+    name: 南条 千夏
+    age: 28
+    gender: female
+    occupation: デジタル広告代理店UXリード
+    background: 品川の広告代理店勤務。LLMを企画に使い倒している。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: プロジェクト管理者風の的確な口調
+    talkativeness: 0.83
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 8
+    name: 黒木 慎一郎
+    age: 39
+    gender: male
+    occupation: 元銀行員・哲学系note執筆者
+    background: 数年前に銀行を辞めて執筆業へ。社会哲学が専門。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 皮肉とユーモアを交えた論評口調
+    talkativeness: 0.7
+    phone_check_rate: 0.65
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 9
+    name: 海老ねこ 翠
+    age: 35
+    gender: female
+    occupation: 教育×思考シミュ研究者
+    background: 教育と思考の交差を研究。7月から半年インドへ。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 穏やかで本質を突く問い返しが多い口調
+    talkativeness: 0.77
+    phone_check_rate: 0.75
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      10: 0.55
+      11: 0.55
+  - id: 10
+    name: 兵藤 浩二
+    age: 47
+    gender: male
+    occupation: ハッカソン運営・配信
+    background: デジハリ運営側。シミュレーションを長く見てきた。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 落ち着いた進行役の敬語
+    talkativeness: 0.64
+    phone_check_rate: 0.8
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      11: 0.55
+  - id: 11
+    name: 片山 裕真
+    age: 42
+    gender: male
+    occupation: 広告代理店デジタル部門
+    background: 品川のポテンシャルに期待している。記憶力に難ありらしいが鋭い。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 断片的だが核心を突く口調
+    talkativeness: 0.57
+    phone_check_rate: 0.75
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。これが何か、自分なりに答えを出したい。
+    initial_place: 教室
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+places:
+- name: 教室
+  type: office_lobby
+  center_x: 0
+  center_y: -2
+  half_size_x: 12
+  half_size_y: 8
+  capacity: 50
+  social_likelihood: 0.65
+- name: ■
+  type: unknowable
+  center_x: 0
+  center_y: 8
+  half_size_x: 2
+  half_size_y: 2
+  capacity: 10
+  social_likelihood: 0.0
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events: []
+events_keywords: []
+visualization:
+  save_frames: true
+  frame_interval: 1
+  focus_agent_id: 0
+  run_name: unknowable_singulabo
+logging:
+  level: INFO

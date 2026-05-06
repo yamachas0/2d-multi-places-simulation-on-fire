@@ -7,6 +7,7 @@ import random
 import threading
 import yaml
 import logging
+from pathlib import Path
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
 from typing import List, Tuple, Dict, Set, Optional
@@ -76,6 +77,45 @@ class Simulation:
         self.duration = sim_config['duration']
         self.half_space_size = sim_config['half_space_size']
         self.half_place_size = sim_config.get('half_place_size', 5)
+
+        # Cost-reduction flags for fixed-scene sims (classroom AB etc).
+        # minimal_prompt_mode: agent.py uses _create_*_prompts_minimal (drops
+        #   WORLD STRUCTURE / PLACE LOCATIONS / fire / coordinates).
+        # skip_decision_prompt: Phase 3 (decide_action) is replaced with a
+        #   stub; memory is captured in the message JSON instead. Halves LLM
+        #   call count. Movement and per-step 2D state stop being meaningful.
+        self.minimal_prompt_mode = bool(sim_config.get('minimal_prompt_mode', False))
+        self.skip_decision_prompt = bool(sim_config.get('skip_decision_prompt', False))
+        # moltbook風 グローバルチャンネルモード: 教室シーン等で全 agent が同じチャンネルを
+        # 読み、self-decision で発話するか黙るかを選ぶ。Phase A 限定で実験的に試す。
+        self.global_channel_mode = bool(sim_config.get('global_channel', False))
+        # moltbook風 chat session thread化モード: 各 agent が独立した Gemini chat session
+        # を保持して履歴を session 内で蓄積する experiment 経路。
+        self.chat_thread_mode = bool(sim_config.get('chat_thread_mode', False))
+        # Scene phrase for the minimal prompt header (e.g. "a small fixed indoor
+        # scene (a classroom)" / "a small fixed outdoor scene (a park)"). Built
+        # by tools/build_classroom_ab_config.py from SCENE_PROFILES.
+        self.scene_phrase = str(sim_config.get('scene_phrase') or "a small fixed scene")
+
+        # Phase A: context injection (場所の現場知覚情報を system_prompt に注入)。
+        # Phase B 以降では agent が場所に近接したときのみロードに切り替える設計だが、
+        # 現状はシミュ起動時に file を全文読み込み Agent に渡す。
+        ctx_cfg = (sim_config.get('context_injection') or {}) if isinstance(sim_config.get('context_injection'), dict) else {}
+        self.context_injection_text = ""
+        if ctx_cfg.get('enabled'):
+            ctx_path = ctx_cfg.get('file')
+            if ctx_path:
+                try:
+                    self.context_injection_text = Path(ctx_path).read_text(encoding='utf-8')
+                    logger.info(f"Context injection: loaded {ctx_path} ({len(self.context_injection_text)} chars)")
+                except Exception as e:
+                    logger.warning(f"Context injection: failed to load {ctx_path}: {e}")
+
+        # Phase B 用フラグ: perceive (Layer 1/2) 注入と身体感覚記録
+        self.phase_b_perceive_enabled = bool(sim_config.get('phase_b_perceive_enabled', False))
+        self.phase_b_body_log_interval = int(sim_config.get('phase_b_body_log_interval', 10))
+        if self.phase_b_perceive_enabled:
+            logger.info(f"Phase B perceive injection enabled (body_log_interval={self.phase_b_body_log_interval})")
         
         # Agent parameters
         agent_config = self.config['agents']
@@ -124,7 +164,7 @@ class Simulation:
         # Validate each place configuration. A place must specify its footprint
         # either as `half_size` (square shorthand) or `half_size_x` + `half_size_y`
         # (rectangle, feature 3).
-        base_required = ['name', 'type', 'center_x', 'center_y', 'capacity']
+        base_required = ['name', 'type', 'center_x', 'center_y']
         for i, place in enumerate(self.places):
             if not isinstance(place, dict):
                 raise ValueError(f"Place at index {i} must be a dictionary.")
@@ -323,6 +363,12 @@ class Simulation:
             movement_base_cells=self.movement_base_cells,
             movement_variance=self.movement_variance,
             navigator=self.navigator,
+            minimal_prompt=self.minimal_prompt_mode,
+            skip_decision=self.skip_decision_prompt,
+            scene_phrase=self.scene_phrase,
+            injected_context=self.context_injection_text,
+            global_channel=self.global_channel_mode,
+            chat_thread_mode=self.chat_thread_mode,
         )
         new_agent.update_state(self.places)
         self.agents.append(new_agent)
@@ -501,6 +547,18 @@ class Simulation:
             rng = random.Random(random.random())
             for i in range(self.num_agents):
                 persona = personas_by_id.get(i)
+                # 優先: persona.initial_position が指定されていればそれを使う
+                # (host を最寄り道路の歩道側に固定配置するなどの用途)。
+                explicit_pos = (persona or {}).get('initial_position')
+                if explicit_pos and isinstance(explicit_pos, (list, tuple)) and len(explicit_pos) == 2:
+                    try:
+                        ep = (int(round(explicit_pos[0])), int(round(explicit_pos[1])))
+                        if ep not in used_positions:
+                            positions[i] = ep
+                            used_positions.add(ep)
+                            continue
+                    except (TypeError, ValueError):
+                        pass
                 place_name = (persona or {}).get('initial_place')
                 pos = None
                 if place_name:
@@ -535,6 +593,17 @@ class Simulation:
             persona = personas_by_id.get(i)
             if not persona:
                 continue
+            # 優先: persona.initial_position
+            explicit_pos = persona.get('initial_position')
+            if explicit_pos and isinstance(explicit_pos, (list, tuple)) and len(explicit_pos) == 2:
+                try:
+                    ep = (int(round(explicit_pos[0])), int(round(explicit_pos[1])))
+                    if ep not in used_positions:
+                        positions[i] = ep
+                        used_positions.add(ep)
+                        continue
+                except (TypeError, ValueError):
+                    pass
             place_name = persona.get('initial_place')
             if not place_name:
                 continue
@@ -695,6 +764,12 @@ class Simulation:
                 movement_variance=self.movement_variance,
                 initial_relationships=relationships_by_id.get(i, {}),
                 navigator=self.navigator,
+                minimal_prompt=self.minimal_prompt_mode,
+                skip_decision=self.skip_decision_prompt,
+                scene_phrase=self.scene_phrase,
+                injected_context=self.context_injection_text,
+                global_channel=self.global_channel_mode,
+                chat_thread_mode=self.chat_thread_mode,
             )
             agent.update_state()
             self.agents.append(agent)
@@ -720,8 +795,8 @@ class Simulation:
                 raise ValueError(f"Place '{place_name}' not found")
             
             agents_in_place = len(self.get_agents_in_place(place_name))
-            capacity = place_config['capacity']
-            occupancy_rate = agents_in_place / capacity
+            capacity = place_config.get('capacity')
+            occupancy_rate = (agents_in_place / capacity) if capacity else None
 
             return {
                 "place_name": place_name,
@@ -740,8 +815,10 @@ class Simulation:
             place_statuses = {}
             for place in self.places:
                 place_agents = len(self.get_agents_in_place(place['name']))
-                place_capacity = place['capacity']
-                place_occupancy_rate = place_agents / place_capacity
+                place_capacity = place.get('capacity')
+                place_occupancy_rate = (
+                    place_agents / place_capacity if place_capacity else None
+                )
 
                 place_statuses[place['name']] = {
                     "place_name": place['name'],
@@ -995,6 +1072,142 @@ class Simulation:
                 )
         agent._salience_marks.add(boosted_key)
 
+    # ===== Phase B helpers =====
+    def _place_contains(self, place: Dict, x: int, y: int) -> bool:
+        cx = place.get('center_x', 0)
+        cy = place.get('center_y', 0)
+        hx = place.get('half_size_x', 0)
+        hy = place.get('half_size_y', 0)
+        return (cx - hx) <= x <= (cx + hx) and (cy - hy) <= y <= (cy + hy)
+
+    def _phase_b_inject_perceive(self, action_decisions: List[Tuple]) -> None:
+        """Phase B: 各 agent が今 step で進入した place の perceive_pass を memory に注入。
+        さらに action_type=='enter' で対象 place に成功進入していたら perceive_enter も注入。
+        """
+        # 各 agent の最後の action_decision を id でマップ
+        decision_by_id = {}
+        for agent, dec, _nb in action_decisions:
+            if isinstance(dec, dict):
+                decision_by_id[agent.id] = dec
+
+        n_pass_injected = 0
+        n_enter_injected = 0
+        for agent in self.agents:
+            x, y = agent.position
+            # 1) perceive_pass: agent.position が含まれる全 place について、初回なら注入
+            for place in self.places:
+                nm = place.get('name', '')
+                if not nm or nm in agent.visited_places:
+                    continue
+                if not self._place_contains(place, x, y):
+                    continue
+                # 初回進入
+                agent.visited_places.add(nm)
+                pp = place.get('perceive_pass')
+                if pp:
+                    line = f"[現地で見えた - {nm}] {pp}"
+                    agent.memory.append(line)
+                    if len(agent.memory) > agent.memory_limit:
+                        agent.memory.pop(0)
+                    n_pass_injected += 1
+                # 同時に place_type 記録 (近隣環境の判定で使う)
+
+            # 2) perceive_enter: action_type=='enter' で current_place に居て、初回なら注入
+            dec = decision_by_id.get(agent.id) or {}
+            if dec.get('action_type') == 'enter':
+                target_name = dec.get('target_place') or agent.current_place
+                if target_name and target_name not in agent.entered_places:
+                    target_place = next((p for p in self.places if p.get('name') == target_name), None)
+                    if target_place:
+                        # 進入は実際に bbox 内であることが条件
+                        if self._place_contains(target_place, x, y):
+                            agent.entered_places.add(target_name)
+                            pe = target_place.get('perceive_enter')
+                            if pe:
+                                line = f"[中に入って気づいた - {target_name}] {pe}"
+                                agent.memory.append(line)
+                                if len(agent.memory) > agent.memory_limit:
+                                    agent.memory.pop(0)
+                                n_enter_injected += 1
+        if n_pass_injected or n_enter_injected:
+            logger.info(f"Phase B perceive: step={self.step}, pass_inj={n_pass_injected}, enter_inj={n_enter_injected}")
+
+    def _phase_b_log_body_sense(self) -> None:
+        """Phase B: 累積距離・時間・近隣環境を agent.memory に N step 毎に挿入する。
+        判定はあくまで「事実」のみで、疲労・気分はLLMに任せる。
+        """
+        # 食肉市場と工事現場の位置を予め取得
+        meat_market = next((p for p in self.places
+                            if (p.get('attributes') or {}).get('environment', {}).get('is_meat_market')
+                               or p.get('name') == '食肉市場'), None)
+        construction_places = [p for p in self.places
+                               if (p.get('attributes') or {}).get('environment', {}).get('near_construction')]
+
+        n_body_logged = 0
+        for agent in self.agents:
+            # 距離累積
+            x, y = agent.position
+            if agent._last_position is not None:
+                dx = x - agent._last_position[0]
+                dy = y - agent._last_position[1]
+                # 整数座標距離 (cell 単位)
+                step_dist = (dx * dx + dy * dy) ** 0.5
+                agent.cumulative_distance_cells += step_dist
+            agent._last_position = (x, y)
+            agent.cumulative_steps += 1
+
+            # 一定 step 毎に身体事実を memory に注入
+            if agent.cumulative_steps % max(1, self.phase_b_body_log_interval) != 0:
+                continue
+
+            meters_per_cell = 5  # shinagawa_field の規約
+            meters = int(agent.cumulative_distance_cells * meters_per_cell)
+            cur_place = agent.current_place or "(屋外)"
+
+            # 近隣環境タグ
+            near_tags = []
+            if meat_market is not None:
+                mx = meat_market.get('center_x', 0); my = meat_market.get('center_y', 0)
+                d_m = ((x - mx) ** 2 + (y - my) ** 2) ** 0.5 * meters_per_cell
+                if d_m < 100:
+                    near_tags.append(f"食肉市場まで{int(d_m)}m")
+            for cp in construction_places:
+                cx2 = cp.get('center_x', 0); cy2 = cp.get('center_y', 0)
+                d_c = ((x - cx2) ** 2 + (y - cy2) ** 2) ** 0.5 * meters_per_cell
+                if d_c < 80:
+                    near_tags.append(f"{cp.get('name')}の工事現場が近い")
+                    break  # 1個で十分
+
+            # 屋外/屋内
+            cur_place_obj = next((p for p in self.places if p.get('name') == cur_place), None)
+            env = ((cur_place_obj or {}).get('attributes') or {}).get('environment', {}) if cur_place_obj else {}
+            indoor = env.get('indoor')
+            roof = env.get('roof')
+            grade = env.get('grade')
+            env_str_parts = []
+            if indoor is True: env_str_parts.append("屋内")
+            elif indoor is False:
+                env_str_parts.append("屋外")
+                if roof: env_str_parts.append("屋根あり")
+                else: env_str_parts.append("屋根なし")
+            if grade and grade != 'flat':
+                env_str_parts.append(f"傾斜:{grade}")
+            env_str = "/".join(env_str_parts) if env_str_parts else ""
+
+            line = (
+                f"[身体記録 step{self.step}] これまで{agent.cumulative_steps}step歩き、"
+                f"累積{meters}m移動。今いるのは「{cur_place}」"
+                + (f" ({env_str})" if env_str else "")
+                + (" / " + " / ".join(near_tags) if near_tags else "")
+                + "。"
+            )
+            agent.memory.append(line)
+            if len(agent.memory) > agent.memory_limit:
+                agent.memory.pop(0)
+            n_body_logged += 1
+        if n_body_logged:
+            logger.info(f"Phase B body log: step={self.step}, agents_logged={n_body_logged}")
+
     def _compute_emergency_boost(self, agent: Agent) -> float:
         """Phase 2.5: route-specific emergency_boost for should_speak.
 
@@ -1105,6 +1318,8 @@ class Simulation:
         agent: Agent,
         nearby_agents: List[Agent],
         place_config: Optional[Dict],
+        *,
+        apply_opener_gate: bool = False,
     ) -> Optional[int]:
         """Decide (before any LLM call) whether the agent speaks this step.
 
@@ -1116,6 +1331,18 @@ class Simulation:
         """
         if not nearby_agents:
             return None
+
+        # コスト削減 #5: 企業 host は学生が近接していないステップでは喋らない
+        # (受付役なので、客がいないのに同業 host 同士で勝手にお喋りしても
+        # シナリオ価値は低い。LLM call を burn しないため即 silent を返す)。
+        if agent.persona.get('is_host'):
+            has_student_nearby = any(
+                not (other.persona.get('is_host')
+                     or str(other.persona.get('axis_id', '')).startswith('Host_'))
+                for other in nearby_agents
+            )
+            if not has_student_nearby:
+                return None
 
         talkativeness = self._infer_talkativeness(agent)
 
@@ -1132,20 +1359,36 @@ class Simulation:
 
         emergency_boost = self._compute_emergency_boost(agent)
 
+        # Special facilitator role (axis_id ∈ {"Sato", "AIRobo", "AIGod"}): treat all in-room
+        # nearby agents as equally close (proximity_factor=1.0) and sample partner
+        # weighted by p_speak, so the facilitator distributes attention rather
+        # than always picking the geometrically nearest participant.
+        is_facilitator = agent.persona.get('axis_id') in ('Sato', 'AIRobo', 'AIGod')
+
         candidates: List[Dict] = []
         best_prob = 0.0
         best_partner_id: Optional[int] = None
         for other in nearby_agents:
             relationship = agent.get_relationship(other.id)
             dist = agent.distance_to(other.position)
-            if dist <= 2:
+            if is_facilitator:
+                proximity_factor = 1.0
+            elif dist <= 2:
                 proximity_factor = 1.0
             elif dist <= 4:
                 proximity_factor = 0.4
             else:
                 proximity_factor = 0.1
 
-            p_raw = effective_talk * social_likelihood * relationship * proximity_factor
+            # 近接 (dist<=2) のときは 1.5 倍ブースト —「近くにいるのに何も話さない」緩和。
+            proximity_close_boost = 1.5 if (not is_facilitator and dist <= 2) else 1.0
+            # #27改: 「同行ペア」(relationship≥0.5 かつ dist≤2) はさらに 1.5x ブースト
+            # = 一緒に行動中の友達と歩きながら会話している状態を再現。
+            companion_boost = 1.5 if (not is_facilitator and dist <= 2 and relationship >= 0.5) else 1.0
+            # smoke17: opener モード確率を 2x にブースト (silent 90% → 80% 想定)。
+            # 「最初は様子見で黙るが、もう少し口火切る人がいてもいい」というユーザ体感への調整。
+            global_speak_multiplier = 2.0
+            p_raw = effective_talk * social_likelihood * relationship * proximity_factor * proximity_close_boost * companion_boost * global_speak_multiplier
             p = min(1.0, p_raw * emergency_boost)
             candidates.append({
                 "partner_id": other.id,
@@ -1154,6 +1397,7 @@ class Simulation:
                 "talkativeness": round(effective_talk, 4),
                 "social_likelihood": round(social_likelihood, 4),
                 "proximity_factor": proximity_factor,
+                "companion_boost": companion_boost,
                 "emergency_boost": emergency_boost,
                 "p_speak": round(p, 6),
             })
@@ -1161,9 +1405,36 @@ class Simulation:
                 best_prob = p
                 best_partner_id = other.id
 
+        # smoke15: 「確率による silent コントロール」は廃止。p_speak は partner 選択の
+        # 重み付け関数として残す (relationship × proximity が高い相手が優先的に選ばれる) が、
+        # 「random.random() < best_prob で silent」のサンプリングは削除する。
+        # silent 判定は LLM 自身の "" 出力 + Jaccard 後フィルタが担う。
+        # nearby 0 / host idle は早期 return で silent 確定 (既存ロジック)。
         selected_partner_id: Optional[int] = None
-        if best_partner_id is not None and random.random() < best_prob:
+        if is_facilitator and candidates:
+            # facilitator: 確率を相手の重み付けにそのまま使う (確率最大ではなく、weighted pick)。
+            weights = [c['p_speak'] for c in candidates]
+            wsum = sum(weights)
+            if wsum > 0:
+                pick = random.uniform(0, wsum)
+                acc = 0.0
+                for c, w in zip(candidates, weights):
+                    acc += w
+                    if pick <= acc:
+                        selected_partner_id = c['partner_id']
+                        break
+                if selected_partner_id is None:
+                    selected_partner_id = candidates[-1]['partner_id']
+        elif best_partner_id is not None:
+            # 通常: relationship × proximity が最大の相手を選ぶ。silent 判定は走らせない。
             selected_partner_id = best_partner_id
+
+        # smoke16: opener モード時のみ確率ゲートを適用 (= 受信トリガーなし & イベントなしの step)。
+        # 「自分から話しかける動機しかない」step は best_prob 確率で skip → LLM call 節約。
+        # 受信あり / イベントあり時 (apply_opener_gate=False) はこのゲートを通さない。
+        if apply_opener_gate and selected_partner_id is not None:
+            if random.random() >= best_prob:
+                selected_partner_id = None
 
         self._log_should_speak(agent, nearby_agents, candidates, selected_partner_id)
         return selected_partner_id
@@ -1293,7 +1564,10 @@ class Simulation:
             return None
         try:
             os.makedirs(self.output_dir, exist_ok=True)
-            cell_meters = 5  # per spec: 1 grid cell == 5 m
+            # 既定は都市スケール (1 cell = 5m)。config に metadata.meters_per_cell が
+            # あればそれを優先 (建築スケールでは 1m 等に切り替え)。
+            cfg_meta = self.config.get("metadata") or {}
+            cell_meters = float(cfg_meta.get("meters_per_cell", 5))
             field_side_cells = 2 * self.half_space_size + 1
             metadata = {
                 "total_steps": self.step,
@@ -1306,6 +1580,13 @@ class Simulation:
                 "field_size_meters": field_side_cells * cell_meters,
                 "llm_model": getattr(self.llm_client, "model", None),
             }
+            # config の metadata から viewer 向けの補助情報を pass-through
+            # (name, grid_step_m, hide_place_labels, scenario_kind 等)
+            for k in ("name", "description", "scenario_kind",
+                      "grid_step_m", "hide_place_labels",
+                      "wall_color", "ceiling_height_m"):
+                if k in cfg_meta:
+                    metadata[k] = cfg_meta[k]
             places = [{
                 "name": p.get("name"),
                 "type": p.get("type"),
@@ -1316,6 +1597,9 @@ class Simulation:
                 "capacity": p.get("capacity"),
                 "social_likelihood": p.get("social_likelihood"),
                 "is_spawn_point": bool(p.get("is_spawn_point", False)),
+                "attributes": p.get("attributes") or {},
+                "perceive_pass": p.get("perceive_pass"),
+                "perceive_enter": p.get("perceive_enter"),
             } for p in self.places]
             personas = [{
                 "id": a.id,
@@ -1325,7 +1609,19 @@ class Simulation:
                 "occupation": a.persona.get("occupation"),
                 "speech_style": a.persona.get("speech_style"),
                 "phone_check_rate": a.persona.get("phone_check_rate"),
+                # viewer 側で host判定するために必要 (緑色描画 / 凡例)。
+                "is_host": bool(a.persona.get("is_host", False)),
+                "axis_id": a.persona.get("axis_id"),
+                "variant": a.persona.get("variant"),
+                "school_fit": a.persona.get("school_fit"),
+                "interest_tag": a.persona.get("interest_tag"),
+                "tendency": a.persona.get("tendency"),
                 "social_identities": list(getattr(a, "social_identities", []) or []),
+                # 3D viewer の追従吹き出しが特徴的背景を表示するために必要
+                "mobility": a.persona.get("mobility"),
+                "nationality": a.persona.get("nationality"),
+                "assigned_hosts": a.persona.get("assigned_hosts"),
+                "initial_place": a.persona.get("initial_place"),
             } for a in self.agents]
             payload = {
                 "metadata": metadata,
@@ -1333,6 +1629,7 @@ class Simulation:
                 "personas": personas,
                 "timeline": self._viewer_timeline,
                 "focus_agent_id": None,
+                "scene_3d": self.config.get("scene_3d") or {},
             }
             out_path = os.path.join(self.output_dir, "simulation_data.json")
             with open(out_path, "w", encoding="utf-8") as f:
@@ -1414,28 +1711,105 @@ class Simulation:
         # event-awareness path via _propagate_event_via_message).
         phase1_tasks: List[Tuple[Agent, List[Agent], List[Agent], Optional[Dict], Optional[List[Dict]], Optional[List[Dict]], Optional[int]]] = []
         phase1_results: List[Optional[Tuple[Agent, Dict, List[Agent], Optional[int]]]] = [None] * len(self.agents)
-        for idx, agent in enumerate(self.agents):
-            nearby_agents = agent.get_nearby_agents(self.agents)
-            if self.skip_probability > 0 and random.random() < self.skip_probability:
-                phase1_results[idx] = (agent, {"message": "", "reasoning": "Skipped (random)"}, nearby_agents, None)
-                skipped_p1 += 1
-                continue
 
-            # Feature 3 gate: figure out target partner, or fall through to silence.
+        # ===== 第1パス: 全 agent の partner_id を集計 (LLM call はまだしない) =====
+        # 双方向同時発話 (A→B かつ B→A) を検出するため、まず全員の発話相手候補を出す。
+        partner_map: Dict[int, Optional[int]] = {}
+        nearby_map: Dict[int, List[Agent]] = {}
+        skip_set: set = set()
+        for agent in self.agents:
+            nearby_agents = agent.get_nearby_agents(self.agents)
+            nearby_map[agent.id] = nearby_agents
+            if self.skip_probability > 0 and random.random() < self.skip_probability:
+                skip_set.add(agent.id)
+                continue
             current_place_config: Optional[Dict] = None
             if agent.in_place and agent.current_place:
                 current_place_config = next(
                     (p for p in self.places if p['name'] == agent.current_place), None
                 )
-            partner_id = self.should_speak(agent, nearby_agents, current_place_config)
-
+            # smoke16: opener モード判定 — 直前 step に自分宛ての受信があるか、
+            # 火災 / イベント等のトリガーがあるか。なければ「自分から話しかけるしか
+            # 動機がない step」 = opener モード。confirm_only confirm: ある = 必ず LLM call、
+            # なし = 確率 gate (best_prob) で skip 判定して LLM call 節約。
+            recent_recv = any(
+                m.get('step', 0) >= self.step - 1
+                for m in agent.received_messages
+            )
+            has_trigger = (
+                recent_recv
+                or bool(self.get_fire_info_for_agent(agent))
+                or bool(self.get_active_events_for_agent(agent))
+            )
+            # smoke23: 不適応の子は opener モード (= 受信トリガーなし) では発話しない (rule-based)。
+            # 受信トリガーがあれば普通に応答するが、自分から話しかけることは確実にゼロ。
+            if not has_trigger and (agent.persona.get('school_fit') or '').strip() == '不適応':
+                partner_map[agent.id] = None
+                continue
+            # smoke23: host (企業担当者) は学生が nearby にいる場合、opener gate を強制 ON
+            # (= 必ず LLM call) する。host が動かない設計のため、学生が来た時に自分から
+            # 声をかけるのが host 側の役割。受信トリガー有無に関わらず opener する。
+            is_host_agent = bool(agent.persona.get('is_host'))
+            student_nearby_for_host = is_host_agent and any(
+                not (other.persona.get('is_host')
+                     or str(other.persona.get('axis_id', '')).startswith('Host_'))
+                for other in nearby_agents
+            )
+            if student_nearby_for_host:
+                # host で学生が近接 → 必ず LLM call (opener gate 適用しない)
+                effective_apply_opener_gate = False
+            else:
+                effective_apply_opener_gate = not has_trigger
+            partner_id = self.should_speak(
+                agent, nearby_agents, current_place_config,
+                apply_opener_gate=effective_apply_opener_gate,
+            )
+            # should_speak の None 戻り値の意味:
+            #   ① opener モードで確率 gate に外れた → LLM call スキップ確定 (silent)
+            #   ② nearby 0 / host で学生不在 → silent 確定
+            #   ③ それ以外 (= has_trigger だが best_partner_id 0 件) → 最近接にフォールバック
             if partner_id is None:
-                phase1_results[idx] = (
-                    agent,
-                    {"message": "", "reasoning": "should_speak=False"},
-                    nearby_agents,
-                    None,
+                if not has_trigger:
+                    # ①: opener モードで gate 外れ → silent 確定 (LLM call せず)
+                    partner_map[agent.id] = None
+                    continue
+                # has_trigger=True なのに None → ② or ③ の判定
+                is_host = bool(agent.persona.get('is_host'))
+                has_student_nearby = any(
+                    not (other.persona.get('is_host')
+                         or str(other.persona.get('axis_id', '')).startswith('Host_'))
+                    for other in nearby_agents
                 )
+                if not nearby_agents or (is_host and not has_student_nearby):
+                    partner_map[agent.id] = None
+                    continue
+                nearest = min(nearby_agents, key=lambda a: agent.distance_to(a.position))
+                partner_id = nearest.id
+            partner_map[agent.id] = partner_id
+
+        # ===== 双方向同時発話排除 =====
+        # A の partner==B かつ B の partner==A → 大きい id を silent (聞く側)、
+        # 小さい id が話す。これで「同時に話しかけ合う」現象を消す。turn-taking 自然化。
+        silent_set: set = set()
+        for a, b in partner_map.items():
+            if b is None: continue
+            if partner_map.get(b) == a and a < b:
+                silent_set.add(b)
+
+        # ===== 第2パス: 各 agent についてタスク化 / silent =====
+        for idx, agent in enumerate(self.agents):
+            nearby_agents = nearby_map[agent.id]
+            if agent.id in skip_set:
+                phase1_results[idx] = (agent, {"message": "", "reasoning": "(思考スキップ)"}, nearby_agents, None)
+                skipped_p1 += 1
+                continue
+            partner_id = partner_map.get(agent.id)
+            if partner_id is None:
+                phase1_results[idx] = (agent, {"message": "", "reasoning": "(発話相手なし)"}, nearby_agents, None)
+                gated_p1 += 1
+                continue
+            if agent.id in silent_set:
+                phase1_results[idx] = (agent, {"message": "", "reasoning": "(同時発話排除: 相手が話すので聞く側に回る)"}, nearby_agents, None)
                 gated_p1 += 1
                 continue
 
@@ -1456,9 +1830,10 @@ class Simulation:
             with ThreadPoolExecutor(max_workers=workers) as executor:
                 futures = [
                     executor.submit(
-                        ag.decide_message, ps, targ_nb, self.step, fire_info=fi, events_info=ei
+                        ag.decide_message, ps, targ_nb, self.step,
+                        fire_info=fi, events_info=ei, partner_id=pid,
                     )
-                    for ag, targ_nb, _full_nb, ps, fi, ei, _pid in phase1_tasks
+                    for ag, targ_nb, _full_nb, ps, fi, ei, pid in phase1_tasks
                 ]
                 task_results = []
                 for (ag, _targ_nb, full_nb, _, _, _, pid), fut in zip(phase1_tasks, futures):
@@ -1496,8 +1871,9 @@ class Simulation:
                 partner = next((a for a in nearby_agents if a.id == partner_id), None)
 
             if partner is not None:
+                partner_name = partner.persona.get('name', f'Agent {partner.id}')
                 logger.info(
-                    f"Step {self.step}: {sender_name} → {partner.persona.get('name', f'Agent {partner.id}')}: "
+                    f"Step {self.step}: {sender_name} → {partner_name}: "
                     f"\"{message_content}\""
                 )
                 partner.receive_message(
@@ -1506,6 +1882,21 @@ class Simulation:
                     step=self.step,
                     from_name=sender_name,
                 )
+                # Record the sender's own utterance so they see their recent
+                # speech in next step's prompt (prevents repeating themselves).
+                agent.record_sent_message(
+                    partner.id,
+                    message_content,
+                    step=self.step,
+                    to_name=partner_name,
+                )
+                # working_state 用: 会話相手が host (企業担当者) なら「話した」とカウント。
+                # 双方向に rule-based で記録 (sender が学生・partner が host のとき、
+                # sender.talked_hosts に partner.name を加える、逆も同様)。
+                if partner.persona.get('is_host'):
+                    agent.talked_hosts.add(partner_name)
+                if agent.persona.get('is_host'):
+                    partner.talked_hosts.add(sender_name)
                 self._propagate_event_via_message(
                     partner, message_content, sender_id=agent.id
                 )
@@ -1527,6 +1918,26 @@ class Simulation:
                     other_agent, message_content, sender_id=agent.id
                 )
 
+            # moltbook風: グローバルチャンネルモードでは、近接の有無に関係なく全 agent が
+            # この発話を「チャンネル投稿」として読める状態にする。各 agent の received_messages
+            # に追加して、次 step の prompt で全員が共有チャンネルを読む形にする。
+            # primary partner と nearby_agents 既出の overheard は重複させない。
+            if self.global_channel_mode and message_content:
+                handled = set()
+                if partner is not None:
+                    handled.add(partner.id)
+                for oa in nearby_agents:
+                    handled.add(oa.id)
+                for ag_other in self.agents:
+                    if ag_other.id == agent.id or ag_other.id in handled:
+                        continue
+                    ag_other.receive_message(
+                        agent.id,
+                        message_content,
+                        step=self.step,
+                        from_name=sender_name,
+                    )
+
         # Phase 3: Collect action decisions from all agents (with position information and message content).
         # LLM calls are executed in parallel across agents (when parallel_workers > 1).
         action_decisions: List[Tuple[Agent, Dict, List[Agent]]] = [None] * len(message_decisions)
@@ -1535,6 +1946,32 @@ class Simulation:
         skipped_p3 = 0
 
         for idx, (agent, message_decision, nearby_agents, _partner_id) in enumerate(message_decisions):
+            # 修正1: host (企業受け入れ担当) は不動。Phase 3 を skip して action_type=stay 強制。
+            # 学生が来ない時に host が wander/approach で歩き回って配置から離れ、結果として
+            # 「学生が来た頃には host が居ない」現象を防ぐ。
+            if bool(agent.persona.get('is_host')):
+                memory = (message_decision.get('memory') or '').strip()
+                reasoning = (message_decision.get('reasoning') or '').strip()
+                action_decision = {
+                    "action_type": "stay",
+                    "target_place": None,
+                    "target_agent": None,
+                    "direction": None,
+                    "memory": memory,
+                    "reasoning": reasoning or "(host 不動: 自分の配置で学生を待機)",
+                    "action": "stay",
+                }
+                action_decisions[idx] = (agent, action_decision, nearby_agents)
+                memory_reasoning_records[idx] = {
+                    "step": self.step,
+                    "time": self._current_time_str(),
+                    "id": agent.id,
+                    "name": agent.persona.get('name', f"Agent {agent.id}"),
+                    "layer": self._get_agent_layer_jp(agent),
+                    "memory": memory,
+                    "reasoning": reasoning or "(host 不動: 自分の配置で学生を待機)",
+                }
+                continue
             if self.skip_probability > 0 and random.random() < self.skip_probability:
                 action_decision = {
                     "action_type": "stay",
@@ -1542,7 +1979,7 @@ class Simulation:
                     "target_agent": None,
                     "direction": None,
                     "memory": "",
-                    "reasoning": "Skipped (random)",
+                    "reasoning": "(思考スキップ)",
                     "action": "stay",
                 }
                 action_decisions[idx] = (agent, action_decision, nearby_agents)
@@ -1553,9 +1990,35 @@ class Simulation:
                     "name": agent.persona.get('name', f"Agent {agent.id}"),
                     "layer": self._get_agent_layer_jp(agent),
                     "memory": "",
-                    "reasoning": "Skipped (random)",
+                    "reasoning": "(思考スキップ)",
                 }
                 skipped_p3 += 1
+                continue
+            if self.skip_decision_prompt:
+                # Cost-reduction path: no separate decision LLM call. The
+                # memory/reasoning were captured in the message JSON (see
+                # _create_message_prompts_minimal with skip_decision=True).
+                memory = message_decision.get('memory', '') or ''
+                reasoning = message_decision.get('reasoning', '') or ''
+                stub_decision = {
+                    "action_type": "stay",
+                    "target_place": None,
+                    "target_agent": None,
+                    "direction": None,
+                    "memory": memory,
+                    "reasoning": reasoning,
+                    "action": "stay",
+                }
+                action_decisions[idx] = (agent, stub_decision, nearby_agents)
+                memory_reasoning_records[idx] = {
+                    "step": self.step,
+                    "time": self._current_time_str(),
+                    "id": agent.id,
+                    "name": agent.persona.get('name', f"Agent {agent.id}"),
+                    "layer": self._get_agent_layer_jp(agent),
+                    "memory": memory,
+                    "reasoning": reasoning,
+                }
                 continue
             agent_place_status = None
             if agent.in_place and agent.current_place:
@@ -1612,6 +2075,28 @@ class Simulation:
         # Write all memory/reasoning records in batch (more efficient than individual writes)
         self._log_memory_reasoning_batch(memory_reasoning_records)
 
+        # smoke20: 行動ログ強化 — Phase 4 (movement) 直前に position_before を集め、
+        # 直後に position_after を加えて action.jsonl に出力。
+        # 「LLM が target_place を A に指定したのに position は B 方向に動いた」という
+        # 不整合をピンポイント診断するため。Phase B のみ phase_b_perceive_enabled で gating。
+        action_log_records = []
+        if getattr(self, 'phase_b_perceive_enabled', False):
+            for agent, action_decision, _nb in action_decisions:
+                pb = list(agent.position) if agent.position is not None else [None, None]
+                action_log_records.append({
+                    "step": self.step,
+                    "time": self._current_time_str(),
+                    "id": agent.id,
+                    "name": agent.persona.get('name', f'#{agent.id}'),
+                    "action_type": action_decision.get('action_type'),
+                    "target_place": action_decision.get('target_place'),
+                    "target_agent": action_decision.get('target_agent'),
+                    "direction": action_decision.get('direction'),
+                    "position_before": [round(pb[0], 2) if pb[0] is not None else None,
+                                        round(pb[1], 2) if pb[1] is not None else None],
+                    "current_place_before": agent.current_place,
+                })
+
         # Phase 4: Execute movement (after messages are sent and actions are decided)
         for agent, action_decision, nearby_agents in action_decisions:
             agent.execute_intent(action_decision, nearby_agents=nearby_agents)
@@ -1620,12 +2105,52 @@ class Simulation:
         for agent in self.agents:
             agent.update_state(self.places)
 
+        # smoke20: position_after / current_place_after を埋めて action.jsonl に書き出す
+        if action_log_records:
+            for rec, (agent, _, _) in zip(action_log_records, action_decisions):
+                pa = list(agent.position) if agent.position is not None else [None, None]
+                rec["position_after"] = [round(pa[0], 2) if pa[0] is not None else None,
+                                          round(pa[1], 2) if pa[1] is not None else None]
+                rec["current_place_after"] = agent.current_place
+                pb_x, pb_y = rec["position_before"]
+                pa_x, pa_y = rec["position_after"]
+                if pb_x is not None and pa_x is not None:
+                    dx = pa_x - pb_x
+                    dy = pa_y - pb_y
+                    rec["moved_dx"] = round(dx, 2)
+                    rec["moved_dy"] = round(dy, 2)
+                    rec["moved_dist"] = round((dx * dx + dy * dy) ** 0.5, 2)
+            try:
+                action_log_path = os.path.join(self.output_dir, "actions.jsonl")
+                with open(action_log_path, "a", encoding="utf-8") as f:
+                    for rec in action_log_records:
+                        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            except Exception as e:
+                logger.warning(f"actions.jsonl write failed: {e}")
+
+        # Phase B: perceive 注入機構 (place 進入時に perceive_pass / enter 行為で perceive_enter を agent.memory に注入)
+        if getattr(self, 'phase_b_perceive_enabled', False):
+            self._phase_b_inject_perceive(action_decisions)
+            self._phase_b_log_body_sense()
+
         # Feature 2: evolve the relationship graph once per step, after all
         # messages for this step have been delivered (last_step_messages is
         # populated in Phase 2).
         self._update_relationships()
         self._log_relationships_snapshot()
         self._log_event_awareness()
+
+        # 圧縮記憶 (2026-05-04): step が 5 の倍数のたびに、各 agent の直近 5 件 memory を
+        # 1 文要約して archived_summaries に push (Gemini 呼び出し)。並列で。
+        if self.step > 0 and self.step % 5 == 0:
+            try:
+                workers = max(1, min(self.parallel_workers, len(self.agents)))
+                with ThreadPoolExecutor(max_workers=workers) as ex:
+                    list(ex.map(lambda a: a.maybe_compress_memory(self.step), self.agents))
+                n_arch = sum(1 for a in self.agents if a.archived_summaries)
+                logger.info(f"Memory compression at step {self.step}: agents with archive: {n_arch}/{len(self.agents)}")
+            except Exception as e:
+                logger.warning(f"Memory compression failed at step {self.step}: {e}")
 
         # Record statistics
         agents_in_place = len(self.get_agents_in_place())

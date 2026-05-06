@@ -37,6 +37,18 @@ _GEMINI_SCHEMA_MESSAGE = {
     "required": ["message", "reasoning"],
 }
 
+# Used when skip_decision_prompt is on: message JSON also carries memory
+# (since Phase 3 is stubbed and memory must be captured here).
+_GEMINI_SCHEMA_MESSAGE_WITH_MEMORY = {
+    "type": "object",
+    "properties": {
+        "message": {"type": "string"},
+        "reasoning": {"type": "string"},
+        "memory": {"type": "string"},
+    },
+    "required": ["message", "reasoning", "memory"],
+}
+
 _GEMINI_SCHEMA_ACTION = {
     "type": "object",
     "properties": {
@@ -54,6 +66,9 @@ _GEMINI_SCHEMA_ACTION = {
 def _pick_gemini_schema(system_prompt: str) -> dict:
     if "action_type" in system_prompt:
         return _GEMINI_SCHEMA_ACTION
+    # Heuristic: skip_decision-mode message prompt asks for "memory" inline.
+    if '"memory"' in system_prompt:
+        return _GEMINI_SCHEMA_MESSAGE_WITH_MEMORY
     return _GEMINI_SCHEMA_MESSAGE
 
 
@@ -167,7 +182,7 @@ class GeminiClient:
     def __init__(
         self,
         base_url: Optional[str] = None,
-        model: str = "gemini-3.1-flash-lite-preview",
+        model: str = "gemini-2.5-flash-lite",
         temperature: float = 0.7,
         max_tokens: int = 200,
         enable_cache: bool = True,
@@ -289,6 +304,89 @@ class GeminiClient:
         logger.error(f"Gave up after {MAX_RATE_LIMIT_RETRIES} retries (gemini): {last_err}")
         return ""
 
+    def start_chat_session(self, system_instruction: str):
+        """Create an isolated chat session with a fixed system_instruction.
+
+        この session は state-ful: send_to_chat() を呼ぶ度に履歴 (user/model 交互) が
+        session 内で蓄積される。moltbook 風の per-agent thread を作る用途。
+        Returns the chat session object (Gemini SDK の ChatSession)."""
+        if self._client is None:
+            return None
+        try:
+            model = self._genai.GenerativeModel(
+                self.model,
+                system_instruction=system_instruction,
+            )
+            return model.start_chat(history=[])
+        except Exception as e:
+            logger.warning(f"Gemini chat session create failed: {e}")
+            return None
+
+    def send_to_chat(
+        self,
+        chat,
+        user_prompt: str,
+        temperature: Optional[float] = None,
+        max_tokens: Optional[int] = None,
+        schema_kind: str = "auto",
+    ) -> str:
+        """既存 chat session に送信。history は session 内で自動蓄積される。
+
+        schema_kind: "auto" (system_instruction を見て自動選択は不可なので message固定),
+                     "message" / "message_with_memory" / "action" / "none"."""
+        if chat is None:
+            return ""
+        if temperature is None:
+            temperature = self.temperature
+        if max_tokens is None:
+            max_tokens = self.max_tokens
+
+        gen_config = {
+            "temperature": temperature,
+            "max_output_tokens": max_tokens,
+        }
+        if self.enable_structured_output and schema_kind != "none":
+            gen_config["response_mime_type"] = "application/json"
+            if schema_kind == "message":
+                gen_config["response_schema"] = _GEMINI_SCHEMA_MESSAGE
+            elif schema_kind == "message_with_memory":
+                gen_config["response_schema"] = _GEMINI_SCHEMA_MESSAGE_WITH_MEMORY
+            elif schema_kind == "action":
+                gen_config["response_schema"] = _GEMINI_SCHEMA_ACTION
+            else:
+                gen_config["response_schema"] = _GEMINI_SCHEMA_MESSAGE_WITH_MEMORY
+
+        last_err = None
+        for attempt in range(MAX_RATE_LIMIT_RETRIES):
+            try:
+                resp = chat.send_message(user_prompt, generation_config=gen_config)
+                usage = getattr(resp, "usage_metadata", None)
+                if usage is not None:
+                    logger.info(
+                        "Token usage (gemini-chat): input=%s, cache_read=%s, output=%s",
+                        getattr(usage, "prompt_token_count", 0),
+                        getattr(usage, "cached_content_token_count", 0),
+                        getattr(usage, "candidates_token_count", 0),
+                    )
+                text = getattr(resp, "text", None)
+                return text.strip() if text else ""
+            except Exception as e:
+                msg = str(e).lower()
+                err_name = type(e).__name__
+                if "429" in msg or "rate" in msg or "quota" in msg or "resource_exhausted" in msg or err_name == "ResourceExhausted":
+                    last_err = e
+                    wait = _retry_backoff(attempt)
+                    logger.warning(
+                        f"Gemini-chat rate hit (attempt {attempt + 1}/{MAX_RATE_LIMIT_RETRIES}). "
+                        f"Retrying in {wait}s..."
+                    )
+                    time.sleep(wait)
+                    continue
+                logger.error(f"Gemini-chat error: {e}")
+                return ""
+        logger.error(f"Gave up after {MAX_RATE_LIMIT_RETRIES} retries (gemini-chat): {last_err}")
+        return ""
+
     def check_connection(self) -> bool:
         if self._client is None:
             return False
@@ -334,7 +432,7 @@ def create_llm_client(llm_config: dict):
     if provider == "google":
         return GeminiClient(
             base_url=base_url,
-            model=model or "gemini-3.1-flash-lite-preview",
+            model=model or "gemini-2.5-flash-lite",
             temperature=temperature,
             max_tokens=max_tokens,
         )

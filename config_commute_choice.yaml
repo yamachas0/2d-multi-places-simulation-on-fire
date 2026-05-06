@@ -1,0 +1,1392 @@
+# ================================================================
+# 帰宅移動手段の選択シミュ (commute_choice)
+# ================================================================
+# Built by tools/build_commute_choice_config.py
+#
+# フィールド：[オフィス]→ 5本のレーン (鉄道/バス/タクシー/自転車/徒歩) →[自宅]
+# シナリオ：18:00定時退勤 → 18:05にJR運休発生 → 各エージェントが代替手段を選ぶ
+# 通勤手段比率 (本線): 電車80 / バス10 / 自転車5 / 徒歩5
+#                     タクシーは平常時0、運休時の代替候補
+#   - num_agents       : 100
+#   - duration (steps) : 30
+#   - parallel_workers : 25
+# ================================================================
+
+simulation:
+  duration: 30
+  half_space_size: 60
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: '18:00'
+    patterns:
+    - hours:
+      - 18
+      - 19
+      enter_per_step: 0.0
+      exit_per_step: 0.0
+      neighborhood_mood: 退勤時間。オフィスから帰宅手段を選んで自宅へ向かう人々。JR線・バス・タクシー・自転車・徒歩の5本のレーンが並走している。
+      default_goal: 退勤し、適切な手段で帰宅する
+agents:
+  num_agents: 100
+  max_agents: 100
+  communication_radius: 12
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 10
+  message_context_size: 3
+  skip_probability: 0.2
+  parallel_workers: 25
+  movement_speed:
+    base_cells_per_step: 8
+    variance: 2
+  personas:
+  - id: 0
+    name: 佐藤結衣
+    age: 37
+    gender: female
+    occupation: 事務
+    background: 事務として勤続15年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 明るくフレンドリー
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.52
+    phone_check_rate: 0.77
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 1
+    name: 渡辺彩花
+    age: 24
+    gender: female
+    occupation: 営業
+    background: 営業として勤続2年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.84
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 2
+    name: 井上光
+    age: 48
+    gender: male
+    occupation: 事務
+    background: 事務として勤続26年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.44
+    phone_check_rate: 0.7
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 3
+    name: 山口蓮
+    age: 43
+    gender: male
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続21年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 明るくフレンドリー
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.73
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 4
+    name: 藤田博
+    age: 44
+    gender: male
+    occupation: 総務
+    background: 総務として勤続22年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.28
+    phone_check_rate: 0.58
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 5
+    name: 小林陸
+    age: 27
+    gender: male
+    occupation: デザイナー
+    background: デザイナーとして勤続5年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.56
+    phone_check_rate: 0.83
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 6
+    name: 福田亜紀
+    age: 26
+    gender: female
+    occupation: 経理
+    background: 経理として勤続4年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.54
+    phone_check_rate: 0.92
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 7
+    name: 中村理沙
+    age: 39
+    gender: female
+    occupation: 経営企画
+    background: 経営企画として勤続17年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.23
+    phone_check_rate: 0.69
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 8
+    name: 原田洋子
+    age: 32
+    gender: female
+    occupation: デザイナー
+    background: デザイナーとして勤続10年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.23
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 9
+    name: 岡本奈々
+    age: 36
+    gender: female
+    occupation: 課長
+    background: 課長として勤続14年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.57
+    phone_check_rate: 0.79
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 10
+    name: 鈴木雄一
+    age: 47
+    gender: male
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続25年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.74
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 11
+    name: 石川千恵
+    age: 53
+    gender: female
+    occupation: 法務
+    background: 法務として勤続31年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.22
+    phone_check_rate: 0.53
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 12
+    name: 青木彩
+    age: 49
+    gender: female
+    occupation: 広告営業
+    background: 広告営業として勤続27年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.33
+    phone_check_rate: 0.73
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 13
+    name: 斎藤勇
+    age: 25
+    gender: male
+    occupation: マーケター
+    background: マーケターとして勤続3年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 明るくフレンドリー
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.46
+    phone_check_rate: 0.88
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 14
+    name: 伊藤陸
+    age: 46
+    gender: male
+    occupation: 営業企画
+    background: 営業企画として勤続24年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.41
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 15
+    name: 山田典子
+    age: 56
+    gender: female
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続34年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.21
+    phone_check_rate: 0.56
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 16
+    name: 田村翔太
+    age: 54
+    gender: male
+    occupation: プロダクトマネージャー
+    background: プロダクトマネージャーとして勤続32年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.61
+    phone_check_rate: 0.67
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 17
+    name: 岡本智
+    age: 34
+    gender: male
+    occupation: SE
+    background: SEとして勤続12年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.53
+    phone_check_rate: 0.76
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 18
+    name: 遠藤花子
+    age: 42
+    gender: female
+    occupation: カスタマーサポート
+    background: カスタマーサポートとして勤続20年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ハキハキした敬語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.21
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 19
+    name: 阿部美咲
+    age: 25
+    gender: female
+    occupation: 事務
+    background: 事務として勤続3年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.62
+    phone_check_rate: 0.74
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 20
+    name: 伊藤光
+    age: 30
+    gender: male
+    occupation: SE
+    background: SEとして勤続8年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.62
+    phone_check_rate: 0.72
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 21
+    name: 西村蓮
+    age: 35
+    gender: male
+    occupation: デザイナー
+    background: デザイナーとして勤続13年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.51
+    phone_check_rate: 0.73
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 22
+    name: 前田あかね
+    age: 55
+    gender: female
+    occupation: 経営企画
+    background: 経営企画として勤続33年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.27
+    phone_check_rate: 0.5
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 23
+    name: 藤井俊樹
+    age: 36
+    gender: male
+    occupation: 営業
+    background: 営業として勤続14年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.5
+    phone_check_rate: 0.65
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 24
+    name: 鈴木健太
+    age: 26
+    gender: male
+    occupation: データアナリスト
+    background: データアナリストとして勤続4年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.82
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 25
+    name: 田村聡
+    age: 58
+    gender: male
+    occupation: カスタマーサポート
+    background: カスタマーサポートとして勤続36年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.54
+    phone_check_rate: 0.62
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 26
+    name: 中村蓮
+    age: 44
+    gender: male
+    occupation: 購買
+    background: 購買として勤続22年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.38
+    phone_check_rate: 0.72
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 27
+    name: 金子智子
+    age: 25
+    gender: female
+    occupation: 法務
+    background: 法務として勤続3年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 28
+    name: 青木樹
+    age: 30
+    gender: male
+    occupation: 購買
+    background: 購買として勤続8年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 明るくフレンドリー
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.74
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 29
+    name: 村上奈々
+    age: 28
+    gender: female
+    occupation: 経理
+    background: 経理として勤続6年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.57
+    phone_check_rate: 0.9
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 30
+    name: 清水優子
+    age: 48
+    gender: female
+    occupation: カスタマーサポート
+    background: カスタマーサポートとして勤続26年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.62
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 31
+    name: 藤田太郎
+    age: 46
+    gender: male
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続24年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.7
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 32
+    name: 藤井千夏
+    age: 31
+    gender: female
+    occupation: コンサルタント
+    background: コンサルタントとして勤続9年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.69
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 33
+    name: 田中桜
+    age: 25
+    gender: female
+    occupation: 経理
+    background: 経理として勤続3年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.39
+    phone_check_rate: 0.91
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 34
+    name: 田中智
+    age: 27
+    gender: male
+    occupation: プロダクトマネージャー
+    background: プロダクトマネージャーとして勤続5年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.85
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 35
+    name: 小林聡
+    age: 37
+    gender: male
+    occupation: 広告営業
+    background: 広告営業として勤続15年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.17
+    phone_check_rate: 0.65
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 36
+    name: 福田瞳
+    age: 42
+    gender: female
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続20年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.48
+    phone_check_rate: 0.65
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 37
+    name: 加藤一郎
+    age: 51
+    gender: male
+    occupation: 広報
+    background: 広報として勤続29年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.15
+    phone_check_rate: 0.64
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 38
+    name: 中村洋子
+    age: 56
+    gender: female
+    occupation: コンサルタント
+    background: コンサルタントとして勤続34年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.28
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 39
+    name: 清水舞
+    age: 40
+    gender: female
+    occupation: プロダクトマネージャー
+    background: プロダクトマネージャーとして勤続18年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.57
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 40
+    name: 金子瞳
+    age: 22
+    gender: female
+    occupation: 課長
+    background: 課長として勤続1年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.3
+    phone_check_rate: 0.88
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 41
+    name: 加藤彩
+    age: 29
+    gender: female
+    occupation: マーケター
+    background: マーケターとして勤続7年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.23
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 42
+    name: 山下和也
+    age: 38
+    gender: male
+    occupation: データアナリスト
+    background: データアナリストとして勤続16年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.28
+    phone_check_rate: 0.8
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 43
+    name: 岡本蓮
+    age: 39
+    gender: male
+    occupation: 経理
+    background: 経理として勤続17年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ハキハキした敬語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.64
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 44
+    name: 山口あかね
+    age: 57
+    gender: female
+    occupation: 部長
+    background: 部長として勤続35年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.43
+    phone_check_rate: 0.49
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 45
+    name: 原田節子
+    age: 56
+    gender: female
+    occupation: 経理
+    background: 経理として勤続34年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.44
+    phone_check_rate: 0.51
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 46
+    name: 阿部悠斗
+    age: 24
+    gender: male
+    occupation: 総務
+    background: 総務として勤続2年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.49
+    phone_check_rate: 0.87
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 47
+    name: 藤井駿
+    age: 31
+    gender: male
+    occupation: 事務
+    background: 事務として勤続9年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 明るくフレンドリー
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.64
+    phone_check_rate: 0.84
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 48
+    name: 佐藤香織
+    age: 43
+    gender: female
+    occupation: 購買
+    background: 購買として勤続21年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.28
+    phone_check_rate: 0.74
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 49
+    name: 鈴木亮
+    age: 36
+    gender: male
+    occupation: コンサルタント
+    background: コンサルタントとして勤続14年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.8
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 50
+    name: 林美香
+    age: 34
+    gender: female
+    occupation: 法務
+    background: 法務として勤続12年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: テキパキした口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.67
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 51
+    name: 中島茜
+    age: 47
+    gender: female
+    occupation: 課長
+    background: 課長として勤続25年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.56
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 52
+    name: 山崎香織
+    age: 38
+    gender: female
+    occupation: 経理
+    background: 経理として勤続16年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.69
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 53
+    name: 長谷川茜
+    age: 29
+    gender: female
+    occupation: 法務
+    background: 法務として勤続7年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.25
+    phone_check_rate: 0.7
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 54
+    name: 遠藤光
+    age: 34
+    gender: male
+    occupation: 総務
+    background: 総務として勤続12年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.18
+    phone_check_rate: 0.79
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 55
+    name: 石川清
+    age: 41
+    gender: male
+    occupation: データアナリスト
+    background: データアナリストとして勤続19年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.48
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 56
+    name: 藤井京子
+    age: 34
+    gender: female
+    occupation: 購買
+    background: 購買として勤続12年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.49
+    phone_check_rate: 0.83
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 57
+    name: 阿部真理
+    age: 57
+    gender: female
+    occupation: 営業
+    background: 営業として勤続35年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.56
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 58
+    name: 金子桜
+    age: 51
+    gender: female
+    occupation: 経営企画
+    background: 経営企画として勤続29年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.49
+    phone_check_rate: 0.62
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 59
+    name: 竹内優子
+    age: 27
+    gender: female
+    occupation: 企画
+    background: 企画として勤続5年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.48
+    phone_check_rate: 0.83
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 60
+    name: 安藤慎吾
+    age: 41
+    gender: male
+    occupation: 事務
+    background: 事務として勤続19年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.22
+    phone_check_rate: 0.61
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 61
+    name: 藤原洋子
+    age: 51
+    gender: female
+    occupation: 購買
+    background: 購買として勤続29年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.25
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 62
+    name: 清水修
+    age: 22
+    gender: male
+    occupation: マーケター
+    background: マーケターとして勤続1年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.91
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 63
+    name: 近藤恵子
+    age: 57
+    gender: female
+    occupation: 事務
+    background: 事務として勤続35年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.38
+    phone_check_rate: 0.63
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 64
+    name: 藤井桜
+    age: 50
+    gender: female
+    occupation: 営業企画
+    background: 営業企画として勤続28年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.36
+    phone_check_rate: 0.71
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 65
+    name: 山口亮
+    age: 50
+    gender: male
+    occupation: 開発エンジニア
+    background: 開発エンジニアとして勤続28年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.57
+    phone_check_rate: 0.58
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 66
+    name: 斎藤美咲
+    age: 39
+    gender: female
+    occupation: 経営企画
+    background: 経営企画として勤続17年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.51
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 67
+    name: 青木勇
+    age: 30
+    gender: male
+    occupation: SE
+    background: SEとして勤続8年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.34
+    phone_check_rate: 0.72
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 68
+    name: 岡田駿
+    age: 43
+    gender: male
+    occupation: デザイナー
+    background: デザイナーとして勤続21年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.36
+    phone_check_rate: 0.62
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 69
+    name: 宮崎学
+    age: 23
+    gender: male
+    occupation: 広告営業
+    background: 広告営業として勤続1年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.39
+    phone_check_rate: 0.93
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 70
+    name: 藤田駿
+    age: 56
+    gender: male
+    occupation: 主任
+    background: 主任として勤続34年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.55
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 71
+    name: 池田蓮
+    age: 53
+    gender: male
+    occupation: 営業
+    background: 営業として勤続31年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 穏やかな丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.64
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 72
+    name: 山口翼
+    age: 30
+    gender: male
+    occupation: 営業企画
+    background: 営業企画として勤続8年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.16
+    phone_check_rate: 0.76
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 73
+    name: 佐藤和子
+    age: 49
+    gender: female
+    occupation: SE
+    background: SEとして勤続27年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.24
+    phone_check_rate: 0.59
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 74
+    name: 近藤雄一
+    age: 43
+    gender: male
+    occupation: 法務
+    background: 法務として勤続21年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.53
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 75
+    name: 渡辺亮
+    age: 23
+    gender: male
+    occupation: 主任
+    background: 主任として勤続1年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.18
+    phone_check_rate: 0.93
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 76
+    name: 伊藤明
+    age: 23
+    gender: male
+    occupation: 事務
+    background: 事務として勤続1年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.57
+    phone_check_rate: 0.87
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 77
+    name: 石井清
+    age: 58
+    gender: male
+    occupation: コンサルタント
+    background: コンサルタントとして勤続36年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.5
+    phone_check_rate: 0.62
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 78
+    name: 西村清
+    age: 32
+    gender: male
+    occupation: 企画
+    background: 企画として勤続10年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.44
+    phone_check_rate: 0.86
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 79
+    name: 藤田真理
+    age: 34
+    gender: female
+    occupation: 人事
+    background: 人事として勤続12年の会社員。通勤手段はJR電車。普段は会社→駅→電車→自宅の流れで帰る。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、JR電車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.5
+    phone_check_rate: 0.78
+    initial_place: オフィス
+    preferred_commute: 電車
+  - id: 80
+    name: 宮崎一郎
+    age: 29
+    gender: male
+    occupation: 広告営業
+    background: 広告営業として勤続7年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ハキハキした敬語
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.78
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 81
+    name: 坂本健太
+    age: 22
+    gender: male
+    occupation: 購買
+    background: 購買として勤続1年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.2
+    phone_check_rate: 0.94
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 82
+    name: 近藤節子
+    age: 49
+    gender: female
+    occupation: プロダクトマネージャー
+    background: プロダクトマネージャーとして勤続27年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.63
+    phone_check_rate: 0.59
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 83
+    name: 青木陽子
+    age: 51
+    gender: female
+    occupation: 購買
+    background: 購買として勤続29年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.28
+    phone_check_rate: 0.69
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 84
+    name: 渡辺結衣
+    age: 50
+    gender: female
+    occupation: 事務
+    background: 事務として勤続28年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.43
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 85
+    name: 斎藤雄一
+    age: 33
+    gender: male
+    occupation: カスタマーサポート
+    background: カスタマーサポートとして勤続11年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.33
+    phone_check_rate: 0.71
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 86
+    name: 西村大輔
+    age: 57
+    gender: male
+    occupation: 営業
+    background: 営業として勤続35年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.62
+    phone_check_rate: 0.49
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 87
+    name: 斎藤奈々
+    age: 37
+    gender: female
+    occupation: 部長
+    background: 部長として勤続15年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.47
+    phone_check_rate: 0.73
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 88
+    name: 渡辺咲
+    age: 36
+    gender: female
+    occupation: 法務
+    background: 法務として勤続14年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.3
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 89
+    name: 遠藤拓海
+    age: 49
+    gender: male
+    occupation: 主任
+    background: 主任として勤続27年の会社員。通勤手段は路線バス。電車は使わずバス1本で会社と自宅を往復している。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 簡潔でビジネスライク
+    current_goal: 18:00定時で退勤、バスで帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.32
+    phone_check_rate: 0.67
+    initial_place: オフィス
+    preferred_commute: バス
+  - id: 90
+    name: 山崎俊樹
+    age: 29
+    gender: male
+    occupation: 主任
+    background: 主任として勤続7年の会社員。通勤手段は自転車。会社の駐輪場に毎朝停めている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: カジュアルでタメ口混じり
+    current_goal: 18:00定時で退勤、自転車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.31
+    phone_check_rate: 0.84
+    initial_place: オフィス
+    preferred_commute: 自転車
+  - id: 91
+    name: 原田香織
+    age: 34
+    gender: female
+    occupation: コンサルタント
+    background: コンサルタントとして勤続12年の会社員。通勤手段は自転車。会社の駐輪場に毎朝停めている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、自転車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.77
+    initial_place: オフィス
+    preferred_commute: 自転車
+  - id: 92
+    name: 西村咲
+    age: 28
+    gender: female
+    occupation: コンサルタント
+    background: コンサルタントとして勤続6年の会社員。通勤手段は自転車。会社の駐輪場に毎朝停めている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、自転車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.26
+    phone_check_rate: 0.74
+    initial_place: オフィス
+    preferred_commute: 自転車
+  - id: 93
+    name: 青木隆
+    age: 39
+    gender: male
+    occupation: 経理
+    background: 経理として勤続17年の会社員。通勤手段は自転車。会社の駐輪場に毎朝停めている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ハキハキした敬語
+    current_goal: 18:00定時で退勤、自転車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.43
+    phone_check_rate: 0.75
+    initial_place: オフィス
+    preferred_commute: 自転車
+  - id: 94
+    name: 安藤達也
+    age: 28
+    gender: male
+    occupation: 営業
+    background: 営業として勤続6年の会社員。通勤手段は自転車。会社の駐輪場に毎朝停めている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: おっとりした柔らかい口調
+    current_goal: 18:00定時で退勤、自転車で帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.29
+    phone_check_rate: 0.8
+    initial_place: オフィス
+    preferred_commute: 自転車
+  - id: 95
+    name: 田中翔太
+    age: 52
+    gender: male
+    occupation: マーケター
+    background: マーケターとして勤続30年の会社員。通勤手段は徒歩。会社まで歩いて通っている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、歩いて帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.35
+    phone_check_rate: 0.52
+    initial_place: オフィス
+    preferred_commute: 徒歩
+  - id: 96
+    name: 田中節子
+    age: 31
+    gender: female
+    occupation: 広告営業
+    background: 広告営業として勤続9年の会社員。通勤手段は徒歩。会社まで歩いて通っている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ぼそぼそした静かな口調
+    current_goal: 18:00定時で退勤、歩いて帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.19
+    phone_check_rate: 0.73
+    initial_place: オフィス
+    preferred_commute: 徒歩
+  - id: 97
+    name: 岡田麻衣
+    age: 55
+    gender: female
+    occupation: 法務
+    background: 法務として勤続33年の会社員。通勤手段は徒歩。会社まで歩いて通っている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 気さくな砕けた口調
+    current_goal: 18:00定時で退勤、歩いて帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.6
+    phone_check_rate: 0.55
+    initial_place: オフィス
+    preferred_commute: 徒歩
+  - id: 98
+    name: 長谷川莉子
+    age: 58
+    gender: female
+    occupation: 営業企画
+    background: 営業企画として勤続36年の会社員。通勤手段は徒歩。会社まで歩いて通っている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: ハキハキした敬語
+    current_goal: 18:00定時で退勤、歩いて帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.45
+    phone_check_rate: 0.61
+    initial_place: オフィス
+    preferred_commute: 徒歩
+  - id: 99
+    name: 木村千恵
+    age: 38
+    gender: female
+    occupation: 課長
+    background: 課長として勤続16年の会社員。通勤手段は徒歩。会社まで歩いて通っている。タクシーは普段使わず、雨や緊急時のみの選択肢として頭にある。
+    speech_style: 落ち着いた丁寧語
+    current_goal: 18:00定時で退勤、歩いて帰宅する予定。早く家に帰りたい。
+    talkativeness: 0.23
+    phone_check_rate: 0.66
+    initial_place: オフィス
+    preferred_commute: 徒歩
+places:
+- name: オフィス
+  type: office_lobby
+  center_x: -50
+  center_y: 0
+  half_size_x: 8
+  half_size_y: 35
+  capacity: 200
+  social_likelihood: 0.2
+- name: 自宅エリア
+  type: office_lobby
+  center_x: 50
+  center_y: 0
+  half_size_x: 8
+  half_size_y: 35
+  capacity: 200
+  social_likelihood: 0.05
+- name: JR線（電車）
+  type: wide_street
+  center_x: 0
+  center_y: 40
+  half_size_x: 38
+  half_size_y: 4
+  capacity: 100
+  social_likelihood: 0.1
+  road_direction: east_west
+  lanes: 4
+- name: 路線バス
+  type: wide_street
+  center_x: 0
+  center_y: 20
+  half_size_x: 38
+  half_size_y: 4
+  capacity: 60
+  social_likelihood: 0.15
+  road_direction: east_west
+  lanes: 2
+- name: タクシー
+  type: wide_street
+  center_x: 0
+  center_y: 0
+  half_size_x: 38
+  half_size_y: 4
+  capacity: 40
+  social_likelihood: 0.1
+  road_direction: east_west
+  lanes: 2
+- name: 自転車レーン
+  type: pedestrian_street
+  center_x: 0
+  center_y: -20
+  half_size_x: 38
+  half_size_y: 4
+  capacity: 40
+  social_likelihood: 0.08
+  road_direction: east_west
+  lanes: 0
+- name: 徒歩道
+  type: pedestrian_street
+  center_x: 0
+  center_y: -40
+  half_size_x: 38
+  half_size_y: 4
+  capacity: 50
+  social_likelihood: 0.2
+  road_direction: east_west
+  lanes: 0
+- name: オフィス南カフェ
+  type: cafe
+  center_x: -55
+  center_y: -55
+  half_size_x: 4
+  half_size_y: 3
+  capacity: 20
+  social_likelihood: 0.5
+- name: オフィス南コンビニ
+  type: convenience_store
+  center_x: -45
+  center_y: -55
+  half_size_x: 4
+  half_size_y: 3
+  capacity: 15
+  social_likelihood: 0.2
+- name: オフィス南居酒屋
+  type: izakaya
+  center_x: -35
+  center_y: -55
+  half_size_x: 4
+  half_size_y: 3
+  capacity: 18
+  social_likelihood: 0.7
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events:
+- name: jr_homebound_outage
+  type: transit_disruption
+  start_step: 5
+  end_step: 30
+  broadcast_once: true
+  affected_place: JR線（電車）
+  description: JR山手線・京浜東北線で人身事故発生、運転見合わせ。復旧見通し立たず。振替輸送案内中。
+  effects:
+    notify_agents_within_radius: 999
+  salience_boost_targets: []
+events_keywords:
+- 電車
+- JR
+- 山手線
+- 京浜東北線
+- 運休
+- 運転見合わせ
+- 人身事故
+- 遅延
+- 復旧
+- バス
+- 路線バス
+- タクシー
+- 自転車
+- 徒歩
+- 歩いて
+- 歩く
+- 振替
+- 振替輸送
+- 代替
+- 迂回
+- 帰宅
+- 帰り道
+- 帰る
+- 帰れない
+- どうする
+- どうしよう
+- 様子見
+- カフェ
+- コンビニ
+- 居酒屋
+- 待つ
+- 復旧まで
+visualization:
+  save_frames: true
+  frame_interval: 1
+  focus_agent_id: 0
+logging:
+  level: INFO

@@ -1,0 +1,960 @@
+# ================================================================
+# 知覚不可能な何か シミュ (high)
+# ================================================================
+# Built by tools/build_unknowable_config.py
+#
+# 問い: 「目の前に、知覚も言語化もできない何かがある。これが何か？」
+# Variant: high (elementary=小学生 / high=高校生 / singulabo=社会人)
+# num_agents=20 / duration=30 steps
+# 同一field・同一seed・同一問い、ペルソナだけ変える A/B/C 設計
+# ================================================================
+
+metadata:
+  name: classroom_unknowable_high
+  description: 知覚不可能な何か / 教室シナリオ — 15m×15m×3m 想定
+  scenario_kind: classroom
+  meters_per_cell: 1
+  grid_step_m: 1
+  hide_place_labels: true
+  ceiling_height_m: 3.0
+simulation:
+  duration: 30
+  half_space_size: 8
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 1
+    start_time: 09:00
+    patterns:
+    - hours:
+      - 9
+      - 10
+      enter_per_step: 0.0
+      exit_per_step: 0.0
+      neighborhood_mood: 授業前の休み時間。教室には20席が並ぶ。教師はまだ来ていない。教壇の方の空気が、なぜか少しだけ違って感じられる。
+      default_goal: 目の前の『何か』が何かを、説明しようとする
+agents:
+  num_agents: 20
+  max_agents: 20
+  communication_radius: 25
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 20
+  message_context_size: 6
+  skip_probability: 0.05
+  parallel_workers: 12
+  movement_speed:
+    base_cells_per_step: 2
+    variance: 1
+  personas:
+  - id: 0
+    name: 佐倉ゆい
+    age: 16
+    gender: female
+    occupation: 高校1年
+    background: 文学少女。村上春樹と中島敦が好き。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 丁寧でやや古風な高校生言葉
+    talkativeness: 0.57
+    phone_check_rate: 0.55
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_1_1
+    initial_relationships:
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 1
+    name: 藤崎涼介
+    age: 17
+    gender: male
+    occupation: 高校2年
+    background: アニメ・SF・ゲームのオタク。マニアック語彙が多い。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 早口でスラング混じりのオタク語
+    talkativeness: 0.77
+    phone_check_rate: 0.75
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_1_2
+    initial_relationships:
+      0: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 2
+    name: 中山健斗
+    age: 18
+    gender: male
+    occupation: 高校3年(理系受験生)
+    background: 東大理系志望。物理が好きで論理で物事を整理したがる。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 落ち着いた論理的な敬語
+    talkativeness: 0.44
+    phone_check_rate: 0.5
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_1_3
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 3
+    name: 森野りお
+    age: 16
+    gender: female
+    occupation: 高校1年
+    background: 陽キャ。SNSでフォロワー多め、空気を読むのが上手い。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 明るく軽快な今どきタメ口
+    talkativeness: 0.9
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_1_4
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 4
+    name: 杉田陽
+    age: 17
+    gender: male
+    occupation: 高校2年(不登校気味)
+    background: 学校に来たり来なかったり。哲学書を独学で読んでいる。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: ぼそぼそ、独白めいた口調
+    talkativeness: 0.31
+    phone_check_rate: 0.4
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_1_5
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 5
+    name: 桐谷瑞
+    age: 18
+    gender: female
+    occupation: 高校3年(美術系志望)
+    background: 美大志望。色や形でしかわからない感覚を大事にする。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 感覚的・詩的な言い回し
+    talkativeness: 0.57
+    phone_check_rate: 0.6
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_2_1
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 6
+    name: 梅原翔
+    age: 16
+    gender: male
+    occupation: 高校1年(数学好き・無口)
+    background: 数学オリンピックを目指している。あまり喋らない。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 極端に短く、必要なことだけ
+    talkativeness: 0.18
+    phone_check_rate: 0.3
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_2_2
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 7
+    name: 立花かほ
+    age: 17
+    gender: female
+    occupation: 高校2年(演劇部)
+    background: 演劇部部長。感情を表現することに躊躇がない。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 豊かな抑揚と身振りを思わせる口調
+    talkativeness: 0.9
+    phone_check_rate: 0.65
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_2_3
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 8
+    name: 島本駿
+    age: 15
+    gender: male
+    occupation: 高校1年(体育会系)
+    background: サッカー部のフォワード。直感で動く。あまり考えない。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: ガサツでテンション高いタメ口
+    talkativeness: 0.7
+    phone_check_rate: 0.55
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_2_4
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 9
+    name: 西田大樹
+    age: 17
+    gender: male
+    occupation: 高校2年(プログラマ志望)
+    background: 中学からプログラミング独学。Stable Diffusionに詳しい。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 技術用語混じりの淡々とした口調
+    talkativeness: 0.51
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_2_5
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 10
+    name: 三宅あいり
+    age: 16
+    gender: female
+    occupation: 高校1年(心理学志望)
+    background: 心理学に興味があり、人の心の動きを観察するのが好き。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 観察的で穏やかな口調
+    talkativeness: 0.64
+    phone_check_rate: 0.65
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_3_1
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 11
+    name: 原田美月
+    age: 18
+    gender: female
+    occupation: 高校3年(ジャーナリスト志望)
+    background: 新聞部部長。批判的思考と一次情報重視。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 鋭く問い返す論理的な口調
+    talkativeness: 0.77
+    phone_check_rate: 0.75
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_3_2
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 12
+    name: 東 れな
+    age: 16
+    gender: female
+    occupation: 高校1年(ヤンキー系)
+    background: 学校はあまり好きじゃない。ファッションと友達優先。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: ぶっきらぼうなギャル語
+    talkativeness: 0.64
+    phone_check_rate: 0.9
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_3_3
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 13
+    name: 新堂タケル
+    age: 17
+    gender: male
+    occupation: 高校2年(帰宅部・映画オタク)
+    background: 部活はせず、毎日映画を見て帰る。タランティーノとアリ・アスターが好き。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 映画の比喩を多用する淡々口調
+    talkativeness: 0.57
+    phone_check_rate: 0.65
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_3_4
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 14
+    name: 丸山修平
+    age: 16
+    gender: male
+    occupation: 高校1年(鉄道オタク)
+    background: 鉄道時刻表を暗記している。話せばずっと電車の話。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 知識マシンガントーク
+    talkativeness: 0.77
+    phone_check_rate: 0.5
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_3_5
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 15
+    name: 小柳エリカ
+    age: 18
+    gender: female
+    occupation: 高校3年(音楽科・ピアノ)
+    background: 音大志望。耳が異常に良い。聴感で世界を捉える。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 音楽用語混じりの感覚的な口調
+    talkativeness: 0.57
+    phone_check_rate: 0.55
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_4_1
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 16
+    name: 北野アヤメ
+    age: 17
+    gender: female
+    occupation: 高校2年(軽音部・ボーカル)
+    background: バンドのフロントマン。即興と感情表現が得意。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 勢いのある楽屋トーク
+    talkativeness: 0.9
+    phone_check_rate: 0.8
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_4_2
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      17: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 17
+    name: ジョナサン・リー
+    age: 16
+    gender: male
+    occupation: 高校1年(留学生・米国)
+    background: ロサンゼルス出身。日本語は流暢だが時々英単語が混ざる。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 英単語混じりの素直な日本語
+    talkativeness: 0.77
+    phone_check_rate: 0.85
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_4_3
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      18: 0.55
+      19: 0.55
+  - id: 18
+    name: 栗山リョウ
+    age: 18
+    gender: male
+    occupation: 高校3年(不良グループ)
+    background: 校則無視で先生と衝突しがち。本心は優しいタイプ。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 尖った荒いタメ口、本音は時々出る
+    talkativeness: 0.44
+    phone_check_rate: 0.6
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_4_4
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      19: 0.55
+  - id: 19
+    name: 藤村美和子
+    age: 17
+    gender: female
+    occupation: 高校2年(生徒会長)
+    background: 全体を仕切るリーダー。場のバランスを考える癖がある。 目の前に現れた『何か』は、見ようとしても見えず、聞こうとしても聞こえず、言葉にしようとすると逃げていく。それでもなお、確かに『そこにある』と感じる。
+    speech_style: 進行役らしい丁寧で公正な口調
+    talkativeness: 0.77
+    phone_check_rate: 0.7
+    current_goal: 目の前に、知覚も言語化もできない『何か』がある。それが何かを説明しようとする。
+    initial_place: 席_4_5
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+      6: 0.55
+      7: 0.55
+      8: 0.55
+      9: 0.55
+      10: 0.55
+      11: 0.55
+      12: 0.55
+      13: 0.55
+      14: 0.55
+      15: 0.55
+      16: 0.55
+      17: 0.55
+      18: 0.55
+places:
+- name: 教室
+  type: office_lobby
+  center_x: 0
+  center_y: 0
+  half_size_x: 7.5
+  half_size_y: 7.5
+  capacity: 50
+  social_likelihood: 0.65
+  attributes:
+    height_m: 3.0
+    invisible: true
+- name: 教壇
+  type: office_lobby
+  center_x: 0
+  center_y: -5.5
+  half_size_x: 3.5
+  half_size_y: 1.0
+  capacity: 5
+  social_likelihood: 0.05
+  attributes:
+    height_m: 0.2
+    invisible: true
+- name: 教卓
+  type: office_lobby
+  center_x: 0
+  center_y: -4.5
+  half_size_x: 0.6
+  half_size_y: 0.3
+  capacity: 1
+  social_likelihood: 0.0
+  attributes:
+    height_m: 0.75
+    color: '#8a6a4a'
+- name: ■
+  type: unknowable
+  center_x: 0
+  center_y: -5.0
+  half_size_x: 0.8
+  half_size_y: 0.8
+  capacity: 20
+  social_likelihood: 0.0
+  attributes:
+    height_m: 1.6
+- name: 教室入口
+  type: pedestrian_street
+  center_x: 6.5
+  center_y: 6.5
+  half_size_x: 0.5
+  half_size_y: 0.5
+  capacity: 3
+  social_likelihood: 0.1
+  attributes:
+    height_m: 0.05
+    invisible: true
+- name: 席_1_1
+  type: student_seat
+  center_x: -6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_2
+  type: student_seat
+  center_x: -3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_3
+  type: student_seat
+  center_x: 0
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_4
+  type: student_seat
+  center_x: 3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_5
+  type: student_seat
+  center_x: 6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_1
+  type: student_seat
+  center_x: -6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_2
+  type: student_seat
+  center_x: -3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_3
+  type: student_seat
+  center_x: 0
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_4
+  type: student_seat
+  center_x: 3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_5
+  type: student_seat
+  center_x: 6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_1
+  type: student_seat
+  center_x: -6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_2
+  type: student_seat
+  center_x: -3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_3
+  type: student_seat
+  center_x: 0
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_4
+  type: student_seat
+  center_x: 3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_5
+  type: student_seat
+  center_x: 6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_1
+  type: student_seat
+  center_x: -6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_2
+  type: student_seat
+  center_x: -3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_3
+  type: student_seat
+  center_x: 0
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_4
+  type: student_seat
+  center_x: 3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_5
+  type: student_seat
+  center_x: 6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events: []
+events_keywords: []
+visualization:
+  save_frames: true
+  frame_interval: 1
+  focus_agent_id: 0
+  run_name: unknowable_high
+logging:
+  level: INFO

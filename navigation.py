@@ -35,6 +35,10 @@ class Navigator:
         'park', 'plaza', 'pedestrian_street', 'wide_street', 'narrow_street',
     })
 
+    # 道路幅員制約 (#9): 幅 >= ROAD_SIDEWALK_THRESH_CELLS の道路は車道扱いで
+    # 両端 sidewalk_w cells のみ歩行可。それ未満は全幅歩行可 (歩道専用扱い)。
+    ROAD_SIDEWALK_THRESH_CELLS = 5.0
+
     def __init__(self, config: Dict, half_space_size: int):
         self.H = int(half_space_size)
         self.size = 2 * self.H + 1
@@ -43,8 +47,16 @@ class Navigator:
 
         scene = (config or {}).get('scene_3d') or {}
         n_marked = 0
-        for r in scene.get('roads') or []:
-            n_marked += self._fill_rect(r)
+        # 幅員制約: 幅 >= ROAD_SIDEWALK_THRESH_CELLS の道路は車道+歩道 2層構造で、
+        # 両端 sidewalk_w cells (= floor(width/4), 最小1) だけ歩行可。それ未満の道路は
+        # 全幅歩行可 (細道は歩道専用扱い)。
+        roads_input = scene.get('roads') or []
+        for r in roads_input:
+            n_marked += self._fill_road_with_sidewalk(r)
+        # 交差点 (road bbox 同士の重なり cell) を歩道扱いに上書き — 横断歩道相当
+        # で道路を渡れるようにする。pairwise loop。
+        if len(roads_input) >= 2:
+            n_marked += self._mark_road_intersections(roads_input)
         for d in scene.get('decks') or []:
             for seg in (d.get('segments') or []):
                 n_marked += self._fill_deck_segment(seg)
@@ -96,7 +108,7 @@ class Navigator:
                 return 1
         return 0
 
-    def _fill_rect(self, road: Dict) -> int:
+    def _road_bbox(self, road: Dict) -> Tuple[float, float, float, float]:
         axis = (road.get('axis') or 'ew').lower()
         cx = float(road.get('center_x', 0))
         cy = float(road.get('center_y', 0))
@@ -105,15 +117,42 @@ class Navigator:
         hw = max(0.5, w / 2.0)
         hL = max(0.5, L / 2.0)
         if axis == 'ew':
-            x0, x1 = cx - hL, cx + hL
-            y0, y1 = cy - hw, cy + hw
-        else:
-            x0, x1 = cx - hw, cx + hw
-            y0, y1 = cy - hL, cy + hL
+            return cx - hL, cx + hL, cy - hw, cy + hw
+        return cx - hw, cx + hw, cy - hL, cy + hL
+
+    def _fill_rect(self, road: Dict) -> int:
+        """全幅塗り。歩道専用 (狭い道路) や歩行可エリア (deck等) で使う。"""
+        x0, x1, y0, y1 = self._road_bbox(road)
         n = 0
         for y in range(int(math.floor(y0)), int(math.floor(y1)) + 1):
             for x in range(int(math.floor(x0)), int(math.floor(x1)) + 1):
                 n += self._mark(x, y)
+        return n
+
+    def _fill_road_with_sidewalk(self, road: Dict) -> int:
+        """smoke21: 歩道制約を撤廃 — 道路全幅を歩行可とする。
+        国道15号など幅広道路でも全幅歩行可で、東西自由通路から高輪側へ歩いて渡れる。
+        agent の position は最寄り walkable cell に丸められるので、結果として境界沿い
+        (= 歩道相当の位置) にフィットする傾向は残る。"""
+        return self._fill_rect(road)
+
+    def _mark_road_intersections(self, roads: List[Dict]) -> int:
+        """road bbox 同士が重なる cell を歩行可に上書き (横断歩道相当)。
+        2つの road の bbox の交差矩形のみを塗る — どちらかの road が歩道専用扱い
+        だった場合でも、交差点では渡れる方が自然。
+        """
+        n = 0
+        for i in range(len(roads)):
+            ax0, ax1, ay0, ay1 = self._road_bbox(roads[i])
+            for j in range(i + 1, len(roads)):
+                bx0, bx1, by0, by1 = self._road_bbox(roads[j])
+                ix0, ix1 = max(ax0, bx0), min(ax1, bx1)
+                iy0, iy1 = max(ay0, by0), min(ay1, by1)
+                if ix0 > ix1 or iy0 > iy1:
+                    continue
+                for y in range(int(math.floor(iy0)), int(math.floor(iy1)) + 1):
+                    for x in range(int(math.floor(ix0)), int(math.floor(ix1)) + 1):
+                        n += self._mark(x, y)
         return n
 
     def _fill_deck_segment(self, seg: Dict) -> int:
@@ -315,8 +354,15 @@ class Navigator:
 
         # Last-mile facility entry: we've walked to the closest walkable
         # cell near the target place but path can't enter (because the apron
-        # between road and building is blocked). Allow the jump.
-        if target_place and idx == len(path) - 1 and not self._inside_place(next_pos, target_place):
+        # between road and building is blocked). Allow the jump — but NOT
+        # when the place is enterable=false (工事中・住宅・浄水場など).
+        target_enterable = (target_place.get('attributes') or {}).get('enterable') if target_place else None
+        if (
+            target_place
+            and target_enterable is not False
+            and idx == len(path) - 1
+            and not self._inside_place(next_pos, target_place)
+        ):
             cx = int(round(float(target_place.get('center_x', 0))))
             cy = int(round(float(target_place.get('center_y', 0))))
             hx = float(target_place.get('half_size_x', target_place.get('half_size', 2)))
@@ -324,7 +370,6 @@ class Navigator:
             dx = abs(next_pos[0] - cx) - hx
             dy = abs(next_pos[1] - cy) - hy
             apron_dist = max(0.0, dx) + max(0.0, dy)
-            # Jump if we're within a few cells of the building bbox.
             if apron_dist <= 6:
                 return self._clamp(self._place_center(target_place))
 

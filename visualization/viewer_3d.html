@@ -2,6 +2,9 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=2, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="theme-color" content="#0e1714">
 <title>Singulabo 2D City Viewer v3 (3D)</title>
 <style>
   :root {
@@ -24,12 +27,28 @@
   #app {
     display: grid;
     grid-template-rows: 1fr auto;
-    grid-template-columns: 1fr 340px;
+    grid-template-columns: 1fr 6px var(--side-width, 340px);
     grid-template-areas:
-      "main side"
-      "controls controls";
+      "main split-right side"
+      "controls controls controls";
     height: 100vh; width: 100vw;
   }
+  #splitter-right {
+    grid-area: split-right;
+    background: var(--panel-border);
+    cursor: col-resize;
+    user-select: none;
+    z-index: 9;
+  }
+  #splitter-right:hover { background: #777; }
+  #hud-places-resizer {
+    position: absolute;
+    top: 0; right: -4px; bottom: 0;
+    width: 8px;
+    cursor: col-resize;
+    z-index: 5;
+  }
+  #hud-places-resizer:hover { background: rgba(255,255,255,0.2); }
   #main {
     grid-area: main;
     position: relative;
@@ -55,6 +74,12 @@
     min-height: 0;
     overflow: hidden;
   }
+  /* 上下2区画: 上=agents(or edit), 下=sim ログ。現状は 50:50 固定。 */
+  #side-panel > #panel-agents,
+  #side-panel > #panel-edit { flex: 1 1 50%; min-height: 0; overflow-y: auto;
+                              border-bottom: 1px solid var(--panel-border); padding-bottom: 8px; }
+  #side-panel > #panel-sim { flex: 1 1 50%; min-height: 0; overflow-y: auto; padding-top: 8px; }
+  #side-panel > #panel-sim .side-section.scroll .scroll-body { max-height: none; }
   #side-panel h3 {
     margin: 0 0 8px 0;
     font-size: 11px;
@@ -208,7 +233,7 @@
   #hud-clock {
     position: absolute;
     left: 24px; top: 20px;
-    font-size: 28px;
+    font-size: 32px;
     color: var(--text);
     font-weight: 500;
     font-variant-numeric: tabular-nums;
@@ -219,12 +244,18 @@
   }
   #hud-clock .meta {
     display: block;
-    font-size: 12px;
+    font-size: 14px;
     color: var(--text-dim);
     font-weight: 400;
     letter-spacing: 0;
-    margin-top: 4px;
+    margin-top: 10px;
   }
+  #hud-clock #clock-step { letter-spacing: 1px; }
+  /* 施設一覧スクロールバーを右パネルと同じデザインに */
+  #hud-places::-webkit-scrollbar { width: 6px; }
+  #hud-places::-webkit-scrollbar-thumb { background: var(--panel-border); border-radius: 3px; }
+  #hud-places::-webkit-scrollbar-track { background: transparent; }
+  #hud-places { scrollbar-width: thin; scrollbar-color: var(--panel-border) transparent; }
   #hud-stats {
     position: absolute;
     left: 24px; top: 110px;
@@ -235,6 +266,110 @@
     text-shadow: 0 0 8px rgba(0,0,0,0.6);
   }
   #hud-stats b { color: var(--text); font-weight: 500; }
+  #hud-places {
+    position: absolute;
+    left: 24px; top: 110px;
+    width: 240px;
+    max-height: calc(100vh - 140px);
+    background: rgba(14, 23, 20, 0.7);
+    border-radius: 6px;
+    border: 1px solid rgba(255,255,255,0.08);
+    padding: 8px 10px;
+    overflow-y: auto;
+    z-index: 4;
+    color: var(--text);
+  }
+  #hud-places .hp-section-title { color: var(--text-dim); font-size: 12px; margin: 14px 0 4px;
+                                   letter-spacing: 0.05em; text-transform: uppercase;
+                                   border-top: 1px solid rgba(255,255,255,0.08); padding-top: 10px; }
+  #hud-places .hp-title { color: var(--text-dim); font-size: 12px; margin-bottom: 6px;
+                          letter-spacing: 0.05em; text-transform: uppercase; }
+  #hud-places .hp-item { cursor: pointer; padding: 2px 6px; font-size: 12px;
+                          color: var(--text); border-radius: 3px; line-height: 1.35;
+                          display: flex; align-items: center; gap: 6px; }
+  #hud-places .hp-item:hover { background: rgba(255,216,95,0.18); color: #ffd85f; }
+  #hud-places .hp-dot { display: inline-block; width: 9px; height: 9px;
+                         border-radius: 2px; flex-shrink: 0;
+                         border: 1px solid rgba(255,255,255,0.15); }
+  #hud-legend {
+    /* hud-places の中の通常フローに配置 */
+    font-size: 12px;
+    color: var(--text-dim);
+    line-height: 1.45;
+    display: grid;
+    grid-template-columns: repeat(2, auto);
+    gap: 3px 12px;
+  }
+  #hud-legend .row { display: flex; align-items: center; gap: 6px; }
+  #hud-legend .sw {
+    display: inline-block; width: 14px; height: 11px;
+    border: 1px solid rgba(255,255,255,0.18);
+    border-radius: 2px;
+  }
+  /* Follow-mode speech bubble (selected agent's thought + message) */
+  #follow-bubble {
+    position: absolute;
+    pointer-events: none;
+    /* transform: translate(-50%, -100%) は外した。JS 側で left/top に直接 px を入れる */
+    background: rgba(20, 28, 24, 0.85);
+    border: 1px solid rgba(255, 216, 95, 0.7);
+    border-radius: 12px;
+    padding: 12px 18px;
+    color: #f5f5ef;
+    font-size: 22px;
+    line-height: 1.4;
+    max-width: 520px;
+    box-shadow: 0 6px 20px rgba(0,0,0,0.55);
+    display: none;
+    z-index: 6;
+  }
+  #follow-bubble .name {
+    font-weight: 600;
+    color: #ffd85f;
+    font-size: 20px;
+    margin-bottom: 6px;
+    letter-spacing: 0.3px;
+  }
+  #follow-bubble .row { margin-top: 8px; }
+  #follow-bubble .label {
+    color: rgba(220,230,220,0.55);
+    font-size: 18px;
+    margin-right: 6px;
+  }
+  #place-context {
+    position: absolute; right: 12px; bottom: 12px;
+    max-width: 380px; max-height: 50vh;
+    background: rgba(20,28,24,0.88);
+    border: 1px solid rgba(255,216,95,0.5);
+    border-radius: 10px;
+    padding: 10px 14px 12px;
+    color: #f5f5ef;
+    font-size: 13px;
+    line-height: 1.5;
+    overflow-y: auto;
+    z-index: 8;
+    box-shadow: 0 4px 14px rgba(0,0,0,0.5);
+    display: none;
+  }
+  #place-context .pc-name {
+    font-weight: 600;
+    color: #ffd85f;
+    margin-bottom: 6px;
+    font-size: 16px;
+    padding-right: 22px;
+  }
+  #place-context .pc-body {
+    white-space: pre-wrap;
+    font-size: 12px;
+    color: rgba(245,245,239,0.88);
+  }
+  #place-context .pc-close {
+    position: absolute; top: 4px; right: 8px;
+    background: none; border: none; color: #aaa;
+    cursor: pointer; font-size: 18px; line-height: 1;
+  }
+  /* しっぽは横配置時に不自然なので非表示 */
+  #follow-bubble::after { display: none; }
   #cam-buttons {
     position: absolute;
     right: 16px; top: 16px;
@@ -321,6 +456,9 @@
   .speed-group button.active {
     background: var(--accent);
     color: #1b1608;
+    font-weight: bold;
+    border: 2px solid #fff7c0;
+    box-shadow: 0 0 8px rgba(255, 216, 95, 0.7);
   }
   .step-label {
     font-variant-numeric: tabular-nums;
@@ -335,7 +473,7 @@
 
   /* --- Edit mode UI --- */
   #edit-toggle {
-    position: absolute; top: 12px; right: 12px;
+    position: absolute; top: 60px; right: 12px;
     background: rgba(18, 31, 27, 0.85);
     color: var(--text);
     border: 1px solid var(--panel-border);
@@ -433,7 +571,9 @@
   }
   .agent-row .sex.male { background: #378add; }
   .agent-row .sex.female { background: #e8509c; }
-  .agent-row .sex.other { background: #9a9a9a; }
+  .agent-row .sex.other { background: #f2d23f; }
+  .agent-row .sex.host { background: #f2d23f; color: #1b1608; }
+  .agent-row .sex.diversity { background: #3ec96e; color: #0f1a13; }
   .agent-row .name {
     color: var(--text); font-weight: 500;
     overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
@@ -666,6 +806,71 @@
     padding: 6px 14px; cursor: pointer; font-family: inherit; font-size: 11px;
   }
   .modal-actions button.primary { background: var(--accent); color: #1b1608; }
+
+  /* ============================================================
+     Mobile / portrait optimisation
+     ============================================================ */
+  @media (max-width: 820px), (orientation: portrait) and (max-width: 1024px) {
+    #app {
+      grid-template-columns: 1fr;
+      grid-template-rows: 60vh 1fr auto;
+      grid-template-areas:
+        "main"
+        "side"
+        "controls";
+    }
+    #side-panel {
+      border-left: none;
+      border-top: 1px solid var(--panel-border);
+      padding: 10px 12px;
+      max-height: none;
+      overflow-y: auto;
+    }
+    /* セクションの max-height を解除しスクロールはパネル全体に任せる */
+    #section-convo, #section-thought, #section-focus { max-height: none; }
+    #side-panel .side-section.scroll .scroll-body { overflow-y: visible; }
+
+    #controls {
+      padding: 10px 12px;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    #controls button {
+      min-width: 44px;
+      min-height: 38px;
+      font-size: 14px;
+      padding: 8px 12px;
+      touch-action: manipulation;
+    }
+    #play-pause { min-width: 50px; font-size: 18px; }
+    #seek { width: 100%; height: 8px; flex-basis: 100%; order: -1; }
+    #seek::-webkit-slider-thumb { width: 22px; height: 22px; }
+    #seek::-moz-range-thumb { width: 22px; height: 22px; }
+
+    /* HUD 上部要素を小さく、改行可に */
+    #hud-clock, #hud-stats { font-size: 12px; padding: 6px 8px; }
+    #cam-buttons { flex-wrap: wrap; gap: 4px; }
+    #cam-buttons button, #edit-toggle {
+      font-size: 12px; padding: 6px 10px; min-height: 34px;
+    }
+    .legend { font-size: 11px; gap: 6px; }
+    /* canvas のタッチ操作を阻害しない */
+    #map-canvas { touch-action: none; }
+  }
+
+  /* 横向きの非常に低い画面 (iPhone landscape) では side-panel をボトム drawer 化 */
+  @media (orientation: landscape) and (max-height: 500px) {
+    #app {
+      grid-template-columns: 1fr 240px;
+      grid-template-rows: 1fr auto;
+      grid-template-areas:
+        "main side"
+        "controls controls";
+    }
+    #side-panel { font-size: 11px; padding: 8px 10px; }
+    #controls { padding: 6px 10px; }
+    #controls button { padding: 4px 8px; font-size: 12px; min-height: 32px; }
+  }
 </style>
 </head>
 <body>
@@ -673,54 +878,71 @@
     <div id="main">
       <canvas id="map-canvas"></canvas>
       <div id="hud-clock">
-        <span id="clock-time">--:--</span>
-        <span class="meta" id="clock-meta"></span>
+        <span id="clock-step">step 0</span>
+        <span class="meta"><span id="clock-time">--:--</span> <span id="clock-meta"></span></span>
       </div>
-      <div id="hud-stats">
-        Agents: <b id="stats-agents">0</b> |
-        in place: <b id="stats-in-place">—</b>
+      <div id="hud-stats" style="display:none">
+        <b id="stats-agents">0</b><b id="stats-in-place">—</b>
+      </div>
+      <div id="hud-places">
+        <div id="hud-places-resizer"></div>
+        <div class="hp-title">凡例</div>
+        <div id="hud-legend">
+          <div class="row"><span class="sw" style="background:#4a6a9c"></span>オフィス</div>
+          <div class="row"><span class="sw" style="background:#d06090"></span>商業</div>
+          <div class="row"><span class="sw" style="background:#e6c850"></span>住宅</div>
+          <div class="row"><span class="sw" style="background:#8a4fbf"></span>ホテル</div>
+          <div class="row"><span class="sw" style="background:#4eb847"></span>公園</div>
+          <div class="row"><span class="sw" style="background:#e8e2d2"></span>工事中</div>
+          <div class="row"><span class="sw" style="background:#e5e5e5"></span>駅前広場</div>
+          <div class="row"><span class="sw" style="background:#3e3e3e"></span>車道</div>
+          <div class="row"><span class="sw" style="background:#b5ad95"></span>歩道</div>
+          <div class="row"><span class="sw" style="background:#89c0a8"></span>鉄道</div>
+        </div>
+        <div class="hp-section-title">施設一覧</div>
+        <div id="hud-places-body"></div>
       </div>
       <div id="cam-buttons">
         <button id="cam-reset" title="初期視点へ">視点リセット</button>
         <button id="cam-top" title="真上から">俯瞰</button>
         <button id="cam-follow" title="選択エージェント追従 (要選択)">追従</button>
+        <button id="cam-labels" title="施設名の吹き出しを表示/非表示">🏷 施設名表示</button>
+        <button id="rec-toggle" title="このタブを録画 → 最終step到達で自動DL">📹 録画</button>
       </div>
       <button id="edit-toggle" title="3D要素を編集 (E)">🛠 編集モード</button>
+      <div id="follow-bubble">
+        <div class="name" id="fb-name">—</div>
+        <div class="sub" id="fb-sub" style="font-size:11px;color:#bbb;margin:-4px 0 2px 0;line-height:1.3"></div>
+        <div class="sub2" id="fb-sub2" style="font-size:11px;color:#aaa;margin:0 0 4px 0;line-height:1.3"></div>
+        <div class="row"><span class="label">💭</span><span id="fb-think">—</span></div>
+        <div class="row"><span class="label">💬</span><span id="fb-msg">—</span></div>
+      </div>
+      <div id="place-context">
+        <button class="pc-close" title="閉じる (ESC)">×</button>
+        <div class="pc-name">—</div>
+        <div class="pc-body"></div>
+      </div>
       <div id="hud-loading">データ読み込み中...</div>
       <div id="hud-error"></div>
     </div>
+    <div id="splitter-right"></div>
     <div id="side-panel">
-      <div class="side-section">
-        <div class="legend">
-          <span class="swatch" style="background:#378add"></span>男性
-          <span class="swatch" style="background:#e8509c"></span>女性
-        </div>
-        <div class="legend">
-          <span class="ring" style="border-color:#ffd85f"></span>📱 通知経由
-          <span class="ring" style="border-color:#62e08a"></span>🚉 物理近接
-          <span class="ring" style="border-color:#ff9f43"></span>💬 会話経由
+      <div class="side-section" style="flex:0 0 auto">
+        <div class="legend" style="display:flex;gap:14px;flex-wrap:wrap">
+          <span><span class="swatch" style="background:#378add"></span>男子生徒</span>
+          <span><span class="swatch" style="background:#e8509c"></span>女子生徒</span>
+          <span><span class="swatch" style="background:#3ec96e"></span>特徴的背景の生徒（不適応・ハンディキャップ・外国籍）</span>
+          <span><span class="swatch" style="background:#f2d23f"></span>企業担当者</span>
+          <span><span style="display:inline-block;width:24px;height:0;border-top:2px dashed #ff9f43;vertical-align:middle;margin-right:4px"></span>会話</span>
         </div>
       </div>
-      <div id="panel-tabs">
+      <div id="panel-tabs" style="display:none">
         <button class="panel-tab active" data-tab="sim">ログ</button>
         <button class="panel-tab" data-tab="agents">エージェント</button>
         <button class="panel-tab" data-tab="edit">編集</button>
       </div>
-      <div id="panel-sim">
-        <div class="side-section scroll" id="section-convo">
-          <h3>会話ログ <span class="count" id="convo-count"></span></h3>
-          <div class="scroll-body"><div id="convo-list"></div></div>
-        </div>
-        <div class="side-section scroll" id="section-thought">
-          <h3>思考ログ <span class="count" id="thought-count"></span></h3>
-          <div class="scroll-body"><div id="thought-list"></div></div>
-        </div>
-        <div class="side-section scroll" id="section-focus">
-          <h3>フォーカス詳細</h3>
-          <div class="scroll-body"><div id="focus-panel"></div></div>
-        </div>
-      </div>
-      <div id="panel-agents" style="display:none">
+      <!-- 上ペイン: 通常はエージェント一覧、編集モード中は編集パネル -->
+      <div id="panel-agents" style="display:flex">
         <div id="agent-filter-row">
           <input id="agent-filter" type="text" placeholder="🔍 名前・職業で検索..." />
           <span id="agent-count"></span>
@@ -730,6 +952,17 @@
         </div>
         <div id="agent-edit-form">
           <div class="placeholder">一覧からエージェントを選択</div>
+        </div>
+      </div>
+      <!-- 下ペイン: 思考(上) → 会話(下)、常時表示 -->
+      <div id="panel-sim" style="display:flex">
+        <div class="side-section scroll" id="section-thought">
+          <h3>思考ログ <span class="count" id="thought-count"></span></h3>
+          <div class="scroll-body"><div id="thought-list"></div></div>
+        </div>
+        <div class="side-section scroll" id="section-convo">
+          <h3>会話ログ <span class="count" id="convo-count"></span></h3>
+          <div class="scroll-body"><div id="convo-list"></div></div>
         </div>
       </div>
       <div id="panel-edit" style="display:none">
@@ -799,6 +1032,7 @@
     </div>
     <div id="controls">
       <button id="play-pause">▶</button>
+      <button id="restart" title="最初から再生" style="min-width:36px">⏮</button>
       <input id="seek" type="range" min="0" max="0" step="1" value="0">
       <span class="step-label" id="step-label">0 / 0</span>
       <div class="sep"></div>
@@ -832,29 +1066,38 @@
   // Constants: visual mapping (from viewer_3d_spec.md §5)
   // ---------------------------------------------------------------
 
+  // 凡例カテゴリ (3D / 2D で統一):
+  //   オフィス/業務   = 青   0x4a6a9c
+  //   商業 (ピンク)   = ピンク 0xd06090
+  //   住宅            = 黄  0xe6c850
+  //   ホテル          = 紫  0x8a4fbf
+  //   公園・緑地      = 緑  0x4eb847
+  //   工事中          = 白〜ベージュ 0xe8e2d2
+  //   駅前広場        = ベージュ 0xc8a87a
+  //   道路・通路      = 濃グレー 0x5a5d68
   const PLACE_STYLE = {
-    jr_station:        { height: 12,   color: 0x2680ff },
-    subway_station:    { height: 2,    color: 0x2680ff },
-    plaza:             { height: 0.2,  color: 0xff8a3c },
+    jr_station:        { height: 12,   color: 0x4a6a9c },
+    subway_station:    { height: 2,    color: 0x4a6a9c },
+    plaza:             { height: 0.2,  color: 0xc8a87a },
     park:              { height: 0.3,  color: 0x4eb847 },
-    cafe:              { height: 4,    color: 0xe8509c },
-    restaurant:        { height: 4,    color: 0xe8509c },
-    izakaya:           { height: 4,    color: 0xe8509c },
-    convenience_store: { height: 3,    color: 0xe8509c },
-    department_store:  { height: 14,   color: 0xe8509c },
-    office_lobby:      { height: 18,   color: 0x2680ff },
-    library:           { height: 6,    color: 0xa89248 },
-    narrow_street:     { height: 0.03, color: 0x3a3a3a },
-    wide_street:       { height: 0.03, color: 0x3a3a3a },
-    pedestrian_street: { height: 0.05, color: 0x555555 },
-    // Shinagawa extension types (shinagawa_config.yaml §2)
-    hotel:             { height: 12,   color: 0xc8a464 },
-    residential:       { height: 6,    color: 0x89c0a8 },
-    industrial:        { height: 3,    color: 0x6b7280 },
-    utility:           { height: 1,    color: 0x7a8a75 },
-    construction:      { height: 0.5,  color: 0xffb84a },
-    zone_izakaya:      { height: 3,    color: 0xd85c7a },
-    museum:            { height: 4,    color: 0xb49b5e },
+    cafe:              { height: 4,    color: 0xd06090 },
+    restaurant:        { height: 4,    color: 0xd06090 },
+    izakaya:           { height: 4,    color: 0xd06090 },
+    convenience_store: { height: 3,    color: 0xd06090 },
+    department_store:  { height: 14,   color: 0xd06090 },
+    office_lobby:      { height: 18,   color: 0x4a6a9c },
+    library:           { height: 6,    color: 0x4a6a9c },
+    narrow_street:     { height: 0.03, color: 0x5a5d68 },
+    wide_street:       { height: 0.03, color: 0x5a5d68 },
+    pedestrian_street: { height: 0.05, color: 0x6c7080 },
+    // Shinagawa extension types
+    hotel:             { height: 12,   color: 0x8a4fbf },
+    residential:       { height: 6,    color: 0xe6c850 },
+    industrial:        { height: 3,    color: 0x7a6e5a },
+    utility:           { height: 1,    color: 0x4a6a9c },
+    construction:      { height: 0.5,  color: 0xe8e2d2 },
+    zone_izakaya:      { height: 3,    color: 0xd06090 },
+    museum:            { height: 4,    color: 0x8a4fbf },
   };
   // Places below this height get a flat slab only, no upper wireframe.
   const LOW_PROFILE_THRESHOLD = 0.5;
@@ -880,9 +1123,24 @@
   const AGENT_COLOR = {
     male:   0x378add,
     female: 0xe8509c,
-    other:  0xa89248,
+    other:  0x3ec96e,  // ジェンダーレス・その他: 緑 (= 特徴的背景の色に統一)
   };
-  const AGENT_BODY = { width: 0.8, height: 1.6, depth: 0.8 };
+  // 特徴的背景 (不適応 / 車いす / 外国籍 / ジェンダーレス) を持つ生徒は一律 緑 で描画。
+  const DIVERSITY_AGENT_COLOR = 0x3ec96e;
+  // 企業担当者 (is_host=true) は男女問わず一律 黄色 で描画。生徒との視認区別のため。
+  const HOST_AGENT_COLOR = 0xf2d23f;
+
+  function _isDiversityPersona(p) {
+    if (!p || p.is_host) return false;
+    if (p.school_fit === '不適応') return true;
+    if (p.mobility === 'wheelchair') return true;
+    if (p.nationality === 'western' || p.nationality === 'asian') return true;
+    if (p.gender === 'other') return true;
+    return false;
+  }
+  // height は人型エージェントの「足から頭頂」までの total height (m)。
+  // ピボットは Group の origin = 足元 (y=0)。
+  const AGENT_BODY = { width: 0.55, height: 1.7, depth: 0.4 };
 
   // Awareness ring colors — match viewer_v2.
   const AWARENESS_RING = {
@@ -922,7 +1180,7 @@
     speed: 1,
     lastTickAt: 0,
     accum: 0,
-    baseStepMs: 900,
+    baseStepMs: 1800,  // 1x で 1step=1.8s (吹き出しを読める速度を新基準に)
     selectedId: null,
     cameraMode: 'free',   // 'free' | 'top' | 'follow'
     agentFilter: '',
@@ -948,7 +1206,9 @@
     loadedFromStorage: false,
     snapToGrid: false,   // when true, snap drag positions to the 5m grid
   };
-  const EDIT_STORAGE_KEY = 'viewer_3d_edits_v1';
+  // localStorage keys are namespaced by scenario (computed from places) so that
+  // 品川 / 教室 / 別の街 のedits が混ざらない。boot() で data が読まれた直後に上書き。
+  let EDIT_STORAGE_KEY = 'viewer_3d_edits_v1';
   const GRID_STEP = 5;   // 5m grid for snap
 
   // Drag state + DOM-side scratch for pointer-driven editing (PPT-style).
@@ -1107,8 +1367,13 @@
     scene.background = new THREE.Color(0x0b1210);
 
     const rect = canvas.parentElement.getBoundingClientRect();
-    camera = new THREE.PerspectiveCamera(50, rect.width / rect.height, 0.5, 2000);
-    camera.position.set(100, 80, 100);
+    camera = new THREE.PerspectiveCamera(50, rect.width / rect.height, 0.2, 2000);
+    // フィールドの大きさに合わせて初期カメラ位置・ズーム範囲をスケールさせる。
+    // 都市スケール (hs=80) なら遠目、建築スケール (hs=8) なら近め。
+    const _meta = state.data && state.data.metadata;
+    const _hs = (_meta && _meta.half_space_size) ? Number(_meta.half_space_size) : 80;
+    const _camD = Math.max(12, _hs * 1.6);
+    camera.position.set(_camD * 0.8, _camD * 0.7, _camD * 0.8);
 
     renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
     renderer.setPixelRatio(window.devicePixelRatio || 1);
@@ -1120,8 +1385,8 @@
     orbit.enableDamping = true;
     orbit.dampingFactor = 0.08;
     orbit.maxPolarAngle = Math.PI * 0.49;
-    orbit.minDistance = 20;
-    orbit.maxDistance = 250;
+    orbit.minDistance = 1;
+    orbit.maxDistance = Math.max(60, _hs * 5);
     orbit.update();
 
     // Ambient-only lighting, because we use MeshBasicMaterial everywhere
@@ -1139,9 +1404,9 @@
     groundMesh.position.y = -0.01;
     scene.add(groundMesh);
 
-    // Faint 5m grid overlay — one cell == 1m in our coord system, so a 5-cell
-    // grid aligns with 5m spacing.
-    const divisions = Math.max(2, Math.round(side / 5));
+    // 都市スケールでは 5m grid、建築スケールでは meta.grid_step_m: 1 等で細かく切り替え。
+    const gridStep = (meta && meta.grid_step_m) ? Math.max(0.25, Number(meta.grid_step_m)) : 5;
+    const divisions = Math.max(2, Math.round(side / gridStep));
     const grid = new THREE.GridHelper(side, divisions, 0x3a4a43, 0x26332d);
     grid.position.y = 0.005;
     if (grid.material) {
@@ -1175,7 +1440,162 @@
     });
   }
 
+  // 「知覚不可能な何か」用の特殊レンダリング: 揺らぐ点 + 床までの点線。
+  // place.attributes.height_m を物体の高さとして使う (default 1.5m)。
+  const shimmerMaterials = [];
+
+  function buildUnknowableMesh(p) {
+    const g = new THREE.Group();
+    const pos = cellToWorld(p.center_x, p.center_y);
+    const yTop = (p.attributes && typeof p.attributes.height_m === 'number')
+      ? p.attributes.height_m : 1.5;
+
+    // Inner white sphere (the "what"-itself) — 3倍大 (0.10→0.30)
+    const coreGeom = new THREE.SphereGeometry(0.30, 16, 12);
+    const coreMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.95,
+    });
+    const core = new THREE.Mesh(coreGeom, coreMat);
+    core.position.set(pos.x, yTop, pos.z);
+    g.add(core);
+    shimmerMaterials.push({ mat: coreMat, base: 0.95, freq: 1.7, phase: 0 });
+
+    // Outer halo — 3倍 (0.28→0.84)
+    const haloGeom = new THREE.SphereGeometry(0.84, 20, 14);
+    const haloMat = new THREE.MeshBasicMaterial({
+      color: 0xffffff, transparent: true, opacity: 0.16,
+    });
+    const halo = new THREE.Mesh(haloGeom, haloMat);
+    halo.position.set(pos.x, yTop, pos.z);
+    g.add(halo);
+    shimmerMaterials.push({ mat: haloMat, base: 0.20, freq: 1.1, phase: 0.7 });
+
+    // Dotted vertical line from sphere down to floor
+    const linePts = [
+      new THREE.Vector3(pos.x, 0.02, pos.z),
+      new THREE.Vector3(pos.x, yTop - 0.35, pos.z),
+    ];
+    const lineGeom = new THREE.BufferGeometry().setFromPoints(linePts);
+    const lineMat = new THREE.LineDashedMaterial({
+      color: 0xc8d0c8,
+      dashSize: 0.10, gapSize: 0.10,
+      transparent: true, opacity: 0.6,
+    });
+    const line = new THREE.Line(lineGeom, lineMat);
+    line.computeLineDistances();
+    g.add(line);
+
+    return g;
+  }
+
+  // 鉄道に走る電車プール。京急(赤×2) + 新幹線(白×2) + JR緑(×2) + JR水色(×2) = 計8本。
+  // 各電車は固定方向で南北 (axis=ns 想定) に走り、rail 端から外に出たら反対端から再出現する。
+  function buildTrainPool() {
+    if (state.trains) {
+      for (const tr of state.trains) scene.remove(tr.mesh);
+    }
+    state.trains = [];
+    const rails = ((state.data && state.data.scene_3d) || {}).rails || [];
+    if (rails.length === 0) return;
+    const TRAIN_W = 1.6, TRAIN_H = 2.4, TRAIN_L = 16;
+    // rail 配置 (cx): rail[0]=2.57, rail[1]=10.63, rail[2]=-5.53
+    // 京急 ↔ JR を入れ替え、上下線は offset で並走衝突回避、新幹線は車両長 ×2。
+    const specs = [
+      // JR 緑 (上下) — rail[0]
+      { railIdx: 0, color: 0x4cb44c, dir: +1, offset: -1.4, speed: 20, lengthMul: 1 },
+      { railIdx: 0, color: 0x4cb44c, dir: -1, offset: +1.4, speed: 20, lengthMul: 1 },
+      // JR 水色 (上下) — rail[0] さらに外側
+      { railIdx: 0, color: 0x66ccee, dir: +1, offset: -3.2, speed: 20, lengthMul: 1 },
+      { railIdx: 0, color: 0x66ccee, dir: -1, offset: +3.2, speed: 20, lengthMul: 1 },
+      // 新幹線 (上下) — rail[1]、車両長 ×2
+      { railIdx: 1, color: 0xeeeeee, dir: +1, offset: -1.2, speed: 32, lengthMul: 2 },
+      { railIdx: 1, color: 0xeeeeee, dir: -1, offset: +1.2, speed: 32, lengthMul: 2 },
+      // 京急 (上下) — rail[2]
+      { railIdx: 2, color: 0xc83232, dir: +1, offset: -1.2, speed: 22, lengthMul: 1 },
+      { railIdx: 2, color: 0xc83232, dir: -1, offset: +1.2, speed: 22, lengthMul: 1 },
+    ];
+    for (let i = 0; i < specs.length; i++) {
+      const s = specs[i];
+      const rail = rails[s.railIdx];
+      if (!rail) continue;
+      const cy = rail.center_y || 0;
+      const railLen = rail.length_cells || 100;
+      const trainL = TRAIN_L * (s.lengthMul || 1);
+      const geom = new THREE.BoxGeometry(TRAIN_W, TRAIN_H, trainL);
+      const mat = new THREE.MeshBasicMaterial({ color: s.color, transparent: true, opacity: 0.55 });
+      const mesh = new THREE.Mesh(geom, mat);
+      const edge = new THREE.LineSegments(
+        new THREE.EdgesGeometry(geom),
+        new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.45 })
+      );
+      mesh.add(edge);
+      // 開始 cell 位置をスペック毎にバラけさせる (id を使って決定的に)
+      const startFrac = (i * 0.137) % 1;  // 0..1
+      const startCellY = cy - railLen / 2 + startFrac * railLen;
+      mesh.userData = { spec: s, rail: rail, cellY: startCellY };
+      scene.add(mesh);
+      state.trains.push({ mesh, spec: s, rail });
+    }
+  }
+
+  function updateTrains(now) {
+    if (!state.trains) return;
+    const dt = (state._lastTrainNow ? Math.min(0.1, (now - state._lastTrainNow) / 1000) : 0.016);
+    state._lastTrainNow = now;
+    for (const tr of state.trains) {
+      const s = tr.spec;
+      const rail = tr.rail;
+      const railLen = rail.length_cells || 100;
+      const cy = rail.center_y || 0;
+      const cx = rail.center_x || 0;
+      const elev = rail.elevation_m || 0;
+      let cellY = (tr.mesh.userData.cellY != null) ? tr.mesh.userData.cellY : cy;
+      cellY += s.dir * s.speed * dt * 0.45;  // cell/sec ベース
+      // rail 端から +20cell まで行ったら反対端 -20 に折り返し再出現
+      const margin = 20;
+      const minY = cy - railLen / 2 - margin;
+      const maxY = cy + railLen / 2 + margin;
+      if (s.dir > 0 && cellY > maxY) cellY = minY;
+      else if (s.dir < 0 && cellY < minY) cellY = maxY;
+      tr.mesh.userData.cellY = cellY;
+      const w = cellToWorld(cx + s.offset, cellY);
+      tr.mesh.position.set(w.x, elev + 1.2, w.z);
+      // rail 範囲内のみ表示
+      tr.mesh.visible = (cellY >= cy - railLen / 2) && (cellY <= cy + railLen / 2);
+      tr.mesh.rotation.y = (s.dir > 0) ? 0 : Math.PI;
+    }
+  }
+
+  // 公園用の簡易な木 (透過). 幹=円柱 + 葉=円錐 を半透明で。scale で 1.0/1.5 など倍率指定可。
+  function buildTreeMesh(x, z, scale) {
+    scale = scale || 1.0;
+    const g = new THREE.Group();
+    const trunkH = 1.5 * scale, trunkR = 0.12 * scale;
+    const trunkMat = new THREE.MeshBasicMaterial({ color: 0x6b4226, transparent: true, opacity: 0.55, depthWrite: false });
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(trunkR, trunkR, trunkH, 6), trunkMat);
+    trunk.position.set(x, trunkH / 2, z);
+    g.add(trunk);
+    const leafH = 2.4 * scale, leafR = 1.05 * scale;
+    const leafMat = new THREE.MeshBasicMaterial({ color: 0x4a8a4a, transparent: true, opacity: 0.45, depthWrite: false });
+    const leaf = new THREE.Mesh(new THREE.ConeGeometry(leafR, leafH, 6), leafMat);
+    leaf.position.set(x, trunkH + leafH / 2, z);
+    g.add(leaf);
+    const outlineMat = new THREE.LineBasicMaterial({ color: 0x244a24, transparent: true, opacity: 0.35 });
+    const leafEdges = new THREE.LineSegments(new THREE.EdgesGeometry(leaf.geometry), outlineMat);
+    leafEdges.position.copy(leaf.position);
+    g.add(leafEdges);
+    return g;
+  }
+
   function buildPlaceMesh(p) {
+    // 「知覚不可能な何か」専用レンダリング
+    if (p.type === 'unknowable') {
+      return buildUnknowableMesh(p);
+    }
+    // attributes.invisible: true は完全に描画スキップ (教室の床を消す等)
+    if (p.attributes && p.attributes.invisible === true) {
+      return new THREE.Group();
+    }
     const g = new THREE.Group();
     const style = PLACE_STYLE[p.type] || { height: 1, color: 0x444444 };
     const w = Math.max(0.1, p.half_size_x * 2);
@@ -1188,6 +1608,13 @@
     const colorOverride = p.attributes && p.attributes.color;
     const color = resolveColor(colorOverride, style.color);
 
+    // student_seat は「机」を表すスラブ。agent は place 中心 (席=椅子) に立つので、
+    // 机を agent から見て教壇側 (-y in cell = +z in world) にオフセットして描画する。
+    // これで「机に対して教壇と反対側に座る」ビジュアルになる。
+    const visualOffsetZ = (p.type === 'student_seat') ? 0.7 : 0;
+    const visualX = pos.x;
+    const visualZ = pos.z + visualOffsetZ;
+
     const slabGeom = new THREE.BoxGeometry(w, slabH, d);
     const slabMat  = new THREE.MeshBasicMaterial({
       color,
@@ -1195,7 +1622,9 @@
       opacity: totalH < LOW_PROFILE_THRESHOLD ? 0.75 : 0.9,
     });
     const slab = new THREE.Mesh(slabGeom, slabMat);
-    slab.position.set(pos.x, slabH / 2, pos.z);
+    // 全施設で slab を半埋め: 中心を地面 y=0 に置き、上半分だけ地面の上に見える状態にする
+    // (agent の足元が完全に埋まらない & 公園/広場の塗装も上半分は見える)。
+    slab.position.set(visualX, 0, visualZ);
     g.add(slab);
 
     const slabEdges = new THREE.LineSegments(
@@ -1213,19 +1642,39 @@
           new THREE.EdgesGeometry(upGeom),
           new THREE.LineBasicMaterial({ color: 0x777777, transparent: true, opacity: 0.55 })
         );
-        upEdges.position.set(pos.x, slabH + upperH / 2, pos.z);
+        // slab 上面 (y = slabH/2) から立ち上げる
+        upEdges.position.set(visualX, slabH / 2 + upperH / 2, visualZ);
         g.add(upEdges);
       }
     }
 
-    // Floor label — name on top of the 1F slab, sprite faces camera.
-    if (p.name) {
-      const shortSide = Math.min(w, d);
-      const sprite = makeNameLabelSprite(p.name, {
-        maxWidth: Math.max(shortSide * 2, 14),
-      });
-      sprite.position.set(pos.x, slabH + 0.4, pos.z);
+    // 公園 + 名前に「セントラルガーデン」「関東閣」を含む place にも木を配置。
+    // 6-10本ランダム (決定的)、半数は 1.5倍 high、透過で軽量。
+    const _hasTrees = (
+      p.type === 'park' ||
+      (p.name && (p.name.indexOf('セントラルガーデン') >= 0 || p.name.indexOf('関東閣') >= 0))
+    );
+    if (_hasTrees) {
+      const seedBase = (p.center_x * 0.731 + p.center_y * 1.317);
+      const n = 6 + Math.floor((Math.sin(seedBase * 2.7) * 0.5 + 0.5) * 5);  // 6-10本
+      for (let i = 0; i < n; i++) {
+        const s = seedBase + i * 11.73;
+        const ox = Math.sin(s * 1.3) * (p.half_size_x * 0.75);
+        const oz = Math.cos(s * 1.7) * (p.half_size_y * 0.75);
+        const tall = Math.sin(s * 5.1) > 0;  // 半分は 1.5倍の高木
+        g.add(buildTreeMesh(visualX + ox, visualZ + oz, tall ? 1.5 : 1.0));
+      }
+    }
+
+    // 名前ラベル — 吹き出しでビル上端の少し上に浮かべる。sprite は固定ピクセルサイズ。
+    // meta.hide_place_labels: true (グローバル) または attributes.hide_label: true (個別) なら非表示。
+    const _hideLabels = state.data && state.data.metadata && state.data.metadata.hide_place_labels;
+    const _hideThis = (p.attributes && p.attributes.hide_label === true);
+    if (p.name && !_hideLabels && !_hideThis) {
+      const sprite = makeNameLabelSprite(p.name);
+      sprite.position.set(visualX, totalH + 1.5, visualZ);
       g.add(sprite);
+      g.userData.nameLabelSprite = sprite;  // 選択時 highlight に使う
     }
     return g;
   }
@@ -1262,7 +1711,8 @@
     road_arterial:    0x2a2a2a,
     road_collector:   0x353535,
     road_local:       0x3e3e3e,
-    deck:             0x6a7a8a,  // concrete deck
+    sidewalk:         0xb5ad95,  // 歩道 (#9) - 車道よりやや明るいベージュ
+    deck:             0x6a7a8a,
     deck_edge:        0x9aabb5,
     stair:            0x8a8a80,
     landmark:         0xffd85f,
@@ -1329,7 +1779,7 @@
       }
     }
     if (r.name) {
-      const sprite = makeNameLabelSprite(r.name, { maxWidth: 12 });
+      const sprite = makeNameLabelSprite(r.name, { maxWidth: 12, worldScale: true });
       const pos = cellToWorld(cx, cy);
       sprite.position.set(pos.x, elev + 1.2, pos.z);
       g.add(sprite);
@@ -1365,14 +1815,51 @@
     const color = resolveColor(r.color, defaultColor);
     const cx = r.center_x != null ? r.center_x : 0;
     const cy = r.center_y != null ? r.center_y : 0;
-    const band = buildBandGeom(r.axis, cx, cy, Math.max(0.1, r.width_cells), Math.max(0.1, r.length_cells));
+    const w = Math.max(0.1, r.width_cells);
+    const L = Math.max(0.1, r.length_cells);
+    const band = buildBandGeom(r.axis, cx, cy, w, L);
     const mat  = new THREE.MeshBasicMaterial({ color });
     const slab = new THREE.Mesh(band.geom, mat);
     const pos = cellToWorld(cx, cy);
     slab.position.set(pos.x, 0.02, pos.z);
     g.add(slab);
+
+    // 歩道幅員制約 (#9): 幅員 5cell以上 かつ sidewalk_only=false でない場合、
+    // 両端 floor(width/4) cells を歩道色で塗り分けて視認性を上げる。
+    // navigation.py の Navigator.ROAD_SIDEWALK_THRESH_CELLS=5 と整合。
+    const sidewalkOnly = r.sidewalk_only;
+    const ROAD_SIDEWALK_THRESH = 5.0;
+    if (sidewalkOnly !== true && w >= ROAD_SIDEWALK_THRESH) {
+      const sidewalkW = Math.max(1, Math.floor(w / 4));
+      const sidewalkColor = SCENE3D_COLOR.sidewalk != null ? SCENE3D_COLOR.sidewalk : 0xd5cfbe;
+      const swMat = new THREE.MeshBasicMaterial({ color: sidewalkColor });
+      // 道路の axis に応じて、両端を別 mesh で重ね描き
+      const axis = (r.axis || 'ew').toLowerCase();
+      // axis='ew' (東西長): width=南北方向 → 両端は南北の上下端
+      // axis='ns' (南北長): width=東西方向 → 両端は東西の左右端
+      // 各歩道は (band の長さ × sidewalkW) の細い帯
+      const swBandA = (axis === 'ew')
+        ? buildBandGeom('ew', cx, cy + (w - sidewalkW) / 2, sidewalkW, L)
+        : buildBandGeom('ns', cx + (w - sidewalkW) / 2, cy, sidewalkW, L);
+      const swBandB = (axis === 'ew')
+        ? buildBandGeom('ew', cx, cy - (w - sidewalkW) / 2, sidewalkW, L)
+        : buildBandGeom('ns', cx - (w - sidewalkW) / 2, cy, sidewalkW, L);
+      const swA = new THREE.Mesh(swBandA.geom, swMat);
+      const swB = new THREE.Mesh(swBandB.geom, swMat);
+      const pA = (axis === 'ew')
+        ? cellToWorld(cx, cy + (w - sidewalkW) / 2)
+        : cellToWorld(cx + (w - sidewalkW) / 2, cy);
+      const pB = (axis === 'ew')
+        ? cellToWorld(cx, cy - (w - sidewalkW) / 2)
+        : cellToWorld(cx - (w - sidewalkW) / 2, cy);
+      swA.position.set(pA.x, 0.025, pA.z);  // 道路 (0.02) より少し上に重ねる
+      swB.position.set(pB.x, 0.025, pB.z);
+      g.add(swA);
+      g.add(swB);
+    }
+
     if (r.name) {
-      const sprite = makeNameLabelSprite(r.name, { maxWidth: 10 });
+      const sprite = makeNameLabelSprite(r.name, { maxWidth: 10, worldScale: true });
       sprite.position.set(pos.x, 0.6, pos.z);
       g.add(sprite);
     }
@@ -1430,7 +1917,7 @@
     edges.position.copy(slab.position);
     g.add(edges);
     if (seg.parent_name) {
-      const sprite = makeNameLabelSprite(seg.parent_name, { maxWidth: 10 });
+      const sprite = makeNameLabelSprite(seg.parent_name, { maxWidth: 10, worldScale: true });
       sprite.position.set(pos.x, elev + 1.0, pos.z);
       g.add(sprite);
     }
@@ -1534,24 +2021,85 @@
     return sprite;
   }
 
-  // Transparent-background label sprite for place names on the floor.
-  // Text has a dark outline so it stays readable on any building color.
+  // 名前ラベル sprite。2 モード:
+  //   - speech_bubble (default): 角丸吹き出し背景 + 固定ピクセルサイズ (sizeAttenuation:false)。
+  //     用途: 建物の場所名 (ビル上部に浮かべる)。ズームしても巨大化しない。
+  //   - world_scale (opts.worldScale=true): 背景なし・テキストのみ・world座標スケール。
+  //     用途: 道路名・鉄道名・デッキ名。ズームアウトすると小さく薄れて自然に消える。
   function makeNameLabelSprite(text, opts) {
     opts = opts || {};
+    if (opts.worldScale) {
+      return _makeWorldScaleLabel(text, opts);
+    }
+    return _makeBubbleLabel(text, opts);
+  }
+
+  function _makeBubbleLabel(text, opts) {
+    const W = 256, H = 80;
+    const c = document.createElement('canvas');
+    c.width = W; c.height = H;
+    const ctx = c.getContext('2d');
+    const bx = 4, by = 4, bw = W - 8, bh = 60, br = 12;
+    const tailW = 14, tailH = 12;
+    const tailCx = W / 2;
+    const tailY0 = by + bh;
+
+    function draw(selected) {
+      ctx.clearRect(0, 0, W, H);
+      ctx.beginPath();
+      ctx.moveTo(bx + br, by);
+      ctx.lineTo(bx + bw - br, by);
+      ctx.quadraticCurveTo(bx + bw, by, bx + bw, by + br);
+      ctx.lineTo(bx + bw, by + bh - br);
+      ctx.quadraticCurveTo(bx + bw, by + bh, bx + bw - br, by + bh);
+      ctx.lineTo(tailCx + tailW / 2, tailY0);
+      ctx.lineTo(tailCx, tailY0 + tailH);
+      ctx.lineTo(tailCx - tailW / 2, tailY0);
+      ctx.lineTo(bx + br, by + bh);
+      ctx.quadraticCurveTo(bx, by + bh, bx, by + bh - br);
+      ctx.lineTo(bx, by + br);
+      ctx.quadraticCurveTo(bx, by, bx + br, by);
+      ctx.closePath();
+      ctx.fillStyle = selected ? 'rgba(20, 28, 24, 0.92)' : 'rgba(20, 28, 24, 0.55)';
+      ctx.fill();
+      ctx.lineWidth = selected ? 2.5 : 1.5;
+      ctx.strokeStyle = selected ? '#ffd85f' : 'rgba(220, 230, 220, 0.45)';
+      ctx.stroke();
+      ctx.font = 'bold 28px "Yu Gothic UI","Noto Sans JP",sans-serif';
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillStyle = selected ? '#ffd85f' : '#f5f5ef';
+      ctx.fillText(text, W / 2, by + bh / 2);
+    }
+    draw(false);
+    const tex = new THREE.CanvasTexture(c); tex.needsUpdate = true;
+    const mat = new THREE.SpriteMaterial({
+      map: tex, transparent: true, opacity: 0.85,
+      depthTest: false, sizeAttenuation: false,
+    });
+    const sprite = new THREE.Sprite(mat);
+    const sx = 0.11;
+    sprite.scale.set(sx, sx * (H / W), 1);
+    sprite.renderOrder = 999;
+    sprite.userData.isNameLabel = true;
+    sprite.userData.setSelected = (sel) => {
+      draw(!!sel); tex.needsUpdate = true;
+    };
+    return sprite;
+  }
+
+  function _makeWorldScaleLabel(text, opts) {
     const c = document.createElement('canvas');
     c.width = 512; c.height = 128;
     const ctx = c.getContext('2d');
     ctx.font = 'bold 56px "Yu Gothic UI","Noto Sans JP",sans-serif';
-    ctx.textAlign = 'center';
-    ctx.textBaseline = 'middle';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     ctx.lineWidth = 8;
     ctx.strokeStyle = 'rgba(12, 18, 15, 0.92)';
     ctx.strokeText(text, c.width / 2, c.height / 2);
     ctx.fillStyle = '#f5f5ef';
     ctx.fillText(text, c.width / 2, c.height / 2);
-    const tex = new THREE.CanvasTexture(c);
-    tex.needsUpdate = true;
+    const tex = new THREE.CanvasTexture(c); tex.needsUpdate = true;
     const mat = new THREE.SpriteMaterial({
       map: tex, transparent: true, opacity: 0.95, depthTest: true,
     });
@@ -1632,17 +2180,116 @@
 
   function buildAgentPool(personas) {
     for (const p of personas) {
-      const color = AGENT_COLOR[p.gender] || AGENT_COLOR.other;
-      const body = new THREE.Mesh(
-        new THREE.BoxGeometry(AGENT_BODY.width, AGENT_BODY.height, AGENT_BODY.depth),
-        new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 })
-      );
+      const isHost = !!(p.is_host || (typeof p.axis_id === 'string' && p.axis_id.indexOf('Host_') === 0));
+      const color = isHost
+        ? HOST_AGENT_COLOR
+        : (_isDiversityPersona(p) ? DIVERSITY_AGENT_COLOR : (AGENT_COLOR[p.gender] || AGENT_COLOR.male));
+      // 人型: 頭(球) + 胴(Box) + 腕Group(肩pivot)×2 + 脚Group(腰pivot)×2。
+      // pivot は足元 (y=0)。脚・腕は Group ラップで歩行アニメの回転 pivot を関節に置く。
+      const body = new THREE.Group();
+      const skinMat = new THREE.MeshBasicMaterial({ color, transparent: true, opacity: 1.0 });
+      const outlineMat = new THREE.LineBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.55 });
+      const headR = 0.18, torsoH = 0.65, legH = 0.7, armH = 0.6;
+
+      function makeLimbGroup(geom, jointX, jointY, length) {
+        // pivot=jointX,jointY,0、Mesh は group内で -length/2 下方
+        const g = new THREE.Group();
+        g.position.set(jointX, jointY, 0);
+        const m = new THREE.Mesh(geom, skinMat);
+        m.position.set(0, -length / 2, 0);
+        g.add(m);
+        const e = new THREE.LineSegments(new THREE.EdgesGeometry(geom), outlineMat);
+        e.position.copy(m.position);
+        g.add(e);
+        return g;
+      }
+
+      const legGeom = new THREE.BoxGeometry(0.16, legH, 0.20);
+      const legGroupL = makeLimbGroup(legGeom, -0.12, legH, legH);
+      const legGroupR = makeLimbGroup(legGeom, +0.12, legH, legH);
+      body.add(legGroupL); body.add(legGroupR);
+
+      const torsoGeom = new THREE.BoxGeometry(0.46, torsoH, 0.28);
+      const torso = new THREE.Mesh(torsoGeom, skinMat);
+      torso.position.set(0, legH + torsoH / 2, 0);
+      body.add(torso);
+      const torsoEdge = new THREE.LineSegments(new THREE.EdgesGeometry(torsoGeom), outlineMat);
+      torsoEdge.position.copy(torso.position);
+      body.add(torsoEdge);
+
+      const armGeom = new THREE.BoxGeometry(0.14, armH, 0.16);
+      const armGroupL = makeLimbGroup(armGeom, -0.30, legH + torsoH, armH);
+      const armGroupR = makeLimbGroup(armGeom, +0.30, legH + torsoH, armH);
+      body.add(armGroupL); body.add(armGroupR);
+
+      const headGeom = new THREE.SphereGeometry(headR, 12, 10);
+      const head = new THREE.Mesh(headGeom, skinMat);
+      head.position.set(0, legH + torsoH + headR + 0.03, 0);
+      body.add(head);
+
       body.visible = false;
       body.userData.agentId = p.id;
+      body.userData.skinMat = skinMat;
+      body.userData.limbs = { legGroupL, legGroupR, armGroupL, armGroupR };
+      body.userData.walkPhase = 0;       // 歩行アニメ位相
+      body.userData.lastWorld = null;    // 前フレーム world pos (進行方向と移動検出)
+      body.userData.isWheelchair = (p.mobility === 'wheelchair');
+      // 車いす利用者の persona は簡易椅子 mesh (= 座面 + 4本脚) を足元に追加し、
+      // 脚アニメをゼロに固定 (= 歩かない)。視覚的に「車いす」 を示す。
+      if (p.mobility === 'wheelchair') {
+        // 車いす (簡易): 座面 + 背もたれ + 大きい車輪 + 小さいキャスター。
+        // 座面高さは脚の半分ぐらい。
+        const seatY = legH * 0.55;
+        const chairMat = new THREE.MeshBasicMaterial({ color: 0x3d3d3d });
+        // 座面 (大きめ)
+        const seatGeom = new THREE.BoxGeometry(0.7, 0.08, 0.7);
+        const seat = new THREE.Mesh(seatGeom, chairMat);
+        seat.position.set(0, seatY, 0);
+        body.add(seat);
+        // 背もたれ (人の背中側に立ち上がる板)
+        const backGeom = new THREE.BoxGeometry(0.7, torsoH * 0.9, 0.06);
+        const back = new THREE.Mesh(backGeom, chairMat);
+        back.position.set(0, seatY + torsoH * 0.45, -0.32);
+        body.add(back);
+        // 大きい車輪 (左右、外側に張り出す)
+        const wheelGeom = new THREE.TorusGeometry(0.34, 0.06, 10, 18);
+        const wheelMat = new THREE.MeshBasicMaterial({ color: 0x111111 });
+        const wheelL = new THREE.Mesh(wheelGeom, wheelMat);
+        wheelL.position.set(-0.42, seatY - 0.18, 0);
+        wheelL.rotation.y = Math.PI / 2;
+        body.add(wheelL);
+        const wheelR = new THREE.Mesh(wheelGeom, wheelMat);
+        wheelR.position.set(0.42, seatY - 0.18, 0);
+        wheelR.rotation.y = Math.PI / 2;
+        body.add(wheelR);
+        // 前方の小さいキャスター
+        const casterGeom = new THREE.TorusGeometry(0.12, 0.04, 8, 14);
+        const casterL = new THREE.Mesh(casterGeom, wheelMat);
+        casterL.position.set(-0.24, seatY - 0.34, 0.30);
+        casterL.rotation.y = Math.PI / 2;
+        body.add(casterL);
+        const casterR = new THREE.Mesh(casterGeom, wheelMat);
+        casterR.position.set(0.24, seatY - 0.34, 0.30);
+        casterR.rotation.y = Math.PI / 2;
+        body.add(casterR);
+        // 上半身を座面の上に置く (= 顔が seat より明確に高く見える)
+        const newTorsoTop = seatY + 0.04 + torsoH;
+        torso.position.y = seatY + 0.04 + torsoH / 2;
+        head.position.y = newTorsoTop + headR + 0.03;
+        // 肩 (= 腕の根本) も新 torso 上端に揃える (元 legH + torsoH = 1.35)
+        armGroupL.position.y = newTorsoTop;
+        armGroupR.position.y = newTorsoTop;
+        // 脚は隠す (車椅子内に折りたたまれるイメージ)
+        legGroupL.visible = false;
+        legGroupR.visible = false;
+      }
+      // 人モデルのスケール: 2.0x → 3.0x (1.5倍に拡大、俯瞰でしっかり視認)
+      body.scale.setScalar(3.0);
       scene.add(body);
 
-      // Awareness ring — flat torus on the ground at the agent's feet.
-      const ringGeom = new THREE.RingGeometry(0.9, 1.15, 24);
+      // Awareness ring — flat torus on the ground at the agent's feet。
+      // 人モデル 3.0x に合わせてリングも 1.5x 拡大。
+      const ringGeom = new THREE.RingGeometry(0.83, 1.08, 24);
       const ringMat  = new THREE.MeshBasicMaterial({
         color: 0xffffff, transparent: true, opacity: 0.0, side: THREE.DoubleSide,
       });
@@ -1665,11 +2312,49 @@
       if (!pool) continue;
       const pos = lerpAgentPos(ag, nextFrame, frac);
       const w = cellToWorld(pos.x, pos.y);
-      pool.body.position.set(w.x, AGENT_BODY.height / 2, w.z);
+      // 同じ cell に重なるエージェントが完全一致しないように、id ごとの固定オフセット。
+      // 人モデル 3.0x で胴体直径も大きくなるため、cell 同居時の重なりを避けるために
+      // 半径 0.85 程度のリング上に各 id を等間隔でばら撒く。
+      const _idSeed = ag.id != null ? ag.id : 0;
+      const _ang = _idSeed * 2.39996323;  // 黄金角でばらける
+      const _r = 0.85;
+      w.x += Math.sin(_ang) * _r;
+      w.z += Math.cos(_ang) * _r;
+
+      // 歩行アニメ: 前フレームとの位置差で移動検出 + 進行方向を yaw に
+      const ud = pool.body.userData;
+      const last = ud.lastWorld;
+      let isMoving = false;
+      let yaw = pool.body.rotation.y;
+      if (last) {
+        const dx = w.x - last.x, dz = w.z - last.z;
+        const speed = Math.hypot(dx, dz);
+        isMoving = speed > 0.005;
+        if (isMoving) yaw = Math.atan2(dx, dz);
+      }
+      ud.lastWorld = { x: w.x, z: w.z };
+      if (isMoving) ud.walkPhase += 0.25;
+      const phase = ud.walkPhase;
+      const swingAmp = 0.55, bobAmp = 0.045;
+      const limbs = ud.limbs;
+      // 車いす persona は脚アニメをゼロ + bobY もゼロ (= 座って動かない)
+      const isWheelchair = !!ud.isWheelchair;
+      const swing = (isMoving && !isWheelchair) ? Math.sin(phase) * swingAmp : 0;
+      limbs.legGroupL.rotation.x =  swing;
+      limbs.legGroupR.rotation.x = -swing;
+      limbs.armGroupL.rotation.x = -swing * 0.8;
+      limbs.armGroupR.rotation.x =  swing * 0.8;
+      const bobY = (isMoving && !isWheelchair) ? Math.abs(Math.sin(phase)) * bobAmp : 0;
+
+      // 車いす persona は車輪 / キャスターが地面に埋まらないよう少し持ち上げる
+      const liftY = isWheelchair ? 0.6 : 0;
+      pool.body.position.set(w.x, bobY + liftY, w.z);
+      pool.body.rotation.y = yaw;
 
       let opacity = 1.0;
       if (ag.layer === 'dwelling') opacity = 0.85;
-      pool.body.material.opacity = opacity;
+      const skin = pool.body.userData.skinMat;
+      if (skin) skin.opacity = opacity;
       pool.body.visible = true;
 
       // Awareness ring.
@@ -1856,13 +2541,32 @@
     updateConvoLines(frame, nextFrame, frac);
     updateEventRings(frame);
 
-    // Camera follow mode glues orbit.target to the selected agent.
+    // Camera follow mode:
+    // (1) 常に target を agent に lerp、camera も同じ delta で動かして wheel で変えた距離を保つ
+    // (2) 切替直後の followTransition があれば、camera-target 間の distance だけ ease で縮める
+    //     → 「target が動きながら距離だけ縮んで寄る」一連のなめらかな動きになる
     if (state.cameraMode === 'follow' && state.selectedId != null) {
       const ag = (frame.agents || []).find(a => a.id === state.selectedId);
       if (ag) {
         const p = lerpAgentPos(ag, nextFrame, frac);
         const w = cellToWorld(p.x, p.y);
-        orbit.target.lerp(new THREE.Vector3(w.x, 1, w.z), 0.15);
+        const newTarget = new THREE.Vector3(w.x, 2.2, w.z);
+        const delta = newTarget.clone().sub(orbit.target).multiplyScalar(0.15);
+        orbit.target.add(delta);
+        camera.position.add(delta);
+      }
+      if (state.followTransition) {
+        const tr = state.followTransition;
+        const u = Math.min(1, (performance.now() - tr.start) / tr.duration);
+        const ease = 1 - Math.pow(1 - u, 3);  // easeOutCubic
+        const dir = camera.position.clone().sub(orbit.target);
+        const curDist = dir.length();
+        if (curDist > 1e-6) {
+          dir.normalize();
+          const goalDist = tr.fromDist * (1 - ease) + tr.toDist * ease;
+          camera.position.copy(orbit.target.clone().addScaledVector(dir, goalDist));
+        }
+        if (u >= 1) state.followTransition = null;
       }
     }
 
@@ -1870,6 +2574,106 @@
     updateConversationList();
     updateThoughtList();
     updateFocusPanel();
+    updateFollowBubble(frame, nextFrame, frac);
+  }
+
+  // 追従モード時、選択エージェントの頭上に発話 + 思考を吹き出しで表示
+  function updateFollowBubble(frame, nextFrame, frac) {
+    const el = document.getElementById('follow-bubble');
+    if (!el) return;
+    if (state.selectedId == null) { el.style.display = 'none'; return; }
+    const ag = (frame.agents || []).find(a => a.id === state.selectedId);
+    if (!ag) { el.style.display = 'none'; return; }
+    // 発話: このstepで自分が出した会話を抽出
+    const convs = (frame.conversations || []).filter(c =>
+      c.from_id === state.selectedId || c.from === state.selectedId
+    );
+    const lastMsg = convs.length ? (convs[convs.length - 1].message || convs[convs.length - 1].content || '') : '';
+    const thought = (ag.reasoning || ag.memory || '').trim();
+    const persona = (state.data.personas || []).find(p => p.id === state.selectedId);
+    const name = persona ? (persona.name || `Agent ${state.selectedId}`) : `Agent ${state.selectedId}`;
+    document.getElementById('fb-name').textContent = name;
+    // 名前下の sub 行: 企業担当者 → 所属 (会社名) / 学生 → 特徴的背景 (不適応・外国籍・ジェンダーレス・ハンディキャップ)
+    const fbSub = document.getElementById('fb-sub');
+    const fbSub2 = document.getElementById('fb-sub2');
+    if (fbSub) {
+      let subText = '';
+      if (persona) {
+        const isHost = !!persona.is_host || (persona.axis_id && String(persona.axis_id).startsWith('Host_'));
+        if (isHost) {
+          const occ = (persona.occupation || '').trim();
+          const company = occ ? occ.split(/\s+/)[0] : '';
+          if (company) subText = company;
+        } else {
+          const tags = [];
+          if (persona.school_fit === '不適応') tags.push('不適応');
+          if (persona.nationality === 'western' || persona.nationality === 'asian') tags.push('外国籍');
+          if (persona.gender === 'other') tags.push('ジェンダーレス');
+          if (persona.mobility === 'wheelchair') tags.push('ハンディキャップ');
+          if (tags.length) subText = tags.join(' / ');
+        }
+      }
+      fbSub.textContent = subText;
+      fbSub.style.display = subText ? 'block' : 'none';
+    }
+    // sub2 行: 生徒 = 必須課題の訪問先 (assigned_hosts) / 企業担当者 = 訪問予定の生徒
+    if (fbSub2) {
+      let sub2Text = '';
+      if (persona) {
+        const isHost = !!persona.is_host || (persona.axis_id && String(persona.axis_id).startsWith('Host_'));
+        if (isHost) {
+          // 訪問予定の生徒名: 全 personas を走査して assigned_hosts に自分の名前が含まれる学生を抽出
+          const myName = persona.name;
+          const expectedStudents = [];
+          for (const other of (state.data.personas || [])) {
+            const ah = other.assigned_hosts || [];
+            if (ah.some(a => a && a.name === myName)) {
+              expectedStudents.push(other.name);
+            }
+          }
+          if (expectedStudents.length) sub2Text = '来訪予定生徒: ' + expectedStudents.join(' / ');
+        } else {
+          const ah = persona.assigned_hosts || [];
+          if (ah.length) {
+            sub2Text = '訪問予定先: ' + ah.map(a => `${a.name}(${a.place})`).join(' / ');
+          }
+        }
+      }
+      fbSub2.textContent = sub2Text;
+      fbSub2.style.display = sub2Text ? 'block' : 'none';
+    }
+    document.getElementById('fb-think').textContent = thought || '(思考なし)';
+    document.getElementById('fb-msg').textContent = lastMsg || '(発話なし)';
+    // World pos → screen。人モデルは scale=3.0、元 body height ≈ 1.7m → 頭頂 ≈ 5.1m。
+    // 吹き出しは「人の右横、頭の高さ」 に配置 (上に置くと画面外へ見切れるため)。
+    const pos = lerpAgentPos(ag, nextFrame, frac);
+    const w = cellToWorld(pos.x, pos.y);
+    const v = new THREE.Vector3(w.x, 4.0, w.z);
+    v.project(camera);
+    const rect = renderer.domElement.getBoundingClientRect();
+    const px = (v.x * 0.5 + 0.5) * rect.width;
+    const py = (-v.y * 0.5 + 0.5) * rect.height;
+    // 人の体幅 (= scale × 0.6m ≒ 1.8m) を画面 px に換算し、その右端から余白を取る。
+    // カメラ距離やズームによらず必ず本人モデルの外側に出るように動的計算する。
+    const halfBodyWorld = 1.0;  // 半体幅 ~1m (車いずの大車輪も内包)
+    const ar = new THREE.Vector3(w.x + halfBodyWorld, 4.0, w.z);
+    ar.project(camera);
+    const arPx = (ar.x * 0.5 + 0.5) * rect.width;
+    const halfBodyPx = Math.max(40, Math.abs(arPx - px));  // 最低 40px 確保
+    const bw = el.offsetWidth || 280;
+    const bh = el.offsetHeight || 100;
+    let leftPx = px + halfBodyPx + 24;  // 体右端 + 24px 余白
+    let topPx = py - bh / 2;
+    // 右はみ出し → 左側に出す
+    if (leftPx + bw > rect.width - 8) {
+      leftPx = px - halfBodyPx - 24 - bw;
+    }
+    // 上下 clamp
+    if (topPx < 8) topPx = 8;
+    if (topPx + bh > rect.height - 8) topPx = rect.height - 8 - bh;
+    el.style.left = leftPx + 'px';
+    el.style.top  = topPx + 'px';
+    el.style.display = (v.z > 1.0) ? 'none' : 'block';  // カメラ後方ならhide
   }
 
   function animate(now) {
@@ -1885,6 +2689,10 @@
           state.accum = 0;
           state.stepFrac = 0;
           setPlaying(false);
+          // 最終 step に到達して再生が終わったときだけ録画も止めて DL する
+          if (_recState.recorder && _recState.recorder.state !== 'inactive') {
+            stopRecording();
+          }
           break;
         }
         state.accum -= stepMs;
@@ -1897,7 +2705,17 @@
       state.lastTickAt = now;
     }
 
+    updateTrains(now);
     animateEventRings(now);
+    // Shimmer: unknowable spheres + halos pulse
+    if (shimmerMaterials.length > 0) {
+      const t = now * 0.001;
+      for (let i = 0; i < shimmerMaterials.length; i++) {
+        const sm = shimmerMaterials[i];
+        const mod = 0.5 + 0.5 * Math.sin(t * sm.freq + sm.phase) * Math.cos(t * 0.6 + sm.phase * 0.5);
+        sm.mat.opacity = sm.base * (0.45 + 0.55 * mod);
+      }
+    }
     orbit.update();
     render();
     renderer.render(scene, camera);
@@ -1908,15 +2726,24 @@
   // ---------------------------------------------------------------
 
   function updateHUD(frame) {
-    elClockTime.textContent = frame.time || '--:--';
-    const hh = parseInt((frame.time || '0').split(':')[0], 10);
-    let band = '';
-    if (hh >= 7 && hh < 10) band = '朝ラッシュ';
-    else if (hh >= 17 && hh < 20) band = '夕方ラッシュ';
-    else if (hh >= 20 || hh < 5) band = '夜間';
-    else band = '日中';
+    // step メイン + 時刻サブ。時刻は state.data.metadata の start_time / minutes_per_step から
+    // 再計算 (step 1 が start_time にぴったり合うように)。
+    const step = (frame.step !== undefined) ? frame.step : ((state.currentStep || 0) + 1);
+    const elStep = document.getElementById('clock-step');
+    if (elStep) elStep.textContent = 'step ' + step;
+    const meta = (state.data && state.data.metadata) || {};
+    const startTime = meta.start_time || '13:00';
+    const mps = Number(meta.minutes_per_step || 3);
+    const [sh, sm] = String(startTime).split(':').map(Number);
+    const totalMin = Math.max(0, step - 1) * mps;
+    const hh2 = (sh + Math.floor(((sm || 0) + totalMin) / 60)) % 24;
+    const mm2 = ((sm || 0) + totalMin) % 60;
+    elClockTime.textContent = String(hh2).padStart(2, '0') + ':' + String(mm2).padStart(2, '0');
+    const hh = hh2;
+    // 「日中」 等の時間帯ラベルは表示しない (= シミュは固定時刻帯なので冗長)。
+    // 運休イベント時のみ警告として表示。
     const ev = (frame.events || []).find(e => e.type === 'transit_disruption');
-    elClockMeta.textContent = band + (ev ? `  ⚠ ${ev.affected_place} 運休中 (残${ev.remaining_steps}step)` : '');
+    elClockMeta.textContent = ev ? `⚠ ${ev.affected_place} 運休中 (残${ev.remaining_steps}step)` : '';
 
     const agentsHere = frame.agents.length;
     const inPlace = frame.agents.filter(a => a.in_place).length;
@@ -2087,6 +2914,63 @@
     state.playing = playing;
     elPlayPause.textContent = playing ? '⏸' : '▶';
     if (playing) state.lastTickAt = performance.now();
+    // 録画停止連動は「最終 step に到達して再生が終わった」ときだけにする (animate ループの末尾で判定)。
+    // ここで連動させると、視点切替・seek・手動 pause でも録画が止まってしまう。
+  }
+
+  // タブ録画 (getDisplayMedia → MediaRecorder webm)。再生ボタン押下時の自動連動はせず、
+  // 「録画」ボタンで明示的に開始する (ブラウザのダイアログが出るため)。
+  let _recState = { recorder: null, chunks: [], stream: null };
+  async function startRecording() {
+    if (_recState.recorder) return;
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+      alert('このブラウザはタブ録画 (getDisplayMedia) に対応していません');
+      return;
+    }
+    try {
+      const stream = await navigator.mediaDevices.getDisplayMedia({
+        video: { frameRate: 30 }, audio: false, preferCurrentTab: true,
+      });
+      _recState.stream = stream;
+      _recState.chunks = [];
+      const mime = MediaRecorder.isTypeSupported('video/webm;codecs=vp9')
+        ? 'video/webm;codecs=vp9' : 'video/webm';
+      const rec = new MediaRecorder(stream, { mimeType: mime, videoBitsPerSecond: 6000000 });
+      _recState.recorder = rec;
+      rec.ondataavailable = (e) => { if (e.data.size > 0) _recState.chunks.push(e.data); };
+      rec.onstop = () => {
+        const blob = new Blob(_recState.chunks, { type: 'video/webm' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `viewer3d_${new Date().toISOString().replace(/[:.]/g, '-')}.webm`;
+        a.click();
+        URL.revokeObjectURL(url);
+        if (_recState.stream) _recState.stream.getTracks().forEach(t => t.stop());
+        _recState = { recorder: null, chunks: [], stream: null };
+        const btn = document.getElementById('rec-toggle');
+        if (btn) { btn.classList.remove('active'); btn.textContent = '📹 録画'; }
+      };
+      // ユーザーがブラウザの「共有停止」を押した時のフォールバック
+      stream.getVideoTracks()[0].addEventListener('ended', () => {
+        if (_recState.recorder && _recState.recorder.state !== 'inactive') _recState.recorder.stop();
+      });
+      rec.start();
+      const btn = document.getElementById('rec-toggle');
+      if (btn) { btn.classList.add('active'); btn.textContent = '⏺ 録画中'; }
+      // 録画開始時、再生中でなければ最初のstepから自動再生
+      if (!state.playing) {
+        if (state.currentStep >= state.data.timeline.length - 1) seekTo(0);
+        setPlaying(true);
+      }
+    } catch (e) {
+      console.warn('録画キャンセル/失敗:', e);
+    }
+  }
+  function stopRecording() {
+    if (_recState.recorder && _recState.recorder.state !== 'inactive') {
+      _recState.recorder.stop();
+    }
   }
 
   function seekTo(i) {
@@ -2150,12 +3034,44 @@
     for (const [id, pool] of agentMeshes) {
       if (pool.body.visible) bodies.push(pool.body);
     }
-    const hits = raycaster.intersectObjects(bodies, false);
+    const hits = raycaster.intersectObjects(bodies, true);
     if (hits.length === 0) {
+      // 追従モード中はクリック空ヒットでも解除しない (rotate ドラッグとの誤判定回避)。
+      // ESC で明示解除する。
+      if (state.cameraMode === 'follow') return;
       state.selectedId = null;
+      // 施設をクリックしたかチェック (agent と排他)
+      const placeGroups = ((editable.registry && editable.registry.places) || []).map(e => e.group);
+      const placeHits = placeGroups.length ? raycaster.intersectObjects(placeGroups, true) : [];
+      if (placeHits.length > 0) {
+        let n = placeHits[0].object;
+        while (n && !(n.userData && n.userData.editable && n.userData.editable.kind === 'place')) n = n.parent;
+        if (n) {
+          const idx = n.userData.editable.idx;
+          const p = (state.data.places || [])[idx];
+          if (p) showPlaceContext(p);
+        }
+      } else {
+        hidePlaceContext();
+      }
     } else {
-      const id = hits[0].object.userData.agentId;
-      state.selectedId = state.selectedId === id ? null : id;
+      hidePlaceContext();
+      // 人型は Group + 子Mesh で構成されるので、agentId を持つ祖先を辿る
+      let n = hits[0].object;
+      while (n && n.userData.agentId === undefined) n = n.parent;
+      const id = n ? n.userData.agentId : null;
+      if (state.selectedId === id) {
+        // 同じエージェントを再クリック → 解除
+        state.selectedId = null;
+        if (state.cameraMode === 'follow') state.cameraMode = 'free';
+      } else {
+        state.selectedId = id;
+        // 別エージェントクリック → 追従モード自動起動 + 即寄り
+        if (id != null) {
+          state.cameraMode = 'follow';
+          snapToFollowView();
+        }
+      }
     }
     refreshFollowButton();
     // Keep the agents tab in sync if it's open.
@@ -2488,28 +3404,163 @@
   // ---------------------------------------------------------------
 
   function cameraReset() {
-    camera.position.set(100, 80, 100);
+    _restoreFreeCamera();
+    const meta = state.data && state.data.metadata;
+    const hs = (meta && meta.half_space_size) ? Number(meta.half_space_size) : 80;
+    const d = Math.max(12, hs * 1.6);
+    camera.position.set(d * 0.8, d * 0.7, d * 0.8);
     orbit.target.set(0, 0, 0);
+    if (typeof orbit.update === 'function') orbit.update();
     state.cameraMode = 'free';
     refreshCamButtons();
   }
   function cameraTop() {
-    // Straight down — use a near-zero x/z offset so OrbitControls doesn't
-    // gimbal-lock on exact (0,y,0).
-    camera.position.set(0.01, 180, 0.01);
+    // 真上 (top-down) で全体を映す。orbit.maxPolarAngle を一時解除して 90度視点まで許可。
+    const meta = state.data && state.data.metadata;
+    const hs = (meta && meta.half_space_size) ? Number(meta.half_space_size) : 80;
+    const topD = Math.max(15, hs * 2.4);
+    orbit.maxPolarAngle = Math.PI / 2;
+    camera.position.set(0, topD, 0.001);  // ごく僅かな z オフセット (gimbal lock 回避)
+    camera.up.set(0, 0, -1);  // 北を画面上に
     orbit.target.set(0, 0, 0);
+    if (typeof orbit.update === 'function') orbit.update();
     state.cameraMode = 'top';
     refreshCamButtons();
   }
+  // 左パネル「施設一覧」: 名前付き (autoname '_' プレフィックス除く + hide_label でない) place のみ
+  function buildPlacesList() {
+    const el = document.getElementById('hud-places-body');
+    if (!el) return;
+    const places = (state.data && state.data.places) || [];
+    const items = places.filter(p => {
+      const name = p.name || '';
+      if (!name || name.startsWith('_')) return false;
+      if (p.attributes && p.attributes.hide_label === true) return false;
+      return true;
+    });
+    items.sort((a, b) => String(a.name).localeCompare(String(b.name), 'ja'));
+    function _h(s) { return String(s).replace(/[<>&"']/g, c => ({"<":"&lt;",">":"&gt;","&":"&amp;",'"':"&quot;","'":"&#39;"}[c])); }
+    function _placeColor(p) {
+      const o = p.attributes && p.attributes.color;
+      if (o) return o;
+      const st = (PLACE_STYLE && PLACE_STYLE[p.type]) || {};
+      const c = st.color != null ? st.color : 0x444444;
+      return '#' + Number(c).toString(16).padStart(6, '0');
+    }
+    el.innerHTML = items.map((p, i) =>
+      `<div class="hp-item" data-idx="${i}"><span class="hp-dot" style="background:${_placeColor(p)}"></span>${_h(p.name || '')}</div>`
+    ).join('');
+    el.querySelectorAll('.hp-item').forEach(node => {
+      node.onclick = () => {
+        const idx = parseInt(node.getAttribute('data-idx'), 10);
+        const p = items[idx];
+        if (p) showPlaceContext(p);
+      };
+    });
+  }
+
+  let _currentSelectedPlace = null;
+  function _setPlaceLabelSelected(p, sel) {
+    if (!p || !state.data) return;
+    const idx = (state.data.places || []).indexOf(p);
+    if (idx < 0) return;
+    const reg = editable && editable.registry && editable.registry.places && editable.registry.places[idx];
+    if (!reg || !reg.group) return;
+    const sp = reg.group.userData && reg.group.userData.nameLabelSprite;
+    if (sp && sp.userData && typeof sp.userData.setSelected === 'function') sp.userData.setSelected(sel);
+  }
+
+  // 施設コンテキスト表示 (perceive_pass / perceive_enter / attributes.environment)
+  function showPlaceContext(p) {
+    if (_currentSelectedPlace && _currentSelectedPlace !== p) _setPlaceLabelSelected(_currentSelectedPlace, false);
+    _currentSelectedPlace = p;
+    _setPlaceLabelSelected(p, true);
+    const el = document.getElementById('place-context');
+    if (!el) return;
+    const nameEl = el.querySelector('.pc-name');
+    const bodyEl = el.querySelector('.pc-body');
+    nameEl.textContent = p.name || '(無名)';
+    const lines = [];
+    if (p.type) lines.push(`タイプ: ${p.type}`);
+    if (p.perceive_pass) lines.push(`\n[通り過ぎたとき]\n${p.perceive_pass}`);
+    if (p.perceive_enter) lines.push(`\n[中に入ったとき]\n${p.perceive_enter}`);
+    const attrs = p.attributes || {};
+    const env = attrs.environment;
+    if (env) {
+      const ENV_LABELS = { indoor: '屋内', roof: '屋根', grade: '階数', near_construction: '近くに工事中', near_park: '近くに公園' };
+      const fmtV = (v) => v === true ? 'あり' : (v === false ? 'なし' : String(v));
+      const envLines = [];
+      for (const k of Object.keys(env)) {
+        const label = ENV_LABELS[k]; if (!label) continue;  // 未知キーは表示せず
+        envLines.push(`${label}: ${fmtV(env[k])}`);
+      }
+      if (envLines.length) lines.push(`\n[周辺・建物の特徴]\n${envLines.join('\n')}`);
+    }
+    if (attrs.enterable === false) lines.push(`\n(中に入れない施設)`);
+    bodyEl.textContent = lines.join('\n').trim() || '(コンテキストなし)';
+    el.style.display = 'block';
+  }
+  function hidePlaceContext() {
+    if (_currentSelectedPlace) _setPlaceLabelSelected(_currentSelectedPlace, false);
+    _currentSelectedPlace = null;
+    const el = document.getElementById('place-context');
+    if (el) el.style.display = 'none';
+  }
+
+  function _restoreFreeCamera() {
+    // 俯瞰モードで弄った camera.up と maxPolarAngle を「自由視点」用に戻す。
+    camera.up.set(0, 1, 0);
+    orbit.maxPolarAngle = Math.PI * 0.49;
+  }
+
+  function snapToFollowView() {
+    if (state.selectedId == null) return;
+    // 俯瞰モードからの切替で残った up/polarAngle を戻す
+    _restoreFreeCamera();
+    // target を timeline frame から直接決める (pool.body は描画前は (0,0,0) のまま)
+    const tl = state.data && state.data.timeline;
+    const fr = tl && tl[state.currentStep || 0];
+    const ag = fr && fr.agents && fr.agents.find(a => a.id === state.selectedId);
+    if (ag) {
+      const w = cellToWorld(ag.x, ag.y);
+      orbit.target.set(w.x, 2.2, w.z);
+    } else {
+      const pool = agentMeshes.get(state.selectedId);
+      if (pool && pool.body) {
+        orbit.target.set(pool.body.position.x, 2.2, pool.body.position.z);
+      }
+    }
+    // 南 (z+) からやや上向きに見下ろす視点に強制セット。
+    // 品川駅の南北軸構造で、東 (x+) からだと建物の壁面ばかり映って見にくいため。
+    const tgt = orbit.target;
+    const goalDist = 18;
+    camera.position.set(tgt.x, tgt.y + 8, tgt.z + goalDist);
+    if (typeof orbit.update === 'function') orbit.update();
+    // distance だけぐいーんとアニメで縮める = 一連のなめらかな寄せに見える。
+    const fromDist = Math.max(goalDist, camera.position.distanceTo(orbit.target) * 1.3);
+    state.followTransition = {
+      start: performance.now(),
+      duration: 700,
+      fromDist: fromDist,
+      toDist: goalDist,  // 人モデル 3x + 引き目 (3枚目相当)
+    };
+  }
+
   function cameraFollowToggle() {
     if (state.cameraMode === 'follow') {
       state.cameraMode = 'free';
     } else {
       if (state.selectedId == null) {
-        // No agent selected — hint via button hover tooltip, do nothing.
-        return;
+        // 自動選択: 現フレームの最初の agent
+        const tl = state.data && state.data.timeline;
+        const fr = tl && tl[state.currentStep || 0];
+        const ag = fr && fr.agents && fr.agents[0];
+        if (ag) state.selectedId = ag.id;
+        else return;
+        if (typeof refreshFollowButton === 'function') refreshFollowButton();
       }
       state.cameraMode = 'follow';
+      snapToFollowView();
     }
     refreshCamButtons();
   }
@@ -2519,7 +3570,8 @@
     elCamFollow.classList.toggle('active', state.cameraMode === 'follow');
   }
   function refreshFollowButton() {
-    elCamFollow.disabled = state.selectedId == null && state.cameraMode !== 'follow';
+    // 自動選択ロジックを cameraFollowToggle に持たせたので、ボタンは常に enabled
+    elCamFollow.disabled = false;
   }
 
   // ---------------------------------------------------------------
@@ -2984,7 +4036,7 @@
   // Agent list / edit
   // -------------------------------------------------------------
 
-  const PERSONA_STORAGE_KEY = 'viewer_3d_persona_edits_v1';
+  let PERSONA_STORAGE_KEY = 'viewer_3d_persona_edits_v1';
 
   function effectivePersona(id) {
     const base = state.data && state.data.personas.find(p => p.id === id);
@@ -3061,7 +4113,10 @@
     elAgentList.innerHTML = '';
     for (const p of list) {
       const isEdited = !!state.personaOverrides[p.id];
-      const sexCls = p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : 'other';
+      const isHost = !!(p.is_host || (typeof p.axis_id === 'string' && p.axis_id.indexOf('Host_') === 0));
+      const sexCls = isHost
+        ? 'host'
+        : (p.gender === 'female' ? 'female' : p.gender === 'male' ? 'male' : 'other');
       const row = el('div', {
         class: 'agent-row' +
           (state.selectedId === p.id ? ' selected' : '') +
@@ -3110,24 +4165,39 @@
       return;
     }
     const isEdited = !!state.personaOverrides[id];
+    const editing = !!(editable && editable.enabled);
 
     elAgentEditForm.appendChild(el('h3', null,
-      [`ID ${id} の編集` + (isEdited ? ' (変更済)' : '')]));
+      [`${p.name || `ID ${id}`}` + (isEdited ? ' (変更済)' : '')]));
 
-    elAgentEditForm.appendChild(rowText('名前', p.name,
-      v => setPersonaField(id, 'name', v)));
-    elAgentEditForm.appendChild(rowNumber('年齢', p.age,
-      v => setPersonaField(id, 'age', Math.round(v)), { step: 1 }));
-    elAgentEditForm.appendChild(rowSelect('性別', p.gender || 'other',
-      ['male', 'female', 'other'], v => setPersonaField(id, 'gender', v)));
-    elAgentEditForm.appendChild(rowText('職業', p.occupation || '',
-      v => setPersonaField(id, 'occupation', v)));
-    elAgentEditForm.appendChild(rowText('話し方', p.speech_style || '',
-      v => setPersonaField(id, 'speech_style', v)));
-    elAgentEditForm.appendChild(rowNumber('スマホ率',
-      p.phone_check_rate != null ? p.phone_check_rate : 0.5,
-      v => setPersonaField(id, 'phone_check_rate', Math.max(0, Math.min(1, v))),
-      { step: 0.05 }));
+    if (editing) {
+      elAgentEditForm.appendChild(rowText('名前', p.name,
+        v => setPersonaField(id, 'name', v)));
+      elAgentEditForm.appendChild(rowNumber('年齢', p.age,
+        v => setPersonaField(id, 'age', Math.round(v)), { step: 1 }));
+      elAgentEditForm.appendChild(rowSelect('性別', p.gender || 'other',
+        ['male', 'female', 'other'], v => setPersonaField(id, 'gender', v)));
+      elAgentEditForm.appendChild(rowText('職業', p.occupation || '',
+        v => setPersonaField(id, 'occupation', v)));
+      elAgentEditForm.appendChild(rowText('話し方', p.speech_style || '',
+        v => setPersonaField(id, 'speech_style', v)));
+      elAgentEditForm.appendChild(rowNumber('スマホ率',
+        p.phone_check_rate != null ? p.phone_check_rate : 0.5,
+        v => setPersonaField(id, 'phone_check_rate', Math.max(0, Math.min(1, v))),
+        { step: 0.05 }));
+    } else {
+      // 表示のみ (スマホ率はパラメータ保持だが表示しない: FW では未使用)
+      function ro(label, val) {
+        return el('div', { class: 'ro-row', style: 'display:flex; gap:8px; padding:3px 0; font-size:12px' }, [
+          el('span', { style: 'color:var(--text-dim); min-width: 5em' }, [label]),
+          el('span', { style: 'color:var(--text)' }, [String(val == null || val === '' ? '—' : val)]),
+        ]);
+      }
+      elAgentEditForm.appendChild(ro('年齢', p.age));
+      elAgentEditForm.appendChild(ro('性別', p.gender || 'other'));
+      elAgentEditForm.appendChild(ro('職業', p.occupation));
+      elAgentEditForm.appendChild(ro('話し方', p.speech_style));
+    }
 
     // social_identities: read-only (複雑なので v1 はスキップ)
     if (Array.isArray(p.social_identities) && p.social_identities.length) {
@@ -3163,17 +4233,17 @@
     elAgentEditForm.appendChild(actions);
   }
 
+  // 新レイアウト: 右パネルは上下2区画固定。
+  // 上 = エージェント一覧 (常時) または 編集パネル (編集モード時)
+  // 下 = ログ (常時)
   function activateTab(which) {
-    for (const btn of elPanelTabs.querySelectorAll('.panel-tab')) {
-      btn.classList.toggle('active', btn.dataset.tab === which);
-    }
-    elPanelSim.style.display    = which === 'sim'    ? 'flex' : 'none';
-    elPanelEdit.style.display   = which === 'edit'   ? 'flex' : 'none';
-    elPanelAgents.style.display = which === 'agents' ? 'flex' : 'none';
-    if (which === 'agents') {
-      renderAgentList();
-      renderAgentEditForm();
-    }
+    const editing = (which === 'edit');
+    elPanelEdit.style.display   = editing ? 'flex' : 'none';
+    elPanelAgents.style.display = editing ? 'none' : 'flex';
+    elPanelSim.style.display    = 'flex';  // ログは常時
+    if (!editing) renderAgentList();
+    // edit モード切替で agent-edit-form の read-only / edit 表示も切り替えるため必ず再描画
+    renderAgentEditForm();
   }
 
   // -------------------------------------------------------------
@@ -3572,12 +4642,12 @@
     const out = {
       name: r.name,
       axis: r.axis,
-      center_x: r.center_x,
+      center_x: r.center_x != null ? r.center_x : 0,
+      center_y: r.center_y != null ? r.center_y : 0,
       width_cells: r.width_cells,
       length_cells: r.length_cells,
       elevation_m: r.elevation_m != null ? r.elevation_m : 0,
     };
-    if (r.axis === 'ew' && r.center_y != null) out.center_y = r.center_y;
     if (r.is_elevated) out.is_elevated = true;
     if (r.column_spacing_cells) out.column_spacing_cells = r.column_spacing_cells;
     if (r.level) out.level = r.level;
@@ -3588,13 +4658,13 @@
   function sanitizeRoad(r) {
     const out = {
       axis: r.axis,
+      center_x: r.center_x != null ? r.center_x : 0,
+      center_y: r.center_y != null ? r.center_y : 0,
       width_cells: r.width_cells,
       length_cells: r.length_cells,
       road_class: r.road_class || 'local',
     };
     if (r.name) out.name = r.name;
-    if (r.axis === 'ns') out.center_x = r.center_x != null ? r.center_x : 0;
-    else out.center_y = r.center_y != null ? r.center_y : 0;
     if (r.color) out.color = r.color;
     return out;
   }
@@ -3668,6 +4738,24 @@
     if (!data) return;
     state.data = data;
 
+    // Per-scenario localStorage namespace — 品川/教室/その他のシナリオの edits が混ざらないように、
+    // places の名前と座標から hash を作り key suffix にする。シナリオごとに完全に隔離される。
+    try {
+      const sig = (data.places || []).map(p => `${p.name}@${p.center_x},${p.center_y}`).sort().join('|');
+      let h = 0x811c9dc5 >>> 0;
+      for (let i = 0; i < sig.length; i++) {
+        h ^= sig.charCodeAt(i);
+        h = Math.imul(h, 0x01000193) >>> 0;
+      }
+      const sk = h.toString(16);
+      EDIT_STORAGE_KEY = 'viewer_3d_edits_v1::' + sk;
+      PERSONA_STORAGE_KEY = 'viewer_3d_persona_edits_v1::' + sk;
+      const metaName = (data.metadata && data.metadata.name) ? data.metadata.name : '(unnamed)';
+      console.log(`[viewer_3d] scenario="${metaName}" key=${sk} (places=${(data.places||[]).length})`);
+    } catch (e) {
+      console.warn('[viewer_3d] Failed to compute scenario key, using global keys:', e);
+    }
+
     elSeek.max = String(Math.max(0, data.timeline.length - 1));
     elSeek.value = '0';
     elStepLabel.textContent = `1 / ${data.timeline.length}`;
@@ -3704,6 +4792,11 @@
     }
 
     buildAgentPool(data.personas);
+    buildTrainPool();
+    buildPlacesList();
+    // 右上ペインのエージェント一覧を data ロード時に必ず描画する
+    if (typeof renderAgentList === 'function') renderAgentList();
+    if (typeof renderAgentEditForm === 'function') renderAgentEditForm();
     loadPersonaOverrides();
     refreshCamButtons();
     refreshFollowButton();
@@ -3712,7 +4805,45 @@
     requestAnimationFrame(animate);
 
     // Wiring.
+    const _pcClose = document.querySelector('#place-context .pc-close');
+    if (_pcClose) _pcClose.addEventListener('click', hidePlaceContext);
+    const _labelBtn = document.getElementById('cam-labels');
+    if (_labelBtn) {
+      // デフォルトは施設名 OFF (大量に出ると景色を遮るため)。クリックで ON/OFF。
+      state.labelsVisible = false;
+      _labelBtn.classList.toggle('active', false);
+      // 初期ラベル群を非表示に
+      const _initRegs = (editable && editable.registry && editable.registry.places) || [];
+      for (const reg of _initRegs) {
+        const sp = reg.group && reg.group.userData && reg.group.userData.nameLabelSprite;
+        if (sp) sp.visible = false;
+      }
+      _labelBtn.addEventListener('click', () => {
+        state.labelsVisible = !state.labelsVisible;
+        _labelBtn.classList.toggle('active', state.labelsVisible);
+        const regs = (editable && editable.registry && editable.registry.places) || [];
+        for (const reg of regs) {
+          const sp = reg.group && reg.group.userData && reg.group.userData.nameLabelSprite;
+          if (sp) sp.visible = state.labelsVisible;
+        }
+      });
+    }
+    const _recBtn = document.getElementById('rec-toggle');
+    if (_recBtn) _recBtn.addEventListener('click', () => {
+      if (_recState.recorder) stopRecording();
+      else startRecording();
+    });
     elPlayPause.addEventListener('click', () => setPlaying(!state.playing));
+    const elRestart = document.getElementById('restart');
+    if (elRestart) {
+      elRestart.addEventListener('click', () => {
+        // step 1 に戻すだけ (自動再生はしない)。手動で ▶ を押して再開する。
+        setPlaying(false);
+        seekTo(0);
+        elSeek.value = '0';
+        elStepLabel.textContent = `1 / ${state.data ? state.data.timeline.length : 0}`;
+      });
+    }
     elSeek.addEventListener('input', (e) => {
       setPlaying(false);
       seekTo(parseInt(e.target.value, 10));
@@ -3729,6 +4860,25 @@
       const tag = (e.target && e.target.tagName) || '';
       const isInput = tag === 'INPUT' || tag === 'SELECT' || tag === 'TEXTAREA';
       const ctrl = e.ctrlKey || e.metaKey;
+
+      // ESC で追従モード解除 + 選択(吹き出し)も解除 + 施設コンテキストも閉じる
+      if (e.key === 'Escape' && !isInput) {
+        let acted = false;
+        if (state.cameraMode === 'follow') {
+          state.cameraMode = 'free';
+          state.selectedId = null;  // 選択も解除して follow-bubble も消す
+          refreshCamButtons();
+          if (typeof refreshFollowButton === 'function') refreshFollowButton();
+          acted = true;
+        } else if (state.selectedId != null) {
+          state.selectedId = null;
+          if (typeof refreshFollowButton === 'function') refreshFollowButton();
+          acted = true;
+        }
+        const pc = document.getElementById('place-context');
+        if (pc && pc.style.display !== 'none') { hidePlaceContext(); acted = true; }
+        if (acted) return;
+      }
 
       // Edit-mode shortcuts. Delete / copy / paste / undo / redo / duplicate.
       if (editable.enabled && !isInput) {
@@ -3774,6 +4924,43 @@
       }
     });
     window.addEventListener('resize', onResize);
+
+    // Column splitters: 右パネル (#splitter-right) と左 hud-places (#hud-places-resizer)
+    (function setupSplitters() {
+      let drag = null;  // 'right' | 'left' | null
+      const sR = document.getElementById('splitter-right');
+      const sL = document.getElementById('hud-places-resizer');
+      if (sR) sR.addEventListener('mousedown', (e) => {
+        drag = 'right'; document.body.style.cursor = 'col-resize'; e.preventDefault();
+      });
+      if (sL) sL.addEventListener('mousedown', (e) => {
+        drag = 'left'; document.body.style.cursor = 'col-resize'; e.preventDefault();
+        e.stopPropagation();
+      });
+      window.addEventListener('mousemove', (e) => {
+        if (!drag) return;
+        if (drag === 'right') {
+          const w = window.innerWidth - e.clientX;
+          const clamped = Math.max(220, Math.min(700, w));
+          document.documentElement.style.setProperty('--side-width', clamped + 'px');
+        } else if (drag === 'left') {
+          const hp = document.getElementById('hud-places');
+          if (hp) {
+            const rect = hp.getBoundingClientRect();
+            const w = e.clientX - rect.left;
+            const clamped = Math.max(180, Math.min(500, w));
+            hp.style.width = clamped + 'px';
+          }
+        }
+      });
+      window.addEventListener('mouseup', () => {
+        if (drag) {
+          drag = null;
+          document.body.style.cursor = '';
+          if (typeof onResize === 'function') onResize();
+        }
+      });
+    })();
     renderer.domElement.addEventListener('click', handleCanvasClick);
     // PPT-style drag in edit mode. Pointer events so touch + mouse share a path.
     renderer.domElement.addEventListener('pointerdown', editPointerDown);
@@ -3847,10 +5034,40 @@
     }
   }
 
+  // Mobile Safari ではコンソールが見えないので、unhandled error を画面に出す。
+  window.addEventListener('error', (e) => {
+    try {
+      const msg = (e && e.message) ? e.message : 'unknown error';
+      const file = (e && e.filename) ? e.filename : '';
+      const line = (e && e.lineno) ? e.lineno : '';
+      const text = `[error] ${msg}` + (line ? ` @${file}:${line}` : '');
+      if (typeof showError === 'function') showError(text);
+      else {
+        const el = document.getElementById('hud-error');
+        if (el) {
+          el.textContent = text;
+          el.style.display = 'block';
+        }
+        const lo = document.getElementById('hud-loading');
+        if (lo) lo.classList.add('hidden');
+      }
+    } catch (_) {}
+  });
+
+  // boot を try/catch で包む。WebGL 初期化失敗等が静かに死ぬのを防ぐ。
+  function bootSafe() {
+    try { boot(); }
+    catch (e) {
+      const msg = `boot failed: ${(e && e.message) || e}\n${(e && e.stack) || ''}`;
+      if (typeof showError === 'function') showError(msg);
+      console.error(msg);
+    }
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', boot);
+    document.addEventListener('DOMContentLoaded', bootSafe);
   } else {
-    boot();
+    bootSafe();
   }
   })();
   </script>

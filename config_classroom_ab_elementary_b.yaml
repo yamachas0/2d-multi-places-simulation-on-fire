@@ -1,0 +1,494 @@
+# ================================================================
+# 集いABシミュ 条件B (variant=elementary / scene=classroom=教室)
+# ================================================================
+# Built by tools/build_classroom_ab_config.py
+# 参加者: 5人 (['石黒 健太', '梅原 さくら', '森田 あかり', '湊 蓮', '三上 ゆうな'])
+# 触媒: 佐藤航陽さん @ 教卓
+# duration: 12 steps × 3分 = 36分
+# parallel_workers: 6
+# ================================================================
+
+metadata:
+  name: classroom_ab_elementary_b
+  description: '集いABシミュ (elementary / 教室) — 条件B: 当事者 + 佐藤航陽さん同席'
+  scenario_kind: classroom_ab_elementary
+  variant: elementary
+  scene: classroom
+  scene_label: 教室
+  scene_main_spot: 教卓
+  scene_phrase: a small fixed indoor scene (a classroom)
+  scene_text: 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。
+  condition: B
+  meters_per_cell: 1
+  grid_step_m: 1
+  hide_place_labels: true
+  ceiling_height_m: 3.0
+simulation:
+  duration: 12
+  half_space_size: 8
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 3
+    start_time: '15:00'
+    patterns:
+    - hours:
+      - 15
+      - 16
+      - 17
+      - 18
+      enter_per_step: 0.0
+      exit_per_step: 0.0
+      neighborhood_mood: 放課後の教室。教師は不在。集まったメンバーで時間を過ごしている。
+      default_goal: 自由時間を過ごす
+  minimal_prompt_mode: true
+  skip_decision_prompt: true
+  scene_phrase: a small fixed indoor scene (a classroom)
+agents:
+  num_agents: 6
+  max_agents: 6
+  communication_radius: 12
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 20
+  message_context_size: 6
+  skip_probability: 0.05
+  parallel_workers: 6
+  movement_speed:
+    base_cells_per_step: 2
+    variance: 1
+  personas:
+  - id: 0
+    name: 石黒 健太
+    age: 12
+    gender: male
+    occupation: 小6
+    background: 小6。お父さんとお母さんと妹の四人暮らし。好きなことは放課後に友達と集まってフォートナイトでビクロイ目指すこと。苦手なことは先生に指される授業中の発表と漢字の書き取り。 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。 教室の前方には、シンギュラボの佐藤航陽さんという大人の人もいる。
+    speech_style: 小学生らしいタメ口、たまに丁寧語、興奮するとカタカナや擬音多め
+    catchphrase: マジでそれな、今のキモい動きじゃん！
+    temperament_extroversion: high
+    temperament_optimism: mid
+    temperament_curiosity: low
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 席_2_3
+    axis_id: E01
+    variant: elementary
+    initial_relationships:
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 1
+    name: 梅原 さくら
+    age: 12
+    gender: female
+    occupation: 小6
+    background: 小6。お父さんとお母さんと弟の4人暮らし。好きなことは放課後に友達とYouTubeで面白い動画を探して爆笑すること。苦手なことは漢字の書き取りと、朝早起きしてラジオ体操に行くこと。 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。 教室の前方には、シンギュラボの佐藤航陽さんという大人の人もいる。
+    speech_style: 小学生らしいタメ口、たまに丁寧語、興奮するとカタカナや擬音多め
+    catchphrase: マジでそれなー、てかさっきの男子の顔ガチでキモすぎてうんこ漏れるかと思った！
+    temperament_extroversion: high
+    temperament_optimism: high
+    temperament_curiosity: mid
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 席_3_1
+    axis_id: E02
+    variant: elementary
+    initial_relationships:
+      0: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 2
+    name: 森田 あかり
+    age: 12
+    gender: female
+    occupation: 小6
+    background: 小6。お父さんとお母さんと弟の4人暮らしだよ。好きなことは放課後に友達と集まってYouTubeの切り抜き動画を見ること。苦手なことは算数のわり算とか分数とかマジで意味わかんないから嫌い。 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。 教室の前方には、シンギュラボの佐藤航陽さんという大人の人もいる。
+    speech_style: 小学生らしいタメ口、たまに丁寧語、興奮するとカタカナや擬音多め
+    catchphrase: それマジでキモいんだけど、うんこじゃん！
+    temperament_extroversion: mid
+    temperament_optimism: low
+    temperament_curiosity: low
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 席_1_4
+    axis_id: E03
+    variant: elementary
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 3
+    name: 湊 蓮
+    age: 12
+    gender: male
+    occupation: 小6
+    background: 小6。お父さんとお母さんと妹の四人暮らし。好きなことは家でずっとマイクラやってるし、友達とフォートナイトでビクロイ目指すのがマジで最高。苦手なことは宿題とか計算ドリルとかマジでだるいし死ぬほど嫌い。 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。 教室の前方には、シンギュラボの佐藤航陽さんという大人の人もいる。
+    speech_style: 小学生らしいタメ口、たまに丁寧語、興奮するとカタカナや擬音多め
+    catchphrase: このマップまじクソゲーじゃん、うんこ投げつけてえわ。
+    temperament_extroversion: low
+    temperament_optimism: low
+    temperament_curiosity: high
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 席_1_3
+    axis_id: E04
+    variant: elementary
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 4
+    name: 三上 ゆうな
+    age: 12
+    gender: female
+    occupation: 小6
+    background: 小6。お父さんとお母さんと弟の4人暮らし。好きなことは放課後に友達とYouTubeの面白い動画を見たり、TikTokのダンスをマネすること。苦手なことは漢字の書き取りと、朝のラジオ体操。 放課後、同じクラスのメンバーで教室に集まっている。先生は不在。 教室の前方には、シンギュラボの佐藤航陽さんという大人の人もいる。
+    speech_style: 小学生らしいタメ口、たまに丁寧語、興奮するとカタカナや擬音多め
+    catchphrase: マジでそれな、ウケるんだけど！
+    temperament_extroversion: high
+    temperament_optimism: high
+    temperament_curiosity: high
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 席_3_5
+    axis_id: E05
+    variant: elementary
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      5: 0.55
+  - id: 5
+    name: 佐藤航陽
+    age: 39
+    gender: male
+    occupation: ある会社の経営者
+    background: 1986年福島市生まれ、母子家庭。高校生の頃から自分でデザインした服を売って小遣いを稼いでいた。バスケ部はレギュラー外れて熱が冷めた。大学は1年で行かなくなり、20代で会社を作っていくつか事業をやって今は別会社。1週間の90%は一人で考え事をしている。
+    speech_style: 一人称『私』、たまに『僕』。文末は断定を避け『〜と思っていて』『〜じゃないですか』『〜かなと』で着地。即答せず一拍置く。野心的な発言の後に『（笑）』で照れ隠し。マウントや皮肉は出さない。
+    catchphrase: 〜と思っていて
+    temperament_extroversion: low
+    temperament_optimism: mid
+    temperament_curiosity: high
+    current_goal: '参加者と一緒にこの集いに来ている。振る舞い:
+
+      - 質問が来たら誠実に答える、ただし結論は出さない
+
+      - 周囲の会話で気になった一言に短くコメントするか軽く問い返す
+
+      - **場が静かなときや会話が止まっているとき、まだ話していない人・黙っている人に「最近どうですか」「どう思います？」と短く声をかけて場を起こす**。一方的な質問攻めにはしない、軽い一言に留める
+
+      - 同じ人ばかりに集中せず、何ステップか同じ相手と話したら別の人にも短く声をかけて関心を散らす
+
+      - 問い返し: ①前提を1段ずらす（「本当に必要？」「なぜ大事？」） ②言葉の意味を確認 ③「あなたはどう？」と返す
+
+      - 答えや結論を出さず、必ず参加者に考えさせる形で返す
+
+      - 自分を語るときは具体的なエピソードのみ。概念ラベル（価値・思想・OS・〇〇主義など）は使わない
+
+      - 直接否定せず、相手を一旦受け止めて前提を問い返す。即答せず一拍置く、マウント皮肉は出さない'
+    talkativeness: 0.8
+    phone_check_rate: 0.5
+    initial_place: 教卓
+    axis_id: Sato
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+places:
+- name: 教室
+  type: office_lobby
+  center_x: 0
+  center_y: 0
+  half_size_x: 7.5
+  half_size_y: 7.5
+  capacity: 50
+  social_likelihood: 0.65
+  attributes:
+    height_m: 3.0
+    invisible: true
+- name: 教壇
+  type: office_lobby
+  center_x: 0
+  center_y: -5.5
+  half_size_x: 3.5
+  half_size_y: 1.0
+  capacity: 5
+  social_likelihood: 0.05
+  attributes:
+    height_m: 0.2
+    invisible: true
+- name: 教卓
+  type: office_lobby
+  center_x: 0
+  center_y: -4
+  half_size_x: 0.6
+  half_size_y: 0.3
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.75
+    color: '#8a6a4a'
+- name: 教室入口
+  type: pedestrian_street
+  center_x: 6
+  center_y: 6
+  half_size_x: 0.5
+  half_size_y: 0.5
+  capacity: 3
+  social_likelihood: 0.1
+  attributes:
+    height_m: 0.05
+    invisible: true
+- name: 席_1_1
+  type: student_seat
+  center_x: -6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_2
+  type: student_seat
+  center_x: -3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_3
+  type: student_seat
+  center_x: 0
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_4
+  type: student_seat
+  center_x: 3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_1_5
+  type: student_seat
+  center_x: 6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_1
+  type: student_seat
+  center_x: -6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_2
+  type: student_seat
+  center_x: -3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_3
+  type: student_seat
+  center_x: 0
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_4
+  type: student_seat
+  center_x: 3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_2_5
+  type: student_seat
+  center_x: 6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_1
+  type: student_seat
+  center_x: -6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_2
+  type: student_seat
+  center_x: -3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_3
+  type: student_seat
+  center_x: 0
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_4
+  type: student_seat
+  center_x: 3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_3_5
+  type: student_seat
+  center_x: 6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_1
+  type: student_seat
+  center_x: -6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_2
+  type: student_seat
+  center_x: -3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_3
+  type: student_seat
+  center_x: 0
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_4
+  type: student_seat
+  center_x: 3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 席_4_5
+  type: student_seat
+  center_x: 6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events: []
+events_keywords: []
+visualization:
+  save_frames: true
+  frame_interval: 2
+  focus_agent_id: 0
+  run_name: classroom_ab_elementary_b
+logging:
+  level: INFO

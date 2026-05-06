@@ -1,0 +1,494 @@
+# ================================================================
+# 集いABシミュ 条件B (variant=adult / scene=agito=アジト)
+# ================================================================
+# Built by tools/build_classroom_ab_config.py
+# 参加者: 5人 (['甘利 健太', '清水 陽子', '戸島 康夫', '西園寺 恵子', '新村 健一'])
+# 触媒: 佐藤航陽さん @ 中央テーブル
+# duration: 12 steps × 3分 = 36分
+# parallel_workers: 6
+# ================================================================
+
+metadata:
+  name: classroom_ab_adult_b
+  description: '集いABシミュ (adult / アジト) — 条件B: 当事者 + 佐藤航陽さん同席'
+  scenario_kind: classroom_ab_adult
+  variant: adult
+  scene: agito
+  scene_label: アジト
+  scene_main_spot: 中央テーブル
+  scene_phrase: a small fixed indoor meeting space
+  scene_text: シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。
+  condition: B
+  meters_per_cell: 1
+  grid_step_m: 1
+  hide_place_labels: true
+  ceiling_height_m: 3.0
+simulation:
+  duration: 12
+  half_space_size: 8
+  half_place_size: 5
+  seed: 42
+  time_scale:
+    step_duration_minutes: 3
+    start_time: '15:00'
+    patterns:
+    - hours:
+      - 15
+      - 16
+      - 17
+      - 18
+      enter_per_step: 0.0
+      exit_per_step: 0.0
+      neighborhood_mood: シンギュラボのアジト。進行役は不在。集まったメンバーで自由時間を過ごしている。
+      default_goal: 自由時間を過ごす
+  minimal_prompt_mode: true
+  skip_decision_prompt: true
+  scene_phrase: a small fixed indoor meeting space
+agents:
+  num_agents: 6
+  max_agents: 6
+  communication_radius: 12
+  memory_limit: 20
+  memory_size: 5
+  message_history_limit: 20
+  message_context_size: 6
+  skip_probability: 0.05
+  parallel_workers: 6
+  movement_speed:
+    base_cells_per_step: 2
+    variance: 1
+  personas:
+  - id: 0
+    name: 甘利 健太
+    age: 32
+    gender: male
+    occupation: 会社のパソコンでデータの分析とか計算の仕組みを作っている
+    background: 会社のパソコンでデータの分析とか計算の仕組みを作っている。実家を出て一人暮らし、たまに地元の友達と飲むくらい。結局AIって何がすごいのか、仕事以外で面白い使い道がないかずっと考えてる。 シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。 アジトには、シンギュラボ代表の佐藤航陽さんも来ている。
+    speech_style: 落ち着いた大人の口調、敬語混じりだが砕けた表現も
+    catchphrase: 要するに、それって僕たちの生活がどう変わる話なんですかね
+    temperament_extroversion: mid
+    temperament_optimism: mid
+    temperament_curiosity: high
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 椅子_2_3
+    axis_id: A01
+    variant: adult
+    initial_relationships:
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 1
+    name: 清水 陽子
+    age: 28
+    gender: female
+    occupation: 私立の認可保育園で、0歳児クラスの担任をしています。
+    background: 私立の認可保育園で、0歳児クラスの担任をしています。実家暮らしで、両親と猫一匹と暮らしています。給料があんまり上がらないのに仕事だけ増えていく現状を、この先どうすればいいのかぼんやり考えています。 シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。 アジトには、シンギュラボ代表の佐藤航陽さんも来ている。
+    speech_style: 落ち着いた大人の口調、敬語混じりだが砕けた表現も
+    catchphrase: まあ、みんながそう言うならそれでいいんじゃないですかね。
+    temperament_extroversion: low
+    temperament_optimism: low
+    temperament_curiosity: low
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 椅子_3_1
+    axis_id: A02
+    variant: adult
+    initial_relationships:
+      0: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 2
+    name: 戸島 康夫
+    age: 47
+    gender: male
+    occupation: 地元で看板のデザインやチラシ作りを請け負う小さな事務所を一人でやっています。
+    background: 地元で看板のデザインやチラシ作りを請け負う小さな事務所を一人でやっています。妻と高校生の娘が一人いて、家では肩身が狭いです。最近近所にできたカフェの看板が妙にセンス良くて、悔しいけど気になって仕方ないです。 シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。 アジトには、シンギュラボ代表の佐藤航陽さんも来ている。
+    speech_style: 落ち着いた大人の口調、敬語混じりだが砕けた表現も
+    catchphrase: まあ、結局のところどうでもいい話なんですけどね。
+    temperament_extroversion: mid
+    temperament_optimism: mid
+    temperament_curiosity: high
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 椅子_1_4
+    axis_id: A03
+    variant: adult
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      3: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 3
+    name: 西園寺 恵子
+    age: 52
+    gender: female
+    occupation: 銀行を辞めてから地元の商店街で小さな古本屋を細々とやっています。
+    background: 銀行を辞めてから地元の商店街で小さな古本屋を細々とやっています。夫は単身赴任中で、大学生の息子がひとりいますが最近は顔も見せません。店の近くの空き店舗がまた新しく何かに変わるみたいで、今度は何屋になるのか少し気になります。 シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。 アジトには、シンギュラボ代表の佐藤航陽さんも来ている。
+    speech_style: 落ち着いた大人の口調、敬語混じりだが砕けた表現も
+    catchphrase: まあ、人それぞれだし別にいいんじゃないですか。
+    temperament_extroversion: low
+    temperament_optimism: mid
+    temperament_curiosity: low
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 椅子_1_3
+    axis_id: A04
+    variant: adult
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      4: 0.55
+      5: 0.55
+  - id: 4
+    name: 新村 健一
+    age: 37
+    gender: male
+    occupation: 家でウェブサイトの修正とか小さなプログラムを作って受託で稼いでいる。
+    background: 家でウェブサイトの修正とか小さなプログラムを作って受託で稼いでいる。妻と二人暮らしで、子供はまだいない。ネットで見た近所の評判がいいラーメン屋に、いつ行こうかずっと考えてる。 シンギュラボのアジトに集まったコミュニティメンバーで、自由時間を過ごしている。進行役は不在。 アジトには、シンギュラボ代表の佐藤航陽さんも来ている。
+    speech_style: 落ち着いた大人の口調、敬語混じりだが砕けた表現も
+    catchphrase: まあ、それはそれでアリなんじゃないですかね。
+    temperament_extroversion: high
+    temperament_optimism: high
+    temperament_curiosity: mid
+    current_goal: この集いが終わるまでに『参加者全員で達成したい何か』を決めて、参加者全員で実行することを目指すこと。
+    talkativeness: 0.55
+    phone_check_rate: 0.75
+    initial_place: 椅子_3_5
+    axis_id: A05
+    variant: adult
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      5: 0.55
+  - id: 5
+    name: 佐藤航陽
+    age: 39
+    gender: male
+    occupation: ある会社の経営者
+    background: 1986年福島市生まれ、母子家庭。高校生の頃から自分でデザインした服を売って小遣いを稼いでいた。バスケ部はレギュラー外れて熱が冷めた。大学は1年で行かなくなり、20代で会社を作っていくつか事業をやって今は別会社。1週間の90%は一人で考え事をしている。
+    speech_style: 一人称『私』、たまに『僕』。文末は断定を避け『〜と思っていて』『〜じゃないですか』『〜かなと』で着地。即答せず一拍置く。野心的な発言の後に『（笑）』で照れ隠し。マウントや皮肉は出さない。
+    catchphrase: 〜と思っていて
+    temperament_extroversion: low
+    temperament_optimism: mid
+    temperament_curiosity: high
+    current_goal: '参加者と一緒にこの集いに来ている。振る舞い:
+
+      - 質問が来たら誠実に答える、ただし結論は出さない
+
+      - 周囲の会話で気になった一言に短くコメントするか軽く問い返す
+
+      - **場が静かなときや会話が止まっているとき、まだ話していない人・黙っている人に「最近どうですか」「どう思います？」と短く声をかけて場を起こす**。一方的な質問攻めにはしない、軽い一言に留める
+
+      - 同じ人ばかりに集中せず、何ステップか同じ相手と話したら別の人にも短く声をかけて関心を散らす
+
+      - 問い返し: ①前提を1段ずらす（「本当に必要？」「なぜ大事？」） ②言葉の意味を確認 ③「あなたはどう？」と返す
+
+      - 答えや結論を出さず、必ず参加者に考えさせる形で返す
+
+      - 自分を語るときは具体的なエピソードのみ。概念ラベル（価値・思想・OS・〇〇主義など）は使わない
+
+      - 直接否定せず、相手を一旦受け止めて前提を問い返す。即答せず一拍置く、マウント皮肉は出さない'
+    talkativeness: 0.8
+    phone_check_rate: 0.5
+    initial_place: 中央テーブル
+    axis_id: Sato
+    initial_relationships:
+      0: 0.55
+      1: 0.55
+      2: 0.55
+      3: 0.55
+      4: 0.55
+places:
+- name: アジト
+  type: office_lobby
+  center_x: 0
+  center_y: 0
+  half_size_x: 7.5
+  half_size_y: 7.5
+  capacity: 50
+  social_likelihood: 0.65
+  attributes:
+    height_m: 3.0
+    invisible: true
+- name: ステージ前
+  type: office_lobby
+  center_x: 0
+  center_y: -5.5
+  half_size_x: 3.5
+  half_size_y: 1.0
+  capacity: 5
+  social_likelihood: 0.05
+  attributes:
+    height_m: 0.2
+    invisible: true
+- name: 中央テーブル
+  type: office_lobby
+  center_x: 0
+  center_y: -4
+  half_size_x: 0.6
+  half_size_y: 0.3
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.75
+    color: '#8a6a4a'
+- name: アジト入口
+  type: pedestrian_street
+  center_x: 6
+  center_y: 6
+  half_size_x: 0.5
+  half_size_y: 0.5
+  capacity: 3
+  social_likelihood: 0.1
+  attributes:
+    height_m: 0.05
+    invisible: true
+- name: 椅子_1_1
+  type: student_seat
+  center_x: -6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_1_2
+  type: student_seat
+  center_x: -3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_1_3
+  type: student_seat
+  center_x: 0
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_1_4
+  type: student_seat
+  center_x: 3
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_1_5
+  type: student_seat
+  center_x: 6
+  center_y: -3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_2_1
+  type: student_seat
+  center_x: -6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_2_2
+  type: student_seat
+  center_x: -3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_2_3
+  type: student_seat
+  center_x: 0
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_2_4
+  type: student_seat
+  center_x: 3
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_2_5
+  type: student_seat
+  center_x: 6
+  center_y: 0
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_3_1
+  type: student_seat
+  center_x: -6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_3_2
+  type: student_seat
+  center_x: -3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_3_3
+  type: student_seat
+  center_x: 0
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_3_4
+  type: student_seat
+  center_x: 3
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_3_5
+  type: student_seat
+  center_x: 6
+  center_y: 3
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_4_1
+  type: student_seat
+  center_x: -6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_4_2
+  type: student_seat
+  center_x: -3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_4_3
+  type: student_seat
+  center_x: 0
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_4_4
+  type: student_seat
+  center_x: 3
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+- name: 椅子_4_5
+  type: student_seat
+  center_x: 6
+  center_y: 6
+  half_size_x: 0.45
+  half_size_y: 0.35
+  capacity: 2
+  social_likelihood: 0.5
+  attributes:
+    height_m: 0.7
+    color: '#9a7a5a'
+llm:
+  provider: google
+  model: gemini-3.1-flash-lite-preview
+  base_url: https://generativelanguage.googleapis.com
+  temperature: 0.2
+  max_tokens: 400
+fires: []
+events: []
+events_keywords: []
+visualization:
+  save_frames: true
+  frame_interval: 2
+  focus_agent_id: 0
+  run_name: classroom_ab_adult_b
+logging:
+  level: INFO

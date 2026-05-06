@@ -139,6 +139,7 @@ def bundle_viewer(
     viewer: str = '2d',
     template_path: str = None,
     scene_3d_yaml: str = None,
+    out_path: str = None,
 ) -> str:
     run = Path(run_dir)
     data_path = run / 'simulation_data.json'
@@ -169,7 +170,7 @@ def bundle_viewer(
         print("  --scene-3d ignored for 2D viewer")
     html = _inject_data(html, data_path.read_text(encoding='utf-8'))
 
-    out = run / out_name
+    out = Path(out_path) if out_path else (run / out_name)
     out.write_text(html, encoding='utf-8')
     return str(out)
 
@@ -182,11 +183,14 @@ def main():
     ap.add_argument('--scene-3d', dest='scene_3d', default=None,
                     help='Path to a YAML file containing a scene_3d: section '
                          '(3D viewer only)')
+    ap.add_argument('--out', default=None,
+                    help='Output HTML path (default: <run_dir>/viewer_<viewer>_bundled.html)')
     args = ap.parse_args()
     out = bundle_viewer(
         args.run_dir,
         viewer=args.viewer,
         scene_3d_yaml=args.scene_3d,
+        out_path=args.out,
     )
     size_kb = Path(out).stat().st_size / 1024
     print(f"Wrote: {out} ({size_kb:.1f} KB)")

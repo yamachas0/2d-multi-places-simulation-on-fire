@@ -189,10 +189,12 @@ def print_statistics(stats: dict, sim: Simulation, logger: logging.Logger):
         logger.info("\n=== Per-Place Statistics ===")
         for place_name, place_stats in sim.stats['places'].items():
             if place_stats['occupancy']:
-                occupancy_array = np.array(place_stats['occupancy'])
+                occ_vals = [v for v in place_stats['occupancy'] if v is not None]
                 agents_array = np.array(place_stats['agents_in_place'])
                 logger.info(f"\n{place_name}:")
-                logger.info(f"  Mean occupancy: {np.mean(occupancy_array):.2%}")
+                if occ_vals:
+                    occupancy_array = np.array(occ_vals)
+                    logger.info(f"  Mean occupancy: {np.mean(occupancy_array):.2%}")
                 logger.info(f"  Mean agents: {np.mean(agents_array):.2f}")
                 logger.info(f"  Max agents: {int(np.max(agents_array))}")
                 logger.info(f"  Min agents: {int(np.min(agents_array))}")
@@ -258,6 +260,15 @@ def main():
             shutil.copy2(args.config, os.path.join(output_dir, "config.yaml"))
         except Exception as e:
             logger.warning(f"Could not copy config into run dir: {e}")
+        # Run dir 内に sim.log を保存して、レポートの API 集計で参照できるようにする。
+        try:
+            log_file_path = os.path.join(output_dir, "sim.log")
+            file_handler = logging.FileHandler(log_file_path, encoding='utf-8')
+            file_handler.setFormatter(logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s'))
+            logging.getLogger().addHandler(file_handler)
+            logger.info(f"Logging to file: {log_file_path}")
+        except Exception as e:
+            logger.warning(f"Could not attach log file handler: {e}")
     
     # Initialize simulation
     sim = Simulation(config_path=args.config, output_dir=output_dir, seed=args.seed)
@@ -309,6 +320,15 @@ def main():
                     from tools.bundle_viewer import bundle_viewer
                     bundled = bundle_viewer(output_dir)
                     logger.info(f"Bundled viewer: {bundled}")
+                    # 3D viewer も併出力 (config に scene_3d があれば)
+                    if config.get('scene_3d'):
+                        try:
+                            bundled_3d = bundle_viewer(
+                                output_dir, viewer='3d', scene_3d_yaml=args.config
+                            )
+                            logger.info(f"Bundled 3D viewer: {bundled_3d}")
+                        except Exception as e3:
+                            logger.warning(f"3D viewer bundle skipped: {e3}")
                 except Exception as e:
                     logger.warning(f"Viewer bundle skipped: {e}")
         except Exception as e:

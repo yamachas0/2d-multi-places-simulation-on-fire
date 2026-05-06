@@ -452,10 +452,15 @@ class Visualizer:
                 f"({place_status['occupancy_rate']:.1%}){fire_suffix}"
             )
         else:
+            cap = place_status.get('capacity')
+            occ = place_status.get('occupancy_rate')
+            if cap is not None and occ is not None:
+                cap_str = f"/{cap} ({occ:.1%})"
+            else:
+                cap_str = ""
             title = (
                 f"{step_label} | "
-                f"Agents in place: {place_status['agents_in_place']}/{place_status['capacity']} "
-                f"({place_status['occupancy_rate']:.1%}){fire_suffix}"
+                f"Agents in place: {place_status['agents_in_place']}{cap_str}{fire_suffix}"
             )
         self.ax.set_title(title, fontsize=13, fontweight='bold')
 
@@ -464,10 +469,13 @@ class Visualizer:
         # the default family (Yu Gothic / Meiryo) is proportional and
         # Japanese glyphs are absent from DejaVu Sans Mono.
         if 'places' in place_status:
-            place_lines = [
-                f"{pn}: {st['agents_in_place']}/{st['capacity']} ({st['occupancy_rate']:.0%})"
-                for pn, st in place_status['places'].items()
-            ]
+            def _fmt(pn, st):
+                cap = st.get('capacity')
+                occ = st.get('occupancy_rate')
+                if cap is not None and occ is not None:
+                    return f"{pn}: {st['agents_in_place']}/{cap} ({occ:.0%})"
+                return f"{pn}: {st['agents_in_place']}"
+            place_lines = [_fmt(pn, st) for pn, st in place_status['places'].items()]
             ncols = 4
             nrows = (len(place_lines) + ncols - 1) // ncols
             cells = [['' for _ in range(ncols)] for _ in range(nrows)]

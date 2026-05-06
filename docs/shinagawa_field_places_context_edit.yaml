@@ -1,0 +1,363 @@
+# ===== 品川FW 施設コンテキスト編集用 (2026-05-03 抜粋) =====
+# 全 37 施設 (autoname '_xxx_' は除外、名前付きのみ抽出)
+# 現状 perceive_pass あり: 21 / 全37
+# 現状 perceive_enter あり: 18 / 全37
+#
+# 各施設に対して以下を加筆・修正してください:
+#   perceive_pass : 通り過ぎたとき (= 中に入らない、外から見える光景・印象) 2-4文
+#   perceive_enter: 中に入ったとき (= 内部の構造・体験・隠れた要素) 2-4文
+#
+# 何も書きたくない / 自明な施設は空欄のまま (空文字 '' のまま) で OK。
+# environment_hint は参考情報 (indoor / roof / grade など)、編集不要。
+#
+# 反映: 編集後 .yaml を投げてくれれば docs/shinagawa_field_places.yaml に焼き戻し。
+# ============================================================
+
+places:
+- name: 品川プリンスホテル
+  type: hotel
+  perceive_pass: |-
+    そびえる高層ホテル、大きな荷物を持った観光客が多数行き交う。横断歩道を渡ったところからすぐ目の前。
+  perceive_enter: |-
+    ロビー入ると広いカフェ・レストラン、観光客で賑わう。水族館・映画館への動線もここから。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: アトレ品川
+  type: restaurant
+  perceive_pass: |-
+    東西自由通路レベル(2F)がメイン入口。飲食・物販店舗が5階まで広がる。平面の面積は小さいが上に積層している。
+  perceive_enter: |-
+    中に入ると各フロアにブランドショップとレストラン、エスカレーターで階を移動。3階にブルーボトルコーヒー。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 高輪の森公園
+  type: park
+  perceive_pass: |-
+    工事現場、グランドプリンス高輪・新高輪に囲まれる場所。柘榴坂から細い道を進んでしか入れない、入口に気持ちばかりの広場。
+  perceive_enter: |-
+    大半は勾配のある森。プレーパークなどで地域の子供たちに使われる。
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: steep
+    near_park: true
+- name: 品川水族館
+  type: department_store
+  perceive_pass: |-
+    プリンスホテル敷地の水族館、ファミリー層と観光客のターゲット。
+  perceive_enter: |-
+    中は薄暗い水槽の連続、子ども連れ多い。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: ウィング高輪
+  type: restaurant
+  perceive_pass: |-
+    京急1ビルの低層商業、地下から3階まで飲食・物販店舗が並ぶ。坂道状のカスケードを登っていくと、その先に水族館と映画館がある特徴的な構造。
+  perceive_enter: |-
+    中はカスケード状で歩いていて楽しい構造、観光客と地元の家族連れが混ざる。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle
+- name: アレア品川
+  type: office_lobby
+  perceive_pass: |-
+    デッキレベル(2F)にドトールとオフィスロビー、1Fと吹き抜けエスカレーターでつながり、1Fには飲食店がいくつか。
+  perceive_enter: |-
+    1Fから外に出てまっすぐ進むとNTTビルに至るが、シーズンテラス側にはうまく抜けられない(東の道路側に抜ける必要)。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 税務署
+  type: utility
+  perceive_pass: |-
+    柘榴坂上側、行政機関の硬い建物。
+  perceive_enter: |-
+    中は典型的な行政施設、来客は限られる。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: グランドプリンス新高輪
+  type: hotel
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: steep
+- name: 国際会議場
+  type: utility
+  perceive_pass: |-
+    プリンスホテル群の西端、国際会議用施設。
+  perceive_enter: |-
+    イベント時のみ賑わう、それ以外は静か。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: プリンスさくらタワー
+  type: hotel
+  perceive_pass: |-
+    さくら坂沿い、観光客が結構行き来。車では先の通り抜けしづらいが、ホテル用のタクシーもよく通る。
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle
+- name: グランドプリンス高輪
+  type: hotel
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle
+- name: 工事中（A地区）
+  type: construction
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: true
+- name: 品川セントラルガーデン
+  type: plaza
+  perceive_pass: |-
+    南北に長い広場、グラコモとインターシティに挟まれた谷間のような場所。比較的開放的、デッキからも眺められる、憩える場所も点在。
+  perceive_enter: |-
+    ベンチや植栽がある。上空2Fレベルでグラコモとインターシティを繋ぐデッキが2本走る。南端に近づくと「品川駅前ここまで」の境界感。
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: false
+    near_park: true
+- name: 芝浦中央公園
+  type: park
+  perceive_pass: |-
+    花々と芝生広場で構成された広いデッキ公園。遊具などは少なく、犬の散歩道のイメージ。
+  perceive_enter: |-
+    一番奥にバラ園。近い将来、JR線路を越えるデッキで高輪ゲートウェイ駅と直結する予定。
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_park: true
+- name: 品川グランドコモンズ
+  type: office_lobby
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 品川インターシティ
+  type: office_lobby
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 港南口広場
+  type: plaza
+  perceive_pass: |-
+    アトレを抜けて港南口に出ると、北はアレア品川、南はグランドコモンズとインターシティに向かうデッキが伸びる。屋根付きでアンブレラフリー。正面に居酒屋やバー含む飲食店街がまっすぐ伸びる。
+  perceive_enter: |-
+    エスカレーターと階段で広場に降りられる。階段の裏側にタクシー乗り場、アレア2F脇からタクシー乗り場に直接降りれる隠れた階段がある。
+  environment_hint:
+    indoor: false
+    roof: true
+    grade: flat
+- name: NTT
+  type: office_lobby
+  perceive_pass: |-
+    古い大きなビル。1Fがオフィスロビーのみ、飲食店等はなく閉鎖的な雰囲気。
+  perceive_enter: |-
+    ロビーは入れるが用事がないと長居できる場所はない。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: コクヨ
+  type: office_lobby
+  perceive_pass: |-
+    北館1Fがショールーム、入口は狭いが中はインテリアメーカーらしいおしゃれな空間。
+  perceive_enter: |-
+    南館は本社オフィスでライブオフィス、社員が実際に働いているのが見える、開放的でおしゃれ。コクヨより東側は大小の雑居ビル(特徴薄)。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: ソニー
+  type: office_lobby
+  perceive_pass: |-
+    1Fオフィスロビーに過去製品が並び、椅子テーブルあり。開放的で明るい雰囲気。
+  perceive_enter: |-
+    誰でも入れる雰囲気で、過去のソニー製品を眺められる。タリーズあり。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 繁華街
+  type: restaurant
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 食肉市場
+  type: industrial
+  perceive_pass: |-
+    もともと屠殺場、市場関係者のみ立ち入るエリア。町としては閉鎖的な場所だが、駅前にこの規模が残る。風向きによって独特の匂いが流れる。
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    is_meat_market: true
+- name: 品川シーズンテラス
+  type: office_lobby
+  perceive_pass: |-
+    1Fはほぼ駐車場で閉鎖的、コンビニ程度。エスカレーター/階段で2Fに誘導される。
+  perceive_enter: |-
+    2Fが商業店舗(カフェからレストランまで)、北側が公園に面してテラス席など雰囲気のいい店。3Fがオフィスロビーとカンファレンス。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+    near_park: true
+- name: 浄水場
+  type: industrial
+  perceive_pass: |-
+    一般人は入れない、中の様子も外からはあまり見えない。広い敷地。
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+- name: 工事中（D地区）
+  type: construction
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: true
+- name: （関東閣）
+  type: residential
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle
+- name: ave高輪
+  type: office_lobby
+  perceive_pass: |-
+    屋外階段が特徴的な新しいオフィスビル、国道15号沿い東側、駅ビル工事現場より北側。
+  perceive_enter: |-
+    オフィスロビー、屋外階段でフロア間を移動できる開放感。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: JR改札
+  type: subway_station
+  perceive_pass: |-
+    ガラスのアトリウムで明るい。小さいが目印になる時計がある。待ち合わせや行き交う人であふれている。
+  perceive_enter: |-
+    改札内に入るとエキナカ(飲食・物販)、各ホームへ階段とエスカレーター。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 京急改札
+  type: subway_station
+  perceive_pass: |-
+    青いサインなし、狭くてごちゃごちゃしている。JR改札から高輪口側に降りる工事中の無機質な階段、バリアフリーELVもある。
+  perceive_enter: |-
+    改札内ホームは狭く、京急本線の電車が頻繁に出入りする。
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 東西自由通路
+  type: pedestrian_street
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: 新幹線改札
+  type: subway_station
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: flat
+- name: パチンコ屋
+  type: restaurant
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle
+- name: 工事中（駅ビル）
+  type: construction
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: true
+- name: 工事中（駅ビル）
+  type: construction
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: true
+- name: 高輪公園
+  type: park
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: steep
+    near_park: true
+- name: 工事中（北口広場）
+  type: construction
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: false
+    roof: false
+    grade: flat
+    near_construction: true
+- name: エキナカ
+  type: restaurant
+  perceive_pass: ''
+  perceive_enter: ''
+  environment_hint:
+    indoor: true
+    roof: true
+    grade: gentle

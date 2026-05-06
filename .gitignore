@@ -63,3 +63,17 @@ _phase3_*
 _smoke_*
 _urban_v2_out/
 _jr_disruption_out/
+
+# Hackathon submission artifacts (動画 / 説明資料 PDF。Google フォーム経由で別途提出するため git に入れない)
+FINAL OUTPUT/
+*.mp4
+
+# Past internal share artifacts (古い進捗共有資料。Public 化する必要なし)
+260430_*.pdf
+
+# Temp / scratch files
+_run*_tmp.yaml
+_*_tmp.yaml
+
+# Ad-hoc analysis scripts (dev-only, not part of the public toolset)
+tools/_analyze_*.py

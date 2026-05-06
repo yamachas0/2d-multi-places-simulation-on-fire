@@ -4,8 +4,9 @@ LLM-based agent in 2D worlds with multiple places.
 import json
 import math
 import random
+import re
 import logging
-from typing import List, Tuple, Optional, Dict, TypedDict
+from typing import List, Tuple, Optional, Dict, Set, TypedDict
 from claude_client import ClaudeClient
 from utils import is_position_in_place, get_place_at_position, PlaceConfig, generate_random_persona
 from place_types import get_place_type_spec
@@ -164,6 +165,12 @@ class Agent:
         movement_variance: int = 0,
         initial_relationships: Optional[Dict[int, float]] = None,
         navigator=None,
+        minimal_prompt: bool = False,
+        skip_decision: bool = False,
+        scene_phrase: str = "a small fixed indoor scene",
+        injected_context: str = "",
+        global_channel: bool = False,
+        chat_thread_mode: bool = False,
     ):
         self.id = agent_id
         self.position = initial_position
@@ -174,11 +181,29 @@ class Agent:
         self.num_agents = num_agents
         self.gender = gender
         self.navigator = navigator
+        self.minimal_prompt = bool(minimal_prompt)
+        self.skip_decision = bool(skip_decision)
+        self.scene_phrase = scene_phrase or "a small fixed scene"
+        # moltbook風 グローバルチャンネルモード (= 全 agent が共有チャンネルを読む)。
+        # True のとき system_prompt の発話判定を「self-decision 強型」に切り替える。
+        self.global_channel = bool(global_channel)
+        # moltbook風 chat session thread化 (= 各 agent が独立した Gemini chat session を持つ)。
+        # True のとき message phase で send_to_chat 経由、履歴は session 内で蓄積される。
+        # session は最初の message phase 呼び出し時に lazy 作成される。
+        self.chat_thread_mode = bool(chat_thread_mode)
+        self.chat_session = None  # lazy: send_message_via_chat 初回時に start_chat_session
+        # Phase A: 場所の現場知覚情報を system_prompt に挿入する用テキスト。
+        # 空文字なら注入しない。Phase B 以降は agent が場所近接時にロードする設計を想定。
+        self.injected_context = injected_context or ""
 
         # Movement speed (cells per "move" action). Actual distance per step is
         # base + uniform(-variance, +variance), clamped to >= 1.
         self.movement_base_cells = max(1, int(movement_base_cells))
         self.movement_variance = max(0, int(movement_variance))
+        # smoke22: 車いす利用 persona は移動速度を半減 (現実感反映)。
+        if persona is not None and (persona.get('mobility') or '').strip() == 'wheelchair':
+            self.movement_base_cells = max(1, self.movement_base_cells // 2)
+            self.movement_variance = max(0, self.movement_variance // 2)
 
         # Minimal persona (name, age, occupation, background, speech_style).
         # Kept as a flat dict so the second-stage expansion can add fields
@@ -198,12 +223,39 @@ class Agent:
         self.in_place = False
         self.current_place: Optional[str] = None  # Name of the place the agent is in (None if outside)
         self.memory: List[str] = []  # Store past decisions and observations
+        # Phase B 用: 教室Phase からの持ち越し記憶。persona dict 内の "initial_memory"
+        # (list[str]) があれば、起動時に self.memory に prepend する。これで FW Phase の
+        # agent は座学Phaseで描いた未来像・FW意図・キー記憶を最初から保持してスタートする。
+        init_mem = self.persona.get("initial_memory") if self.persona else None
+        if isinstance(init_mem, list):
+            for line in init_mem:
+                if isinstance(line, str) and line.strip():
+                    self.memory.append(line.strip())
         self.received_messages: List[Dict] = []  # Messages from other agents
+        self.sent_messages: List[Dict] = []  # This agent's own past utterances (for self-context, prevents lock-in repetition)
+        # 圧縮記憶 (2026-05-04): rolling buffer の限界対策。
+        # step が memory_compression_interval (=5) の倍数になるたび、直近 N 件を
+        # 1 文に要約して archived_summaries に push (Gemini 呼び出し)。raw window はそのまま rolling 続行。
+        # prompt には archived_summaries (固定保管) + 直近 raw N件 を載せる。
+        self.archived_summaries: List[str] = []
 
         # Statistics
         self.steps_in_place = 0
         self.steps_outside_place = 0
         self.total_moves = 0
+
+        # Phase B: 各 place を初めて bbox 進入した・初めて enter した、を記録する。
+        # perceive_pass / perceive_enter の重複注入を避け、また「ここは前にも来た」記録に使う。
+        self.visited_places: Set[str] = set()
+        self.entered_places: Set[str] = set()
+        # Phase B: 自分が会話を交わした host (企業担当者) の name 集合。
+        # 会話発生時に simulation 側から rule-based で追加される (sender / receiver の双方)。
+        # working_state ブロックで「未訪問host」を計算するため、および evidence-bound survey で使う。
+        self.talked_hosts: Set[str] = set()
+        # Phase B: 累積物理量。simulation.py の身体感覚記録機構が読み書きする。
+        self.cumulative_distance_cells: float = 0.0
+        self.cumulative_steps: int = 0
+        self._last_position: Optional[Tuple[int, int]] = None
 
         # Behavior-layer state (feature 4).
         # current_intent caches the last LLM-chosen action so transit steps can
@@ -310,7 +362,10 @@ class Agent:
 
         Args:
             nearby_agents: List of nearby agents
-            include_position: If True, include a rough directional hint; if False, omit location.
+            include_position: If True, include a rough directional hint AND age/gender/occupation
+                (used in the action/decision phase). If False (used in the message phase),
+                drop the demographic block — it's per-step waste once agents have introduced
+                themselves; this saves significant uncached input tokens at scale.
         """
         if not nearby_agents:
             return "No nearby agents."
@@ -318,8 +373,6 @@ class Agent:
         nearby_info = []
         for agent in nearby_agents:
             name = agent.persona.get('name', f"Person {agent.id}")
-            age = agent.persona.get('age', '?')
-            occupation = agent.persona.get('occupation', '?')
 
             if agent.in_place:
                 place_info = next((p for p in self.places if p['name'] == agent.current_place), None)
@@ -333,36 +386,234 @@ class Agent:
                 status = "is outside the places"
 
             rel_level = self.get_relationship(agent.id)
-            rel_tag = f"{relationship_label(rel_level)} ({rel_level:.2f})"
+            rel_tag = relationship_label(rel_level)
+            is_host = bool(agent.persona.get('is_host'))
             if include_position:
+                age = agent.persona.get('age', '?')
+                occupation = agent.persona.get('occupation', '?')
                 direction = self._position_to_rough_direction(agent.position)
+                host_tag = "[企業担当者・大人] " if is_host else ""
                 nearby_info.append(
-                    f"{name} ({age}, {agent.gender}, {occupation}) — {rel_tag} — {status}, roughly {direction}"
+                    f"{host_tag}{name} ({age}, {agent.gender}, {occupation}) — {rel_tag} — {status}, roughly {direction}"
                 )
             else:
-                nearby_info.append(
-                    f"{name} ({age}, {agent.gender}, {occupation}) — {rel_tag} — {status}"
-                )
+                # message phase は demographic を省略してコスト削減するが、
+                # host (企業担当者・大人) だけは年齢・職業を残す。
+                # 学生が host を「同級生扱い (タメ口・くん付け)」する事故を防ぐため。
+                if is_host:
+                    age = agent.persona.get('age', '?')
+                    occupation = agent.persona.get('occupation', '?')
+                    nearby_info.append(
+                        f"[企業担当者・大人] {name} ({age}歳, {occupation}) — {rel_tag} — {status}"
+                    )
+                else:
+                    nearby_info.append(
+                        f"{name} — {rel_tag} — {status}"
+                    )
         return "\n".join(nearby_info)
     
     def _build_memory_context(self) -> str:
-        """Build context string from agent memory"""
-        if not self.memory:
+        """Build context string from agent memory.
+
+        構造:
+          1. 訪問履歴 (rule-based 固定 prefix)
+          2. 圧縮記憶 archived_summaries (固定保管、消えない)
+          3. 直近 raw memory (rolling buffer 直近 memory_size 件)
+        """
+        # 1. 訪問履歴 prefix (場所の再訪抑制)
+        visited_line = ""
+        passed = sorted(self.visited_places)
+        entered = sorted(self.entered_places)
+        passed_only = [p for p in passed if p not in self.entered_places]
+        if entered or passed_only:
+            parts = []
+            if entered:
+                parts.append("入場済み: " + ", ".join(entered))
+            if passed_only:
+                parts.append("通過済み(未入場): " + ", ".join(passed_only))
+            visited_line = "[訪問履歴] " + " / ".join(parts)
+
+        # 2. 圧縮記憶 archived (長期記憶)
+        archived_lines: List[str] = []
+        for i, summary in enumerate(self.archived_summaries):
+            archived_lines.append(f"[要約#{i+1}] {summary}")
+
+        # 3. 直近 raw memory
+        if self.memory:
+            recent_memory = self.memory[-self.memory_size:]
+            raw_lines = [f"- {m}" for m in recent_memory]
+        else:
+            raw_lines = []
+
+        # 組み立て
+        sections = []
+        if visited_line:
+            sections.append(visited_line)
+        if archived_lines:
+            sections.append("\n".join(archived_lines))
+        if raw_lines:
+            sections.append("(直近の生記憶):\n" + "\n".join(raw_lines))
+        if not sections:
             return "No previous experiences."
-
-        recent_memory = self.memory[-self.memory_size:]
-        return "\n".join([f"- {m}" for m in recent_memory])
+        return "\n".join(sections)
     
-    def _build_messages_context(self) -> str:
-        """Build context string from received messages using sender names when available."""
-        if not self.received_messages:
-            return "No messages received."
+    @staticmethod
+    def _ngram_set(text: str, n: int = 4) -> set:
+        """日本語向け文字 N-gram (空白除去後)。短すぎ・空文字は空 set。"""
+        if not text:
+            return set()
+        t = re.sub(r"\s+", "", text)
+        if len(t) < n:
+            return {t}
+        return {t[i:i+n] for i in range(len(t) - n + 1)}
 
-        recent_messages = self.received_messages[-self.message_context_size:]
+    @staticmethod
+    def _jaccard(a: set, b: set) -> float:
+        if not a or not b:
+            return 0.0
+        u = a | b
+        return len(a & b) / len(u) if u else 0.0
+
+    def filter_loop_message(self, decision: 'MessageDecision', partner_id: Optional[int],
+                            jaccard_threshold: float = 0.50) -> 'MessageDecision':
+        """LLM が出した message が、同じ相手への直近自分発話と高類似度なら silent 化する後フィルタ。
+
+        Phase A 等の「キャンセル → LLM が再生成 → またキャンセル」を物理的に止める仕組み。
+        threshold は既定 0.50 (4-gram Jaccard)。"""
+        if not decision or partner_id is None:
+            return decision
+        msg = (decision.get('message') or '').strip()
+        if not msg:
+            return decision
+        my_msgs_to = [m for m in self.sent_messages if m.get('to') == partner_id]
+        if not my_msgs_to:
+            return decision
+        # 直近最大 5 件と比較
+        recent = my_msgs_to[-5:]
+        cand = self._ngram_set(msg)
+        for prev in recent:
+            prev_text = (prev.get('content') or prev.get('message') or '').strip()
+            if not prev_text:
+                continue
+            sim = self._jaccard(cand, self._ngram_set(prev_text))
+            if sim >= jaccard_threshold:
+                logger.info(
+                    f"Agent {self.id}: loop-filter silenced message (Jaccard={sim:.2f} vs prev to {partner_id})"
+                )
+                decision['message'] = ""
+                decision['reasoning'] = (
+                    f"(後フィルタ silent化: 直近発話と類似度 {sim:.2f} >= {jaccard_threshold})"
+                    + " / " + str(decision.get('reasoning', ''))[:120]
+                )
+                return decision
+        return decision
+
+    def _detect_loop_partners(self, nearby_agents: List['Agent'],
+                              jaccard_threshold: float = 0.30,
+                              min_pairs_similar: int = 1) -> Dict[int, List[Dict]]:
+        """nearby agents 各人について、自分の直近3発話の互い類似度を見て
+        「ループ気味」と判定された agent_id をキー、直近3発話を値として返す。
+
+        直近3件のペアのうち、Jaccard >= threshold が min_pairs_similar 以上で「ループ判定」。
+        実用的には min_pairs_similar=1 (= 直近3件のうちどこか2件が似てたら警告)。"""
+        result: Dict[int, List[Dict]] = {}
+        if not nearby_agents or not self.sent_messages:
+            return result
+        for ag in nearby_agents:
+            my_msgs_to = [m for m in self.sent_messages if m.get('to') == ag.id]
+            if len(my_msgs_to) < 2:
+                continue
+            recent = my_msgs_to[-3:]
+            grams = []
+            for m in recent:
+                content = m.get('content') or m.get('message') or ''
+                grams.append(self._ngram_set(content))
+            sim_pairs = 0
+            for i in range(len(grams)):
+                for j in range(i + 1, len(grams)):
+                    if self._jaccard(grams[i], grams[j]) >= jaccard_threshold:
+                        sim_pairs += 1
+            if sim_pairs >= min_pairs_similar:
+                result[ag.id] = recent
+        return result
+
+    def _build_per_partner_history(self, nearby_agents: List['Agent']) -> str:
+        """nearby agents 各人ごとに、自分の直近発話 (top 3) を整理して表示。
+        『同じ人に同じことを言う』を防ぐため、LLM に「もう A には〇〇を言った」を可視化。
+        ループ検知された相手には強い警告を併記する (cooldown step1)。"""
+        if not nearby_agents or not self.sent_messages:
+            return ""
+        loop_partners = self._detect_loop_partners(nearby_agents)
+        sections = []
+        for ag in nearby_agents:
+            my_msgs_to = [m for m in self.sent_messages if m.get('to') == ag.id]
+            if not my_msgs_to:
+                continue
+            recent = my_msgs_to[-3:]
+            ag_name = ag.persona.get('name', f"Agent {ag.id}")
+            lines = []
+            for m in recent:
+                step = m.get('step', '?')
+                content = (m.get('content') or m.get('message') or '')[:120]
+                if content:
+                    lines.append(f"  - [step {step}] 「{content}」")
+            if not lines:
+                continue
+            section_header = f"あなたが {ag_name} に既に言ったこと:"
+            if ag.id in loop_partners:
+                section_header = (
+                    f"⚠️ **警告: あなたは {ag_name} に対して直近で類似テーマの発話を繰り返しています。**"
+                    f"\n下の3件は内容が互いに類似していると検出されました。"
+                    f"\n**今回の発話で {ag_name} に同じテーマ・同じキーワードを送るのは禁止です**。"
+                    f"\n選択肢: (1) 完全に違う話題で {ag_name} に話す、"
+                    f"(2) {ag_name} ではなく**別の人**に話しかける、"
+                    f"(3) silent (空文字) を選ぶ。\n{ag_name} への直近発話 (これと類似する内容を再送するのは禁止):"
+                )
+            sections.append(section_header + "\n" + "\n".join(lines))
+        if not sections:
+            return ""
+        return "=== あなたの過去発話 (相手別) — 同じ人に同じテーマを再送しない ===\n" + "\n\n".join(sections) + "\n"
+
+    def _build_messages_context(self) -> str:
+        """Build a chronological context string merging received and sent messages.
+
+        v6: include this agent's own recent utterances (sent_messages) alongside
+        received ones, so the LLM sees the conversational thread in a unified
+        timeline and avoids re-asking the same opener (lock-in prevention).
+        """
+        my_name = self.persona.get('name', f"Agent {self.id}") if self.persona else f"Agent {self.id}"
+
+        merged = []
+        for msg in self.received_messages:
+            merged.append({
+                "step": msg.get('step', 0),
+                "from_name": msg.get('from_name') or f"Person {msg.get('from', '?')}",
+                "to_name": my_name,
+                "content": msg.get('content', ''),
+                "is_self": False,
+            })
+        for msg in self.sent_messages:
+            merged.append({
+                "step": msg.get('step', 0),
+                "from_name": my_name,
+                "to_name": msg.get('to_name') or f"Person {msg.get('to', '?')}",
+                "content": msg.get('content', ''),
+                "is_self": True,
+            })
+
+        if not merged:
+            return "(no recent conversation)"
+
+        merged.sort(key=lambda m: m['step'])
+        # Cap at a generous window so both sides of a back-and-forth stay visible.
+        window = max(self.message_context_size * 2, 6)
+        recent = merged[-window:]
         lines = []
-        for msg in recent_messages:
-            sender_name = msg.get('from_name') or f"Person {msg.get('from', '?')}"
-            lines.append(f"from {sender_name}: {msg['content']}")
+        for m in recent:
+            step_prefix = f"[step {m['step']}] " if m['step'] else ""
+            arrow = "→"
+            tag = " (you)" if m['is_self'] else ""
+            lines.append(f"{step_prefix}{m['from_name']}{tag} {arrow} {m['to_name']}: 「{m['content']}」")
         return "\n".join(lines)
     
     def _build_fire_section(self, fire_info: Optional[List[Dict]]) -> str:
@@ -480,13 +731,18 @@ class Agent:
             hx = place.get('half_size_x', place.get('half_size', 5))
             hy = place.get('half_size_y', place.get('half_size', 5))
             spec = get_place_type_spec(place_type)
-            place_locations.append(
+            line = (
                 f"{place['name']} ({place_type} — {spec['atmosphere']}): "
                 f"center ({place['center_x']}, {place['center_y']}), "
                 f"covers X {place['center_x'] - hx} to {place['center_x'] + hx}, "
-                f"Y {place['center_y'] - hy} to {place['center_y'] + hy}, "
-                f"capacity {place.get('capacity', '?')}"
+                f"Y {place['center_y'] - hy} to {place['center_y'] + hy}"
             )
+            cap = place.get('capacity')
+            if cap is not None:
+                line += f", capacity {cap}"
+            if (place.get('attributes') or {}).get('enterable') is False:
+                line += " [立入不可・enter禁止]"
+            place_locations.append(line)
         return "\n".join(place_locations)
 
     def _build_nearby_places_context(self) -> str:
@@ -514,7 +770,8 @@ class Agent:
         return "\n".join(lines)
 
     def _build_persona_section(self) -> str:
-        """WHO YOU ARE block — persona name/age/occupation/background/speech + biases + goal.
+        """WHO YOU ARE block — persona name/age/occupation + 3-dim temperament
+        + background (2-3 sentences) + catchphrase + goal.
 
         Kept in user_prompt (not system_prompt) so the per-agent variation
         doesn't break prompt-cache boundaries.
@@ -526,20 +783,41 @@ class Agent:
         occupation = p.get('occupation', '?')
         background = p.get('background', '')
         speech = p.get('speech_style', '')
-        goal = p.get('current_goal', '') or self.current_goal
+        catchphrase = p.get('catchphrase', '')
+        # current_goal は system_prompt 側 (_build_goal_block_for_system) に
+        # 移動済み。persona_section からは出さない (毎step uncached重複削減)。
         biases = p.get('cognitive_biases', []) or []
+
+        # 3-dim temperament (each high/mid/low). Render in JP labels so the LLM reads them naturally.
+        temp_map = {
+            "extroversion": {"high": "社交的", "mid": "どちらでもない", "low": "内向的"},
+            "optimism":     {"high": "楽天的", "mid": "どちらでもない", "low": "心配性"},
+            "curiosity":    {"high": "好奇心旺盛", "mid": "どちらでもない", "low": "慎重"},
+        }
+        ext = p.get('temperament_extroversion')
+        opt = p.get('temperament_optimism')
+        cur = p.get('temperament_curiosity')
+        temperament_line = None
+        if any([ext, opt, cur]):
+            parts = []
+            if ext: parts.append(temp_map["extroversion"].get(ext, ext))
+            if opt: parts.append(temp_map["optimism"].get(opt, opt))
+            if cur: parts.append(temp_map["curiosity"].get(cur, cur))
+            temperament_line = " / ".join(parts)
 
         lines = [
             "=== WHO YOU ARE ===",
-            f"Name: {name}",
-            f"Age: {age}, Gender: {gender}, Occupation: {occupation}",
+            f"Name: {name} ({age}・{gender})",
+            f"Occupation: {occupation}",
         ]
+        if temperament_line:
+            lines.append(f"気質: {temperament_line}")
         if background:
-            lines.append(f"Background: {background}")
+            lines.append(f"背景: {background}")
+        if catchphrase:
+            lines.append(f"口癖: 「{catchphrase}」")
         if speech:
             lines.append(f"Speech style: {speech}")
-        if goal:
-            lines.append(f"Current goal: {goal}")
         if biases:
             lines.append("Cognitive tendencies:")
             for b in biases:
@@ -600,8 +878,8 @@ class Agent:
                 lines.append(f"Current time: {self.current_time_str}")
         if self.current_context:
             lines.append(f"Neighborhood mood: {self.current_context}")
-        if self.current_goal:
-            lines.append(f"What people around here are typically doing now: {self.current_goal}")
+        # NOTE: current_goal は system_prompt 側 (_build_goal_block_for_system) に
+        # 移動した。毎 step の uncached input を削減するため。重複出力しない。
         guard = time_language_guardrail(self.current_time_str) if self.current_time_str else ""
         if guard:
             lines.append("")
@@ -613,6 +891,465 @@ class Agent:
         place_types = [p['type'] for p in self.places]
         unique_types = list(set(place_types))
         return f"a 2D world with multiple places ({', '.join(unique_types)})"
+
+    def _build_goal_block_for_system(self) -> str:
+        """中心問い (current_goal) を system_prompt 末尾に挿入する用。
+        全 agent 共通 (or 同 phase 内で固定) の中心問いを system_prompt 側に置くと
+        Gemini context cache に乗って毎 step の uncached input を削減できる。
+        agent 固有の current_goal がある場合は user_prompt 側を使う旧挙動に戻す。
+        """
+        g = (self.persona.get('current_goal', '') or self.current_goal or '').strip()
+        if not g:
+            return ""
+        return (
+            "\n\n=== CENTRAL QUESTION (中心問い) ===\n"
+            f"{g}\n"
+        )
+
+    def _build_fw_task_block_for_system(self) -> str:
+        """FW中の必須課題 (例: 2社以上の企業担当者を訪問) を system_prompt に固定挿入。
+        initial_memory にも入れているが、rolling buffer から消えると後半 step で意識から
+        外れる問題があったため、cache 領域に置く。Phase A など fw_task が無い persona は空。"""
+        t = (self.persona.get('fw_task') or '').strip()
+        if not t:
+            return ""
+        return (
+            "\n\n=== 今日の必須課題 (FW) ===\n"
+            f"{t}\n"
+            "(これは今日の必須課題です。FW 中、常に意識し、達成に向けて自然に行動してください。)\n"
+        )
+
+    def _build_working_state_block(self) -> str:
+        """毎 step 動的に変わる「現在の進捗・未解決の問い」を system_prompt 末尾に固定挿入。
+        記憶ではなく現在状態 (working memory)。rolling buffer の押し出しに依存しない。
+
+        含めるもの:
+          - 残り step / 集合場所への帰還リマインダ (FW 終了時に東西自由通路へ戻る)
+          - 訪問進捗 (FW: 必須N社のうち何社と話したか / 残りいくつ)
+          - 未訪問の企業担当者 (max 6 件)
+          - field_questions 中まだ確かめていない問い (max 3 件)
+
+        Phase A や fw_task のない persona では working_state は空 (代わりに別の中心問い等が
+        既存の goal/fw block に出る)。"""
+        if not self.persona.get('fw_task'):
+            return ""
+
+        all_hosts = self.persona.get('all_host_names') or []
+        talked = sorted(self.talked_hosts)
+        unvisited = [h for h in all_hosts if h not in self.talked_hosts]
+        required = 2  # FW_TASK の必須数
+        talked_count = len(talked)
+        remaining = max(0, required - talked_count)
+
+        fq = self.persona.get('field_questions') or []
+        fq_lines = []
+        for q in fq[:3]:
+            if isinstance(q, dict):
+                qtext = q.get("question") or q.get("q") or str(q)
+            else:
+                qtext = str(q)
+            fq_lines.append(f"  - {qtext}")
+
+        block = "\n\n=== WORKING STATE (現在の進捗・未解決の問い) ===\n"
+        block += (
+            "(注: 以下は「いま何が完了して、何が残っているか」の現在状態です。"
+            "記憶ではないので毎step更新されます。記憶 (PREVIOUS MEMORY) と切り離して、"
+            "ここに書かれている残タスク・未解決問いを優先して行動・発話してください。)\n\n"
+        )
+        # FW 残り時間 (= 集合場所への帰還リマインダ)
+        cur_step = getattr(self, 'current_step', None)
+        total_steps = self.persona.get('total_steps')
+        if cur_step is not None and total_steps:
+            remaining_steps = max(0, int(total_steps) - int(cur_step))
+            remaining_min = remaining_steps * 2  # 2分/step
+            block += (
+                f"[残り時間] 進行: {cur_step}/{total_steps} step "
+                f"(= 残り {remaining_steps} step / 約 {remaining_min} 分)\n"
+            )
+            # 終盤閾値: 残り 20% を切ったら集合場所への戻り移動を「意識」させる (修正案A: 弱め表現)
+            if total_steps and remaining_steps <= max(3, int(total_steps) * 0.20):
+                block += (
+                    "[終盤] FW 終了が近い。今いる場所での観察・対話を続けつつ、"
+                    "集合場所 (東西自由通路) への戻りも視野に入れて動くこと。\n"
+                )
+        if all_hosts:
+            block += (
+                f"[訪問進捗] 必須: {required}社以上の企業担当者と話す / "
+                f"既に話した: {talked_count}社"
+                + (f" ({', '.join(talked)})" if talked else "")
+                + f" / 残り: {remaining}社\n"
+            )
+            if unvisited:
+                shown = unvisited[:6]
+                more = "" if len(unvisited) <= 6 else f" 他+{len(unvisited)-6}社"
+                block += f"[まだ訪問していない企業担当者] {', '.join(shown)}{more}\n"
+        if fq_lines:
+            block += "[まだ確かめていない問い (FW で観察・対話で答えを探すべきもの)]\n"
+            block += "\n".join(fq_lines) + "\n"
+        return block
+
+    MEMORY_COMPRESSION_INTERVAL = 5  # N=5 で圧縮 (10分=5stepごとに 1要約 archive)
+
+    MEMORY_COMPRESSION_SYSTEM = (
+        "あなたは agent の長期記憶を生成します。"
+        "以下は、ある人物が直近 5 step (実時間 ~10 分) の間に書いた memory + reasoning です。"
+        "これを 1 文 (60-120字) のエピソード要約 にまとめてください。\n\n"
+        "ルール:\n"
+        "- 「いつ・どこで・誰と・何が起きた・どう感じた」を圧縮\n"
+        "- 数字や具体的な発言は本人が後で参照したくなるレベルで保持\n"
+        "- 「色んなことがあった」のような抽象語は禁止\n"
+        "- 出力は要約文 1 文のみ。前置き・コードブロック禁止"
+    )
+
+    def maybe_compress_memory(self, step: int) -> bool:
+        """step が圧縮間隔の倍数かつ raw が十分溜まっていれば、
+        直近 N 件を 1 文要約して archived_summaries に push する。
+        raw は捨てない (rolling buffer はそのまま継続)。
+        return True if 圧縮した場合 (LLM call が走った)."""
+        N = self.MEMORY_COMPRESSION_INTERVAL
+        if step <= 0 or step % N != 0:
+            return False
+        # 直近 N 件を取り出す (raw memory の末尾)
+        recent = self.memory[-N:]
+        if len(recent) < N:
+            return False
+        # initial_memory (Phase B 開始時の handoff) は要約しない
+        # → recent に [前提] [今日のFW課題] のような initial_memory が混じってたら除外
+        recent_filtered = [m for m in recent if not m.startswith("[")
+                           or m.startswith("[step")
+                           or m.startswith("[現地で見えた")
+                           or m.startswith("[中に入って")
+                           or m.startswith("[累積") or m.startswith("[身体")]
+        if len(recent_filtered) < 2:
+            return False
+        # Gemini で要約
+        try:
+            user = "memory + reasoning (直近 5 step):\n" + "\n".join(f"- {m}" for m in recent_filtered)
+            summary = self.llm_client.generate(self.MEMORY_COMPRESSION_SYSTEM, user, temperature=0.3, max_tokens=200)
+            if summary and summary.strip():
+                self.archived_summaries.append(summary.strip()[:300])
+                return True
+        except Exception as e:
+            pass
+        return False
+
+    def _build_field_questions_block_for_system(self) -> str:
+        """Phase A の handoff から持ち越した field_questions (今日 FW で確かめたい問い) を
+        system_prompt 末尾に固定挿入する。memory rolling buffer から押し出されても、
+        毎 step「自分の問い」を保持できる。cache 領域なので uncached input は増えない。
+        smoke21: _build_handoff_block_for_system に統合 (廃止予定)。"""
+        fqs = self.persona.get('field_questions') or []
+        fqs = [q for q in fqs if isinstance(q, str) and q.strip()]
+        if not fqs:
+            return ""
+        body = "\n".join(f"  {i+1}. {q.strip()}" for i, q in enumerate(fqs[:3]))
+        return (
+            "\n\n=== 今日の FW で確かめたい問い (座学から持ち越した自分の関心) ===\n"
+            f"{body}\n"
+            "(街を歩きながら、これらの問いに関係する場所や人に出会ったら、"
+            "自分の見立てを確かめたくなる、という形で行動・発話の動機づけになる。)\n"
+        )
+
+    def _build_age_block_for_system(self) -> str:
+        """小学生 (age <= 12) の persona に対して、語彙・知識レベルのガードを
+        system_prompt に固定挿入。Phase A の途中で大人語が混じる現象 + Phase B の終盤
+        で抽象的な大人っぽい結論にすり替わる現象を抑える。"""
+        age = self.persona.get('age')
+        try:
+            age_int = int(age) if age is not None else 0
+        except (ValueError, TypeError):
+            age_int = 0
+        if age_int <= 0 or age_int > 12:
+            return ""
+        return (
+            "\n\n=== あなたの語彙・知識レベル (小学校4年生・10歳) ===\n"
+            f"- あなたは {age_int}歳の小学校4年生です。**最後まで** 10歳の語彙と感性で発話・思考してください。\n"
+            "- **使わない (大人語・業界用語)**: 整備方針 / 再開発 / コンセプト / 持続可能性 / 多様性 / インフラ / "
+            "都市計画 / 国際交流拠点 / アクセシビリティ / バリアフリー / 利便性 / 一体性 / 公共性 / 機能 / 創出 / "
+            "推進 / 経済効果 / 戦略 / ビジョン / セクター / プレイヤー / ステークホルダー / 共生 / "
+            "ダイバーシティ。これらが浮かんでも別の言い方に置き換える。\n"
+            "- **使う (子どもの感覚)**: 「ひろい」「せまい」「すごい」「こわい」「たのしい」「きれい」「ふしぎ」"
+            "「やってみたい」「お母さんに教えたい」「ちょっと、ちがうかも」など素直な感覚と、"
+            "「電車」「お店」「公園」「ビル」「川」「魚」「工場」「人」のような身近な言葉。\n"
+            "- 大人っぽいまとめを書かない。「すごいなー」「ふしぎだなー」「これは知らなかった」レベルで止めてOK。"
+            "わからないことは「よくわからなかった」「むずかしかった」とそのまま書く。\n"
+            "- 「〇〇って何？」「なんで？」と素直に聞き返すのは大歓迎 (実際の小学生はそうする)。\n"
+        )
+
+    def _build_school_fit_block_for_system(self) -> str:
+        """smoke22: 学校適応度 (school_fit) が「不適応」の persona に対して、対人傾向ヒントを
+        system_prompt に固定挿入する。誘導しすぎず、最低限の差を出すための薄い傾向。
+        中間 / 適応 はデフォルト (ヒントなし)。"""
+        sf = (self.persona.get('school_fit') or '').strip()
+        if sf != '不適応':
+            return ""
+        return (
+            "\n\n=== あなたの対人傾向 (学校適応度: 不適応) ===\n"
+            "- **自分からは話しかけない** (挨拶も自発的にはしない)。\n"
+            "- 誰かに直接話しかけられれば、苦手ながらに短く反応する。\n"
+            "- 基本単独行動を好み、誘われた場合は悩んで決める。\n"
+        )
+
+    def _build_gender_other_block_for_system(self) -> str:
+        """smoke22: gender が 'other' (= ジェンダーレス) の persona に対して、思考傾向ヒントを
+        system_prompt に固定挿入する。発話より思考に反映、保留型・観察者ポジション。"""
+        if (self.persona.get('gender') or '').strip() != 'other':
+            return ""
+        return (
+            "\n\n=== あなたの思考傾向 (ジェンダーレス) ===\n"
+            "- 「男・女」のような二項対立で世界を区切ることに違和感を持つ。\n"
+            "- ただしこの観察は **内側に抱えがち**。発話は慎重。\n"
+            "- 「ここは誰のための場所か」「自分はここにいていいか」等の視点を持つ。\n"
+        )
+
+    def _build_nationality_block_for_system(self) -> str:
+        """smoke22: nationality が 'western' / 'asian' の persona (= 外国籍の子) に対して、
+        背景ヒントを system_prompt に固定挿入する。"""
+        nat = (self.persona.get('nationality') or '').strip()
+        if nat not in ('western', 'asian'):
+            return ""
+        if nat == 'western':
+            origin = "欧米系の家庭 (親世代に欧米出身者がいる)"
+        else:
+            origin = "アジア系の家庭 (親世代に日本以外のアジア出身者がいる)"
+        return (
+            "\n\n=== あなたの背景 (外国籍) ===\n"
+            f"- {origin}。日本語は日常会話レベルだがカタコト感が残る。\n"
+            "- **発話のトーン例**: つなぎ言葉と短い文を多用 (「えーと、それなんて？」「うん、ちょっと、わからない」"
+            "「あの、聞いていい？」「うーん、難しい…」など)。助詞 (てにをは) が時々抜ける、"
+            "敬語の細かい使い分けが苦手、漢字の読み方を聞き返すことがある。\n"
+            "- 難しい漢字 (= 中学校以上で習うレベル) や、専門用語 (= 国際交流拠点・再開発・整備方針 等) は理解しきれない。\n"
+            "- 「日本人の常識」と「自分の文化背景」のズレに敏感。\n"
+            "- 「外国の人にどれくらい開かれているか」「サインや案内が外国人にやさしいか」等の視点を持つ。\n"
+            "- 日本語で言いたいことがすぐ出ない時は、短く言う or 黙る (背伸びして長文を書かない)。\n"
+        )
+
+    def _build_mobility_block_for_system(self) -> str:
+        """smoke22: mobility が 'wheelchair' の persona (= 車いす利用) に対して、
+        身体特性ヒントを system_prompt に固定挿入する。"""
+        mob = (self.persona.get('mobility') or '').strip()
+        if mob != 'wheelchair':
+            return ""
+        return (
+            "\n\n=== あなたの身体特性 (車いす利用) ===\n"
+            "- 普段から車いすで移動している。階段は使えない、エレベーター・スロープが必要。\n"
+            "- 「段差はあるか」「エレベーターはどこか」「人の流れに巻き込まれずに通れる幅があるか」等に敏感。\n"
+            "- 一緒に行動する人がいると助かる場面と、自分のペースで行きたい場面の両方がある。\n"
+        )
+
+    def _build_premise_block_for_system(self) -> str:
+        """smoke21: 17 FW 前提コンテキスト (13時集合・昼食後・午後 FW・東西自由通路スタート)。
+        全 agent 共通の文。fw_task がある persona (= Phase B) でのみ表示。"""
+        if not self.persona.get('fw_task'):
+            return ""
+        return (
+            "\n\n=== 今日の FW 前提 ===\n"
+            "今は午後 13時すぎ。午前中の座学を終え、昼食を済ませて、フィールドワーク (FW) が始まったところ。\n"
+            "集合場所は **東西自由通路** (品川駅の東西を結ぶ歩行者デッキの中央)。\n"
+            "ここから港南側 (= 駅東口、オフィス街・ウォーターフロント) と "
+            "高輪側 (= 駅西口、寺社・台地・旧東海道) のどちらにも等距離で行ける。\n"
+            "FW では実際に街を歩き、座学で学んだ品川の二面性 (歴史と現代・港南と高輪) を"
+            "自分の目で確かめる。昼食はもう済んでいるので、これから昼食を取る必要はない。\n"
+            "FW 終了時刻には、出発地である集合場所 (東西自由通路) に戻ります。"
+            "残り step は WORKING STATE に表示されるので、終盤は戻りの移動も視野に入れること。\n"
+        )
+
+    def _build_handoff_block_for_system(self) -> str:
+        """smoke21: 18 座学から持ち越した自分の問題意識。
+        handoff intent / future_image / key_memories / field_questions / one_liner を
+        system_prompt に固定挿入。cache 領域に乗るので uncached input への影響は最初の1stepだけ。
+        rolling buffer 押し出しに依存せず、後半 step まで「自分は何を見たかったか」を保持する。"""
+        if not self.persona.get('fw_task'):
+            return ""
+        intent = (self.persona.get('handoff_intent') or '').strip()
+        fi = (self.persona.get('handoff_future_image') or '').strip()
+        kms = [k for k in (self.persona.get('handoff_key_memories') or []) if k]
+        fqs = [q for q in (self.persona.get('field_questions') or []) if isinstance(q, str) and q.strip()]
+        one = (self.persona.get('handoff_one_liner') or '').strip()
+        # どれも無ければ空 (Phase A など)
+        if not (intent or fi or kms or fqs or one):
+            return ""
+        parts = ["\n\n=== 座学から持ち越した自分の問題意識 (今日の FW を動機づけるもの) ==="]
+        if fi:
+            parts.append(f"[座学を経て描いた品川の未来像] {fi}")
+        if intent:
+            parts.append(f"[これから現地でどう過ごしたいか] {intent}")
+        if kms:
+            for i, k in enumerate(kms[:3]):
+                parts.append(f"[座学で気になっていること {i+1}] {k}")
+        if fqs:
+            for i, q in enumerate(fqs[:3]):
+                parts.append(f"[現地で自分の目で確かめたい {i+1}] {q}")
+        if one:
+            parts.append(f"[フィールドワーク全体の自分のテーマ] {one}")
+        parts.append(
+            "(これらは座学で形成された自分自身の関心。FW 中、行き先選びや誰と話すかの"
+            "判断、現地で何を見るかの注意の向けどころとして自然に意識する。)"
+        )
+        return "\n".join(parts) + "\n"
+
+    def _create_message_prompts_minimal(
+        self,
+        nearby_agents: List['Agent'],
+        step: int,
+    ) -> Tuple[str, str]:
+        """Minimal message prompt for classroom-style sims (no movement, fixed scene).
+
+        Drops WORLD STRUCTURE, PLACE LOCATIONS, fire / place_section / coordinates.
+        Adds `memory` to the JSON spec when self.skip_decision is on (since we
+        won't run a separate decision call to capture it).
+        """
+        persona_section = self._build_persona_section()
+        internal_state_section = self._build_internal_state_section()
+        group_identities_section = self._build_group_identities_section()
+        nearby_text = self._build_nearby_agents_context(nearby_agents, include_position=False)
+        memory_text = self._build_memory_context()
+        messages_text = self._build_messages_context()
+        per_partner_text = self._build_per_partner_history(nearby_agents)
+        time_section = self._build_time_context_section()
+        # smoke21: 19 WORKING STATE は動的なので user_prompt 側 (cache 外) に置く
+        working_state_text = self._build_working_state_block()
+
+        if self.skip_decision:
+            json_spec = (
+                '{\n'
+                '    "message": "周囲へのメッセージを日本語で。200単語以内。送りたくなければ空文字",\n'
+                '    "reasoning": "なぜそのメッセージを送る/送らないのか日本語で簡潔に",\n'
+                '    "memory": "今ステップで起きた事実 + 自分が感じたこと + 気分 を日本語で1-2文"\n'
+                '}'
+            )
+        else:
+            json_spec = (
+                '{\n'
+                '    "message": "周囲へのメッセージを日本語で。200単語以内。送りたくなければ空文字",\n'
+                '    "reasoning": "なぜそのメッセージを送る/送らないのか日本語で簡潔に"\n'
+                '}'
+            )
+
+        # moltbook風 グローバルチャンネル prologue (Phase A 等で全員が共有チャンネルを読む設計)
+        global_channel_block = ""
+        if self.global_channel:
+            global_channel_block = (
+                "\n\n=== SHARED CHANNEL MODE (moltbook風) ===\n"
+                "あなたは今、参加者全員が共有しているチャンネル (Discord的) を観察しています。\n"
+                "全員の発話は時系列で全員に見えます。**話したい人だけが投稿する**形式です。\n\n"
+                "ルール:\n"
+                "- **黙るのがデフォルト**。話したい衝動が自然に湧いた時、または直接名指しで話しかけられた時のみ投稿する。\n"
+                "- 直近で他の人が同じテーマ・同じ趣旨を既に話していれば、**自分は重ねて投稿しない** (silent を選ぶ)。\n"
+                "- 自分にしか言えない「角度・視点・体験」が浮かんだ時だけ投稿する価値がある。\n"
+                "- 「とりあえず何か言う」は禁止。沈黙は valid であり、むしろ多数派。\n"
+                "- 直近のチャンネル流れで自分の発話に応答が無くても、リフレーズして再投稿しない (silent を選ぶ)。\n"
+                "- 投稿するなら、**特定の誰か (前の発話者など) に reply する形** が自然。または全員向けの新しい話題提起。\n"
+                "- 投稿頻度の目安: チャンネル全体で 1 step あたり 2-4 件程度に収まるイメージ。10人いるなら 6-8 人は黙る step が普通。\n"
+            )
+
+        # Phase A: 場所の現場知覚情報を system_prompt 末尾に挿入する。
+        # キャッシュ可能領域 (system_prompt) なので大量テキストでも uncached cost には影響しない。
+        # 「シミュ上の便宜的にこの情報をすべて agent は把握している前提」と明示する。
+        injected_block = ""
+        if self.injected_context:
+            injected_block = (
+                "\n\n=== ON-SITE PERCEPTION OF THE TOWN BEING DISCUSSED ===\n"
+                "(注: これは議論対象のまちを実際に歩き回って見える光景・動線・雰囲気を事実ベースで記述したものです。"
+                "シミュレーション上の便宜として、あなたはこの情報をすべて把握している前提で議論してください。"
+                "ただし、出典を明示する必要はありません。自分の感覚として参照してください。)\n\n"
+                f"{self.injected_context.strip()}\n"
+            )
+
+        system_prompt = f"""You are an autonomous agent in {self.scene_phrase}. You are deciding what message, if any, to broadcast to the people you can currently communicate with. Your decision should emerge from your current state, your accumulated memory, and the ongoing conversational context.
+
+=== MESSAGE RULES ===
+- Messages are broadcast to every person within range. There is no 'to:' field. If no one is nearby, nothing you say is heard.
+- Keep messages human and relevant. Share observations, reactions, or intentions. Avoid mechanical content (IDs, coordinates, logistics-style orders).
+- If you have nothing worth saying this step, return an empty string "" for "message". Silence is a valid choice.
+- Respect a soft limit of roughly 200 words per message. Shorter is usually better.
+
+=== CONVERSATION PRINCIPLES (IMPORTANT) ===
+The relationship label shown next to each nearby person determines your tone:
+- stranger (0.0-0.1) → brief greeting or practical question only (or say nothing)
+- face familiar (0.1-0.3) → light acknowledgment, weather, small pleasantries
+- acquaintance (0.3-0.6) → casual small talk, light opinions
+- friend/colleague (0.6-0.9) → personal topics, genuine opinions
+- close family/friend (0.9-1.0) → deep topics, private matters
+
+**敬語・ため口の使い分け (重要)**:
+- 同年代の生徒同士 (relationship 0.6 以上 = クラスメイト相当): **基本ため口**で話す。「〜だよね」「〜じゃん」「〜なんだけど」。 敬語 (「〜です」「〜ます」「〜さん」呼び) はクラスメイト同士では基本使わない。
+- 大人 (= 企業担当者・先生など) と話すとき: 自分の persona の背景・性格・しつけに従って判断する。普段から礼儀正しい子は丁寧語、社交的に踏み込みがちな子はため口でも自然。「失礼な子が混じる」のはむしろ自然なバラつき。
+
+=== RESPONSE FORMAT (日本語で回答すること) ===
+Respond with exactly one JSON object and nothing else. No prose, no markdown fences. The JSON must be valid and parseable. All string values MUST be in Japanese.
+{json_spec}
+
+=== BEHAVIORAL GUIDANCE ===
+- Real people don't speak every thought. Most thoughts stay private. When you do speak, you edit for the listener.
+- Use memory and conversational history to maintain coherent intentions: respond to what others said, avoid repeating yourself, update when new information arrives.
+- If you already said something similar in the last few steps, prefer silence or a natural follow-up.
+- Empty messages are fine. Silence is often the right answer.
+
+=== 発話するかどうかの判断 (重要) ===
+- **発話するかしないかは、あなた自身の性格・状況・内発的動機に従って決めてください**。確率で強制されません。
+- **話しかけられた場合**: 相手の発話を見て、内発的に答えたい/反応したいと感じれば自然に応じる。気にならなければ silent (空文字) を選んでOK。
+- **自分から口火を切る場合**: 性格的に話しかけたい (社交的、好奇心強い、興奮した出来事があった等) なら自然に話しかける。
+- **沈黙を選ぶ場合**: 話したいことがない、相手と話したい関係性ではない、疲れている、思考に没頭している等の理由があれば、message は "" にしてください。reasoning には「なぜ沈黙か」を簡潔に書いてください。
+- **相手の発話を無視するのは不自然**: 名指しで話しかけられたのに何も思わないのは、関係性が極端に薄いか聞こえなかった場合のみ。普通は反応します。
+- **同じ人に同じテーマ・同じキーワードを再送するのは絶対禁止**: user_prompt の「あなたの過去発話 (相手別)」セクションを必ず確認し、**同じ相手に既に伝えた内容と「同じ趣旨」「同じキーワード」「同じ問い」を再送するのは、文章を多少言い換えても禁止**。例: 直近に「品川はオフィス街でカフェがない」と言ったなら、次にまた「カフェほしい」「映えスポットほしい」を別の言い回しで送るのも禁止。許容されるのは以下のいずれかのみ: (1) 相手の前回発話の中身に対する具体的フォロー、(2) 完全に違う話題・違う角度・違う対象人物への問い、(3) silent (空文字)。同じテーマを再持ち出す場合は「相手は前回これに何と答えたか」を踏まえた次のステップに進むこと。
+{injected_block}{global_channel_block}""" + self._build_goal_block_for_system() + self._build_fw_task_block_for_system() + self._build_premise_block_for_system() + self._build_handoff_block_for_system() + self._build_school_fit_block_for_system() + self._build_gender_other_block_for_system() + self._build_nationality_block_for_system() + self._build_mobility_block_for_system() + self._build_age_block_for_system()
+
+        user_prompt = f"""{persona_section}
+{internal_state_section}
+{group_identities_section}{time_section}=== NEARBY PEOPLE (you can communicate with these people) ===
+{nearby_text}
+{working_state_text}
+=== PREVIOUS MEMORY ===
+{memory_text}
+
+{per_partner_text}
+=== RECENT CONVERSATION ===
+(Chronological log of utterances in your area. Lines marked "(you)" are your own past speech; others are what others said within earshot. Use this to maintain thread coherence — don't repeat your own openers, and respond to what others actually said.)
+{messages_text}
+
+Step: {step}
+"""
+        return system_prompt, user_prompt
+
+    def _create_decision_prompts_minimal(
+        self,
+        nearby_agents: List['Agent'],
+        step: int,
+        message_to_send: str = "",
+    ) -> Tuple[str, str]:
+        """Stub-grade decision prompt for fixed-scene sims.
+
+        Only used when minimal_prompt is on AND skip_decision is off (rare).
+        With skip_decision on, simulation.py never invokes this path.
+        """
+        persona_section = self._build_persona_section()
+        memory_text = self._build_memory_context()
+        time_section = self._build_time_context_section()
+
+        message_section = f"\n=== MESSAGE YOU JUST SENT ===\n{message_to_send}\n" if message_to_send else ""
+
+        system_prompt = f"""You are an autonomous agent in {self.scene_phrase}. The scene has no movement; agents stay in place. You only need to record what just happened in memory.
+
+=== RESPONSE FORMAT (日本語で回答すること) ===
+Respond with exactly one JSON object. All string values MUST be in Japanese.
+{{
+    "action_type": "stay",
+    "target_place": null,
+    "target_agent": null,
+    "direction": null,
+    "memory": "今ステップで起きた事実 + 自分が感じたこと + 気分 を日本語で1-2文",
+    "reasoning": "簡潔に"
+}}
+""" + self._build_goal_block_for_system() + self._build_fw_task_block_for_system() + self._build_premise_block_for_system() + self._build_handoff_block_for_system() + self._build_school_fit_block_for_system() + self._build_gender_other_block_for_system() + self._build_nationality_block_for_system() + self._build_mobility_block_for_system() + self._build_age_block_for_system()
+
+        user_prompt = f"""{persona_section}
+{time_section}=== PREVIOUS MEMORY ===
+{memory_text}
+{message_section}
+Step: {step}
+"""
+        return system_prompt, user_prompt
 
     def create_message_prompts(
         self,
@@ -627,6 +1364,9 @@ class Agent:
         System prompt is static across all calls (cacheable via Anthropic API).
         User prompt contains dynamic per-step state.
         """
+        if self.minimal_prompt:
+            return self._create_message_prompts_minimal(nearby_agents, step)
+
         world_description = self._build_world_description()
         place_locations_text = self._build_place_locations_text()
 
@@ -757,8 +1497,18 @@ A good message adds information to the shared conversation, expresses a perspect
 When silence is right.
 Silence is the right choice in any of these situations: you have nothing new to add, the conversation already has a natural pause, you have been talking too much, or there are no nearby agents to hear you. Empty string for 'message' is fully supported. Reasoning should still briefly explain the choice in Japanese.
 
-Turn-taking.
-Conversations emerge from turn-taking. If the most recent message in your received-messages list is from agent A, and it was addressed (even loosely) to you, it is usually natural to respond before sending a fresh topic. If multiple agents recently said similar things, you might acknowledge the shared sentiment rather than reply to each individually. There is no rigid rule; use judgment.
+Thought vs speech (very important).
+Real people do not speak every thought they have. Most thoughts stay private. When you do speak, you edit for the listener: simplify, soften, leave parts out, change wording for the social context. Your reasoning is the inside-your-head text; your message is what you actually say out loud after that editing. They should NOT be the same content. The message must reflect:
+  (a) Your persona's typical vocabulary and speech style — do NOT reach for words that are above your character's age or background. A 12-year-old does not say "システム" or "プロトコル" or "OS" or "アップデート" or "民主化" or "〇〇主義" or "アーカイブ". A casual 17-year-old does not say "ファーストプリンシプル" or "エコシステム". Stay inside the vocabulary your character would actually use.
+  (b) The social context — what you would actually say to these specific people right now, not the deepest insight in your head.
+  (c) Many thoughts deserve no spoken counterpart. "Thought a lot, said nothing" or "Thought a lot, said one short reaction" is the most common pattern in real conversation.
+If you find your message echoing technical / philosophical / managerial vocabulary that another speaker (or a guest figure in the room) used, ask: would my character actually use these words? If not, rephrase in your own simpler, age-appropriate words, or simply do not echo. Do not borrow vocabulary just because it was recently introduced.
+
+Turn-taking and overheard conversation.
+What you receive is **conversation overheard in your area**, not personal DMs. Some lines may be directed at you by name — if so, responding is natural. Other lines are exchanges between two other people; you can react briefly, jump in if a topic catches your interest, or steer the conversation in a different direction if you have something to add. If multiple agents recently said similar things, you might acknowledge the shared sentiment rather than reply to each individually. Do not echo the same one-on-one thread step after step with the same partner — vary who you engage with, and let some exchanges happen between others without your involvement. There is no rigid rule; use judgment.
+
+How people relate to overheard talk (a fact about people, not an instruction).
+People are porous. When a phrase or question from a nearby conversation lands on someone, they sometimes carry it forward — quoting it to a third person ("さっき〇〇さんが言ってたの、〜って」), picking up a word the other used and using it in their own way, or letting a question that was asked to someone else quietly reshape what they themselves think about. This is not a rule you must follow. It is an observation about how humans actually behave around overheard talk: borrowing, paraphrasing, repurposing. How permeable you are depends on your own personality (some people absorb easily, some are stubbornly self-centered, some let it pass without notice). The persona section above tells you what kind of listener you are.
 
 How the audience is computed.
 The system has already filtered the nearby_agents list for you: it only contains agents that will receive your message this step, given the communication rules. You do not need to re-check visibility or plan for agents who are not in the list.
@@ -883,7 +1633,7 @@ You don't know the precise coordinates of places or other people. You know
 places exist in certain directions ('that bar over there') and you notice the
 people near you as people (names, apparent age, rough proximity). You would
 never announce 'I'm at (-9, 13)' in a conversation.
-"""
+""" + self._build_goal_block_for_system() + self._build_fw_task_block_for_system() + self._build_premise_block_for_system() + self._build_handoff_block_for_system() + self._build_school_fit_block_for_system() + self._build_gender_other_block_for_system() + self._build_nationality_block_for_system() + self._build_mobility_block_for_system() + self._build_age_block_for_system()
 
         persona_name = self.persona.get('name', f"Person {self.id}")
         persona_section = self._build_persona_section()
@@ -893,6 +1643,8 @@ never announce 'I'm at (-9, 13)' in a conversation.
         nearby_text = self._build_nearby_agents_context(nearby_agents, include_position=False)
         memory_text = self._build_memory_context()
         messages_text = self._build_messages_context()
+        per_partner_text = self._build_per_partner_history(nearby_agents)
+        working_state_text = self._build_working_state_block()
 
         current_place_info = None
         if self.in_place and self.current_place:
@@ -904,14 +1656,17 @@ never announce 'I'm at (-9, 13)' in a conversation.
             place_name = current_place_info['name']
             place_type = current_place_info['type']
             agents_in_place = place_status.get('agents_in_place', 0)
-            capacity = place_status.get('capacity', 0)
-            occupancy_rate = place_status.get('occupancy_rate', 0.0)
+            capacity = place_status.get('capacity')
+            occupancy_rate = place_status.get('occupancy_rate')
             place_section_text = (
                 f"\nYou are currently in the {place_type} ({place_name})."
                 f"\n  Number of agents here: {agents_in_place}"
-                f"\n  Capacity: {capacity}"
-                f"\n  Occupancy rate: {occupancy_rate:.2f}"
             )
+            if capacity is not None and occupancy_rate is not None:
+                place_section_text += (
+                    f"\n  Capacity: {capacity}"
+                    f"\n  Occupancy rate: {occupancy_rate:.2f}"
+                )
         else:
             place_section_text = ""
 
@@ -928,11 +1683,13 @@ In place: {"Yes" if self.in_place else "No"}
 {fire_section}{events_section}
 === NEARBY PEOPLE (you can communicate with these people) ===
 {nearby_text}
-
+{working_state_text}
 === PREVIOUS MEMORY ===
 {memory_text}
 
-=== MESSAGES FROM OTHERS ===
+{per_partner_text}
+=== CONVERSATION OVERHEARD IN YOUR AREA ===
+(These are utterances by other people within earshot. Some are directed at you, some at others, some at the room. None are private DMs to you. How you respond depends on your interest, mood, and personality.)
 {messages_text}
 
 Step: {step}
@@ -953,6 +1710,9 @@ Step: {step}
         System prompt is static across all calls (cacheable via Anthropic API).
         User prompt contains dynamic per-step state.
         """
+        if self.minimal_prompt:
+            return self._create_decision_prompts_minimal(nearby_agents, step, message_to_send)
+
         world_description = self._build_world_description()
         place_locations_text = self._build_place_locations_text()
 
@@ -987,7 +1747,7 @@ Each step you must choose exactly one action_type. Think of each action as an in
 - "walk_toward" with "target_place": head toward the named place. You don't need to be close yet; you'll walk one step (~{self.movement_base_cells} cells) in its direction this minute.
 - "walk_along" with "direction" ("up"/"down"/"left"/"right"): walk in a cardinal direction when you have no specific destination in mind (exploring, strolling, keeping your distance from something).
 - "enter" with "target_place": step into the named place. Only meaningful when you are already at or very near its boundary; otherwise prefer walk_toward first.
-- "stay": hold your position. Use this when observing, waiting in a place, continuing a conversation, or simply having no reason to move.
+- "stay": hold your position. Use this when observing, waiting in a place, or simply having no reason to move. Note: continuing a conversation does NOT require staying — you can keep talking while you walk (see "Talking and walking are independent" below).
 - "approach" with "target_agent" (a person's name from the nearby_agents list): walk toward that specific person. Use this when you want to close distance to someone in particular rather than toward a place.
 - "wander": take a short, unfocused step in a random-ish direction (about half of your usual pace). Use when you have no clear intent but don't want to stand still.
 
@@ -1001,7 +1761,7 @@ Respond with exactly one JSON object and nothing else. Do not include any prose,
     "target_place": "<place name>" (only for walk_toward or enter; otherwise null),
     "target_agent": "<person name>" (only for approach; otherwise null),
     "direction": "up" | "down" | "left" | "right" (only for walk_along; otherwise null),
-    "memory": "次のステップで覚えておきたいこと（自分の考え・観察・意図）を日本語で",
+    "memory": "今ステップで起きた事実 + 自分が感じたこと + その時の自分の気分 を日本語で",
     "reasoning": "この判断をした理由を日本語で簡潔に"
 }}
 
@@ -1010,9 +1770,9 @@ There is no 'correct' behavior. Your actions should emerge from your own interpr
 - Your current position and whether you are inside a place.
 - The quantitative data about the environment (occupancy, distances, fire, capacity).
 - Messages you have received from nearby agents and your own previously-sent messages.
-- Your accumulated memory of past steps (your thoughts, observations, intentions).
+- Your accumulated memory of past steps (facts you observed and how they felt — not a to-do list).
 
-Use memory as a scratchpad to maintain coherent intentions across steps. If you formed a plan several steps ago (for example, 'move toward the left bar to check if it is crowded'), your memory is how you keep that plan alive across subsequent LLM calls. If you decide to abandon the plan, write the new intention into memory so future steps see the update.
+Memory is a record of what just happened and how it felt to you, not a to-do list. Coherence across steps comes from your persona staying consistent and from facts/feelings accumulating in memory — not from re-stating the same intention every step. If you formed a plan, the plan lives in this step's reasoning and is reflected in this step's action_type; do not restate the plan as a memory entry. See "How memory flows across steps" below for the full rule.
 
 === DETAILED SEMANTICS ===
 
@@ -1049,10 +1809,13 @@ On uncertainty.
 You will often receive incomplete information. You may not know how many agents are outside all places. You may not know what is happening in a place you are not in. You may hear conflicting messages from different agents. Treat this uncertainty as real and make the best decision you can with what you have, rather than inventing facts you do not observe.
 
 On changing your mind.
-Nothing forces you to carry a decision through. If you were heading toward one place and received information suggesting another destination is more interesting, you can reverse course. Record the change in your memory so you remember the updated plan on the next step. Stubborn commitment to an old plan without a reason is worse than adapting.
+Nothing forces you to carry a decision through. If you were heading toward one place and received information suggesting another destination is more interesting, you can reverse course. Stubborn commitment to an old plan without a reason is worse than adapting. (Note: memory is not where you log your "new plan" — it logs the fact that something shifted and how that felt. The action_type and reasoning fields carry the decision itself.)
+
+Talking and walking are independent.
+発話 (Phase 1) と行動 (Phase 3) は別の意思決定として処理される。会話中だから止まる必要はない。誰かと話している最中でも歩き出してよいし、歩きながら同じテーマについて話し続けることもできる (現実の人がそうするのと同じ)。「会話中なので stay する」を機械的に選ぶ必要はなく、「もう少しこの場で詰めたい」「相手の顔をじっくり見ながら話したい」など能動的な理由がある場合だけ stay を選ぶ。会話相手と一緒に歩きたい場合は approach (相手の方に近づく) も使える。
 
 On brevity.
-When you write memory entries, aim for concise but specific sentences. A memory like '左バーに向かう' is useful; a memory like 'ok' is not. When you write reasoning, one or two sentences that explain the 'why' of the action are sufficient.
+Memory: see the "facts and feelings only" guidance above. Concise sentences (one observation + how it felt) are best. When you write reasoning, one or two sentences that explain the 'why' of the action are sufficient.
 
 On the JSON format.
 The parser is strict. Any characters outside of the JSON object (including leading '```json', trailing commentary, or explanatory text) will cause a parse failure. The parser attempts to extract a brace-matched block, but the safe behavior is to emit only the JSON object and nothing else.
@@ -1060,10 +1823,18 @@ The parser is strict. Any characters outside of the JSON object (including leadi
 === EXTENDED GUIDANCE FOR ACTION DECISIONS ===
 
 Walkthrough of a typical step.
-A typical step proceeds as follows. You receive your current state: where you are, whether you are in a place, which agents are nearby, the messages they sent, your past memory entries. You interpret this information in light of your own priorities, which you built up over prior steps. You then choose one action_type (walk_toward, walk_along, enter, stay, approach, or wander) and fill in its associated target/direction field. Along with that choice, you write a short memory entry that records your interpretation of the current situation and your next intended step; this memory is visible to you on the following step.
+A typical step proceeds as follows. You receive your current state: where you are, whether you are in a place, which agents are nearby, the conversation overheard around you, your past memory entries. You interpret this information in light of who you are. You then choose one action_type (walk_toward, walk_along, enter, stay, approach, or wander) and fill in its associated target/direction field. Along with that choice, you write a short memory entry — see "Memory: facts and feelings only" below for what to write.
 
 How memory flows across steps.
-Each step appends one memory line to a rolling buffer. You see only the last few entries in the buffer (the size is controlled outside of the prompt). Entries are strings, prefixed with 'Step N:' by the system, followed by whatever Japanese text you wrote in the 'memory' field. Because the buffer is small, writing redundant or vague memory entries wastes slots. Write one informative sentence per step.
+Each step appends one memory line to a rolling buffer. You see only the last few entries in the buffer.
+
+The memory field is for: what just happened (a fact you observed: who did what, what was said, what you saw), how it felt to you (an emotional reaction, an impression, a thought triggered), and your overall mood at this moment (tired, excited, bored, curious, lonely, etc.). One sentence is enough; two if needed.
+
+Examples of good memory entries:
+  - 「黒崎が『秘密基地作ろう』って言って、宮原がうるさそうな顔してた。なんか面白くなってきた」
+  - 「佐藤さんに『なぜ？』って返されて、ちょっと言葉に詰まった。気まずい」
+  - 「教室がだんだん盛り上がってきた感じがする。自分はまだ入りそびれていて、ちょっと焦る」
+  - 「前から気になってた湊が、今日は珍しく黒板の方に行った。意外だなと思った」
 
 How occupancy interacts with decisions.
 When you are inside a place, the occupancy rate tells you how crowded the place is. For example, occupancy rate 0.5 means half of capacity is used. You may interpret a low occupancy rate as pleasant, crowded-preferred, or uninteresting; there is no externally imposed interpretation. Similarly a high occupancy rate can be interpreted as lively, uncomfortable, or indicative of a popular spot. Use your own reasoning and your memory to arrive at a consistent interpretation over time.
@@ -1091,18 +1862,8 @@ Example A (heading toward a named place):
     "target_place": "left_bar",
     "target_agent": null,
     "direction": null,
-    "memory": "left_barに向かって歩き始めた。数分で到着しそう。",
+    "memory": "right_barが盛り上がってる声が聞こえる。自分は静かな方が気が楽だと思った。",
     "reasoning": "静かに一杯飲みたいので左側のバーに向かう。"
-}}
-
-Example B (staying in a place during a conversation):
-{{
-    "action_type": "stay",
-    "target_place": null,
-    "target_agent": null,
-    "direction": null,
-    "memory": "right_barで美咲さんと話している。もう少しここにいる。",
-    "reasoning": "会話が続いているので留まる。"
 }}
 
 Example C (stepping into a place you're right next to):
@@ -1111,7 +1872,7 @@ Example C (stepping into a place you're right next to):
     "target_place": "right_bar",
     "target_agent": null,
     "direction": null,
-    "memory": "right_barの入口に着いた。入って様子を見る。",
+    "memory": "中から笑い声がする。少し賑やかすぎるかもと一瞬迷った。",
     "reasoning": "目の前がright_barなので入店する。"
 }}
 
@@ -1121,7 +1882,7 @@ Example D (closing the distance to a specific person):
     "target_place": null,
     "target_agent": "鈴木美咲",
     "direction": null,
-    "memory": "美咲さんに近づいて声をかけたい。",
+    "memory": "美咲さんが一人で考え込んでた。久しぶりに見た顔だな、と思った。",
     "reasoning": "顔見知りの美咲さんが近くにいるので合流する。"
 }}
 
@@ -1131,7 +1892,7 @@ Example E (wandering without a clear destination):
     "target_place": null,
     "target_agent": null,
     "direction": null,
-    "memory": "特に予定なし。少しぶらついて様子を見る。",
+    "memory": "誰の話も特にぴんと来なかった。なんか手持ち無沙汰。",
     "reasoning": "やることがないので適当にぶらぶらする。"
 }}
 
@@ -1141,7 +1902,7 @@ Example F (evacuating from fire by walking along a cardinal direction):
     "target_place": null,
     "target_agent": null,
     "direction": "down",
-    "memory": "火災が北東にあるので南方向へ離れる。",
+    "memory": "北東に煙が見えた。胸がざわついた。",
     "reasoning": "特定の目的地ではなく、とにかく火から遠ざかりたい。"
 }}
 
@@ -1150,10 +1911,10 @@ These examples are structural references only. Your own response must reflect yo
 === MODEL BEHAVIOR NOTES ===
 
 Consistency over steps.
-You will be invoked repeatedly for the same agent across steps. The memory field is the primary mechanism for keeping your behavior consistent. If step N writes 'I plan to move to the left bar', step N+1 should either continue that plan or write down why you are changing it.
+You will be invoked repeatedly for the same agent across steps. Coherence comes from your persona staying consistent and from your memory of what has been happening (facts + feelings). Plans live inside reasoning for the current step and are reflected in your action_type — they are not carried by re-stating the plan in memory every step.
 
 Avoiding stuck loops.
-If you find yourself repeating the same action every step without progress, consider changing strategy. For example, if you have moved 'left' for 5 steps and the environment has not changed meaningfully, reconsider whether your target is worth pursuing. Use memory to detect such loops.
+If you find yourself repeating the same action every step without progress, consider changing strategy. For example, if you have moved 'left' for 5 steps and the environment has not changed meaningfully, reconsider whether your target is worth pursuing. Likewise, if your last 3 memory entries express the same feeling or observation, something is genuinely stuck — either commit to a different action this step, or write down what specifically has changed (or not changed) rather than restating the same impression.
 
 No external rewards.
 The simulation has no reward signal, no scoring, and no termination condition tied to your choices. You are not trying to 'win'. You are an agent expressing a perspective; the interesting output is the emergent group behavior, not any individual optimum.
@@ -1197,7 +1958,7 @@ Your own exact (x, y) position is still shown in YOUR CURRENT STATE because you
 need it to choose a movement direction — but other people around you are
 rendered with names and rough directions, and that is how you should think of
 them in memory and reasoning.
-"""
+""" + self._build_goal_block_for_system() + self._build_fw_task_block_for_system() + self._build_premise_block_for_system() + self._build_handoff_block_for_system() + self._build_school_fit_block_for_system() + self._build_gender_other_block_for_system() + self._build_nationality_block_for_system() + self._build_mobility_block_for_system() + self._build_age_block_for_system()
 
         persona_name = self.persona.get('name', f"Person {self.id}")
         persona_section = self._build_persona_section()
@@ -1208,6 +1969,8 @@ them in memory and reasoning.
         nearby_places_text = self._build_nearby_places_context()
         memory_text = self._build_memory_context()
         messages_text = self._build_messages_context()
+        per_partner_text = self._build_per_partner_history(nearby_agents)
+        working_state_text = self._build_working_state_block()
 
         current_place_info = None
         if self.in_place and self.current_place:
@@ -1219,14 +1982,17 @@ them in memory and reasoning.
             place_name = current_place_info['name']
             place_type = current_place_info['type']
             agents_in_place = place_status.get('agents_in_place', 0)
-            capacity = place_status.get('capacity', 0)
-            occupancy_rate = place_status.get('occupancy_rate', 0.0)
+            capacity = place_status.get('capacity')
+            occupancy_rate = place_status.get('occupancy_rate')
             place_section_text = (
                 f"\nYou are currently in the {place_type} ({place_name})."
                 f"\n  Number of agents here: {agents_in_place}"
-                f"\n  Capacity: {capacity}"
-                f"\n  Occupancy rate: {occupancy_rate:.2f}"
             )
+            if capacity is not None and occupancy_rate is not None:
+                place_section_text += (
+                    f"\n  Capacity: {capacity}"
+                    f"\n  Occupancy rate: {occupancy_rate:.2f}"
+                )
         else:
             place_section_text = ""
 
@@ -1252,17 +2018,19 @@ Behavior layer: {self.behavior_layer} (transit = walking through the district, d
 
 === NEARBY PEOPLE ===
 {nearby_text}
-
+{working_state_text}
 === PREVIOUS MEMORY ===
 {memory_text}
 
-=== MESSAGES FROM OTHERS ===
+{per_partner_text}
+=== CONVERSATION OVERHEARD IN YOUR AREA ===
+(These are utterances by other people within earshot. Some are directed at you, some at others, some at the room. None are private DMs to you. How you respond depends on your interest, mood, and personality.)
 {messages_text}
 {message_section}
 Step: {step}
 """
         return system_prompt, user_prompt
-    
+
     def _extract_json_from_text(self, text: str) -> Optional[str]:
         """Extract JSON object from text, handling nested braces correctly"""
         # Find the first opening brace
@@ -1310,10 +2078,14 @@ Step: {step}
                 message = parsed.get("message", "")
                 # Limit message to MAX_MESSAGE_WORDS words
                 message = self._limit_message_words(message)
-                return {
+                result = {
                     "message": message,
                     "reasoning": parsed.get("reasoning", "")
                 }
+                # When the prompt requested memory inline (skip_decision mode), pass it through.
+                if "memory" in parsed:
+                    result["memory"] = parsed.get("memory", "") or ""
+                return result
             except json.JSONDecodeError as e:
                 logger.debug(f"JSON parsing failed for response: {response[:100]}... Error: {e}")
 
@@ -1394,25 +2166,61 @@ Step: {step}
         step: int,
         fire_info: Optional[List[Dict]] = None,
         events_info: Optional[List[Dict]] = None,
+        partner_id: Optional[int] = None,
     ) -> MessageDecision:
         """Use LLM to decide what message to send (without position information)"""
+        # WORKING STATE block で残り step を計算するため step を保持
+        self.current_step = step
         system_prompt, user_prompt = self.create_message_prompts(
             place_status, nearby_agents, step, fire_info=fire_info, events_info=events_info
         )
 
+        # moltbook風 chat session thread化モード: 各 agent が独立した chat session を保持
+        # し、履歴 (user/model 交互) を session 内で蓄積する。LLM が会話継続を意識した出力に
+        # なる可能性を狙う実験経路。Gemini SDK の start_chat() を使う。
+        use_chat_session = (
+            self.chat_thread_mode
+            and hasattr(self.llm_client, "start_chat_session")
+            and hasattr(self.llm_client, "send_to_chat")
+        )
+
         try:
-            response = self.llm_client.generate(system_prompt, user_prompt)
+            if use_chat_session:
+                if self.chat_session is None:
+                    # 初回: system_prompt 全体を system_instruction として固定。
+                    # 以降の step では (working_state 等の動的部分を含む) user_prompt のみ送信。
+                    self.chat_session = self.llm_client.start_chat_session(system_prompt)
+                if self.chat_session is None:
+                    # session 作成失敗 → fallback to stateless
+                    response = self.llm_client.generate(system_prompt, user_prompt)
+                else:
+                    schema_kind = "message_with_memory" if self.skip_decision else "message"
+                    response = self.llm_client.send_to_chat(
+                        self.chat_session, user_prompt, schema_kind=schema_kind,
+                    )
+            else:
+                response = self.llm_client.generate(system_prompt, user_prompt)
 
             if self._is_truncated_response(response):
                 logger.warning(
                     f"Agent {self.id}: Message response appears truncated. "
                     f"Retrying with max_tokens={MAX_RETRY_TOKENS}"
                 )
-                response = self.llm_client.generate(
-                    system_prompt, user_prompt, max_tokens=MAX_RETRY_TOKENS
-                )
+                if use_chat_session and self.chat_session is not None:
+                    schema_kind = "message_with_memory" if self.skip_decision else "message"
+                    response = self.llm_client.send_to_chat(
+                        self.chat_session, user_prompt, max_tokens=MAX_RETRY_TOKENS,
+                        schema_kind=schema_kind,
+                    )
+                else:
+                    response = self.llm_client.generate(
+                        system_prompt, user_prompt, max_tokens=MAX_RETRY_TOKENS
+                    )
 
             decision = self.parse_message_response(response)
+            # smoke14: 後フィルタで「直近自分発話と高類似度の出力」を強制 silent。
+            # LLM任せ化と組み合わせて「同じ文章が繰り返される」を物理的に止める。
+            decision = self.filter_loop_message(decision, partner_id)
             return decision
         except Exception as e:
             logger.error(f"Error in agent {self.id} message decision: {e}")
@@ -1452,7 +2260,7 @@ Step: {step}
         cached.setdefault("target_agent", None)
         cached.setdefault("direction", None)
         cached["memory"] = ""  # cached steps contribute no new LLM memory
-        cached["reasoning"] = "(continuing previous intent)"
+        cached["reasoning"] = "(思考継続中)"
         cached["action"] = "stay" if cached["action_type"] == "stay" else "move"
         self.memory.append(f"Step {step}: (transit continuing — {cached['action_type']})")
         if len(self.memory) > self.memory_limit:
@@ -1469,6 +2277,8 @@ Step: {step}
         events_info: Optional[List[Dict]] = None,
     ) -> ActionDecision:
         """Use LLM to decide next action (with position information and message content)"""
+        # WORKING STATE block で残り step を計算するため step を保持
+        self.current_step = step
         # Classify the current situation. Transit steps may reuse the cached
         # intent for up to TRANSIT_LLM_INTERVAL-1 steps before re-asking.
         layer = self.determine_behavior_layer(
@@ -1503,6 +2313,23 @@ Step: {step}
                 )
 
             decision = self.parse_action_response(response)
+
+            # 修正2c: 残り 5 step 以下では rule-based で帰路 (walk_toward 東西自由通路) に強制上書き。
+            # LLM が「帰る」思考はしてるが walk_along (方向歩き) を選んで迷走するのを防ぐ。
+            total_steps = self.persona.get('total_steps')
+            if total_steps and self.persona.get('fw_task'):
+                remaining = max(0, int(total_steps) - int(step))
+                if remaining <= 5 and self.current_place != "東西自由通路":
+                    decision['action_type'] = 'walk_toward'
+                    decision['target_place'] = '東西自由通路'
+                    decision['target_agent'] = None
+                    decision['direction'] = None
+                    decision['action'] = 'move'
+                    orig_reason = decision.get('reasoning') or ''
+                    decision['reasoning'] = (
+                        f"[終盤強制] 残り{remaining}step。集合場所(東西自由通路)へ戻る。"
+                        + (f" / LLM 元判断: {orig_reason[:80]}" if orig_reason else "")
+                    )
 
             # Store LLM-generated memory (self-feedback for next step)
             memory_content = decision.get('memory', '')
@@ -1633,6 +2460,9 @@ Step: {step}
             place = self._find_place_by_name(decision.get("target_place"))
             if place is None:
                 return self.position
+            # 立入不可施設への enter は拒否 (walk_toward は near まで認める)
+            if action_type == "enter" and (place.get('attributes') or {}).get('enterable') is False:
+                return self.position
             target_x, target_y = place['center_x'], place['center_y']
             if use_nav:
                 new_pos = nav.step_toward(
@@ -1731,6 +2561,29 @@ Step: {step}
 
         display_name = from_name or f"Agent {from_agent_id}"
         logger.info(f"Agent {self.id} received message from {display_name}: \"{content}\"")
+
+    def record_sent_message(
+        self,
+        to_agent_id: int,
+        content: str,
+        step: Optional[int] = None,
+        to_name: Optional[str] = None,
+    ):
+        """Record this agent's own outgoing message for self-context.
+
+        Used by `_build_messages_context` to surface the agent's recent
+        utterances alongside received ones, so the LLM sees a chronological
+        view including its own speech (prevents repeating the same opener
+        to the same partner over and over).
+        """
+        self.sent_messages.append({
+            "to": to_agent_id,
+            "to_name": to_name,
+            "content": content,
+            "step": step if step is not None else len(self.sent_messages),
+        })
+        if len(self.sent_messages) > self.message_history_limit:
+            self.sent_messages.pop(0)
     
     def update_state(self, places: Optional[List[PlaceConfig]] = None):
         """Update agent state based on current position"""
