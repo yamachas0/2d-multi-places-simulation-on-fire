@@ -75,35 +75,54 @@ LLM が「自分はどこに行きたいか」「誰に話しかけるか」「�
 
 ---
 
+## 本案で追加・改造した主な機能
+
+### 1. 3 フェーズ構造の学習プロセス再現
+
+教育プログラム全体を **教室での座学 → まちへ出てフィールドワーク → 振り返りアンケート** の 3 フェーズで実装。各フェーズの出力 (memory, 発話, 行動ログ) が次フェーズへの入力として引き継がれます。
+
+- **Phase A 教室AB シミュ** (`tools/build_classroom_ab_config.py`): 30 step / 60分。教師不在で生徒同士が問いについて議論。条件 A (生徒のみ) / B (触媒人物=シンギュラボ代表 佐藤航陽さん 同席) を比較可能。
+- **Phase B 品川FW シミュ** (`tools/build_shinagawa_field_config.py`): 50 step / 100分。160m × 160m の品川駅周辺フィールドを 3D シーンとして構築。生徒 10人 + 企業担当者 12社のホストエージェントが屋外で対話。
+- **Phase C アンケート** (`tools/run_survey.py`): 各エージェントの全 step memory を観察者 LLM に渡し、「この人物がアンケートにどう答えるか」を推測 (本人が直接答えると忖度バイアスが入るため、観察者経由)。
+
+### 2. 多様ペルソナ生成
+
+`school_fit` (学校適応度) / `mobility` (車いす利用) / `nationality` (外国籍) / 興味領域 / 家庭背景 などの軸を加えた多様なペルソナを LLM で生成:
+
+- `tools/generate_classroom_personas.py --variant {high|adult|elementary}`
+- 高校生10人 / 社会人10人 / 小学生10人 の 3 variant をサポート (本案 = 高校生)
+- 各 variant に外国人ルーツ参加者 3〜4名、車いす利用者、学校不適応 などを必ず含める
+
+### 3. 統合レポートビルダ + 3D ビューア
+
+- `tools/render_v3_report.py`: Phase A/B/C のシミュレーション結果から、エージェント挙動ルール解説・タイムライン・各人の言語化分析・Phase C アンケート集計・全体考察 (Gemini 生成) ・教育観点考察・実装観点考察 までを **1 本の HTML レポート** として出力 (本案では 72 ページの PDF として提出)。
+- `tools/html_to_pdf.py`: Playwright 経由で HTML → PDF 化 (16:9 スライドサイズ、`@media print` でフォント縮小)。
+- `visualization/viewer_3d.html`: 品川駅周辺 160m × 160m の 3D シーン。step スライダーで全エージェントの軌跡・発話バブルを再生可能。
+
+### 4. LLM バックエンド抽象化 (Claude → Gemini 切替可能)
+
+`llm_client_factory.py` でプロバイダ抽象化。Phase 0 (元コード) は Claude Haiku、Phase A〜C 本案は **Gemini 2.5 flash-lite** を採用 (Haiku 比でコスト 1/15、context cache hit 80%超、品質同等を実測検証)。
+
+### 5. その他の挙動制御 (派生元コアを継承+調整)
+
+派生元 (Phase 0) のコア (定量情報のみプロンプト提供 / 双方向同時発話排除 / Jaccard 4-gram 類似フィルタ / memory rolling buffer) を継承しつつ、本案では:
+
+- **3 層行動モデル** (transit / observe / interact) — 屋外 FW 用に拡張
+- **awareness 伝播** (path-1/2/3) — JR 運休や新幹線終電などのイベントが direct/notification/conversation 経路で agent 間に伝播する仕組み
+- **constrained mode** — `scene_3d` を持つフィールド (品川など) で persona の `initial_place` を尊重した spawn
+- **time-of-day guardrail** — 発話プロンプトの語彙を時間帯 (MORNING/EVENING/LATE NIGHT) で自動調整
+
+詳細は `agent.py`, `simulation.py`, `navigation.py`, および `tools/build_*.py` 群を参照してください。
+
+---
+
 ## 派生元 (Phase 0): 火事避難シミュレーション
 
-このハッカソン提出版は、**兵頭博士の元コード Phase 0 — 2D 火事避難シミュレーション** をベースに発展させたものです。Phase 0 は LLM マルチエージェントの **創発性** と **自律性** を発現させることを目的とした 2 次元空間シミュレーションで、エージェントには生の数値データ（占有率、火災の強度・距離等）のみを提供し、行動指示や定性的評価は一切与えない設計です。
+兵頭博士の元コードである **Phase 0 — 2D 火事避難シミュレーション** は、本案 (Phase A〜C) のコア (LLM マルチエージェント / 定量情報のみ提供 / 双方向同時発話排除 / Jaccard類似フィルタ / memory rolling buffer / 並列化) のすべての基盤となっています。
 
-Phase 0 の詳細は元コード由来の以下のセクションをそのまま残しています。Phase A〜C の品川シミュは、この Phase 0 のコア (LLMマルチエージェントの定量情報のみ提供、双方向同時発話排除、Jaccard類似フィルタ等) を継承しつつ、新規追加機能 (`tools/build_*`, `tools/render_v3_report.py`, `visualization/viewer_3d.html` 等) によって構築されています。
+Phase 0 の概要のみ記載: フィールド内に複数の場所 (バー等) があり、エージェントは火事の位置・強度・距離などの **数値データのみ** を受け取り、行動指示は一切与えられない状態で、回避・情報伝達・無視 等の行動を **創発的に生み出す** 設計。 `python main.py --config config.yaml` で動作。
 
-### Fire Event（火事イベント） — Phase 0
-
-シミュレーションの途中で、指定位置（またはランダムな位置）に複数の火事を発生させることができる。火事には以下の特徴がある:
-
-- **知覚モデル B（距離依存）**: 火事の知覚半径（`radius`）内にいるエージェントのみが火事情報を直接受け取る。半径外のエージェントはプロンプトに火事情報が一切含まれず、他エージェントからのメッセージ経由でのみ間接的に知る
-- **定量情報のみ**: エージェントに与えられるのは火事の位置、強度（0.0〜1.0）、半径、自分との距離のみ。「危険」「避難すべき」等の定性的記述は一切含まれない
-- **時間不変**: 火事の強度・位置は発生後変化しない
-- **発生前は無情報**: 火事が発生するステップより前のプロンプトには、火事に関するセクションは存在しない
-
-この設計により、エージェントが定量情報のみからどのような行動（回避、情報伝達、無視等）を創発的に生み出すかを観察できる。
-
-### ペルソナ — Phase 0
-
-各エージェントには初期化時に最小ペルソナが割り当てられる:
-
-- `name`（例: 田中健一）
-- `age`
-- `gender` (`male` / `female`)
-- `occupation`（例: IT会社員、デザイナー、定年退職）
-- `background`（例: 最近この街に引っ越してきた／この街に長く住んでいる）
-- `speech_style`（例: 丁寧だが少し堅い／カジュアルでフレンドリー）
-
-Phase A〜C ではこれを拡張し、`school_fit` (学校適応度) / `mobility` (車いす利用) / `nationality` (外国籍) / 興味領域 / 家庭背景などの軸を加えた多様なペルソナを `tools/generate_classroom_personas.py` で生成・管理しています。
+> **Phase 0 のソース改変は最小限** に留め、本案 (Phase A/B/C) の追加機能はすべて `tools/build_*`, `tools/render_*`, `tools/generate_*` の新規スクリプト群と、`agent.py` / `simulation.py` / `navigation.py` の追加分岐として実装しています。
 
 ## 必要な環境
 
@@ -147,248 +166,114 @@ pip install -r requirements.txt
 
 ### 2. API キーの設定
 
-`.env.example` を `.env` にコピーし、Anthropic Claude API キーを設定:
+`.env.example` を `.env` にコピーし、使う API キーを設定:
 
 ```bash
 cp .env.example .env
-# エディタで .env を開き、ANTHROPIC_API_KEY を自分のキーに差し替える
+# エディタで .env を開き、必要なキーを設定する
 ```
 
-`.env` は `.gitignore` に含まれているのでコミットされない。API キーは [Anthropic Console](https://console.anthropic.com/) で発行できる。
+- Phase 0 (火事避難シミュ) を動かす場合: `ANTHROPIC_API_KEY` ([Anthropic Console](https://console.anthropic.com/))
+- Phase A〜C (品川シミュ・本案) を動かす場合: `GOOGLE_API_KEY` ([Google AI Studio](https://aistudio.google.com/app/apikey))
 
-### 3. 設定ファイルの確認
+`.env` は `.gitignore` に含まれているのでコミットされない。
 
-`config.yaml` で主要なパラメータを確認・調整する:
-
-- エージェント数 / ステップ数
-- `llm.model`（デフォルト: `claude-haiku-4-5-20251001`）
-- 並列度 `agents.parallel_workers`（Tier に応じて 10〜20 程度）
-- ペルソナ定義
+---
 
 ## 使用方法
 
-```bash
-# 仮想環境を有効化
-source venv/bin/activate              # macOS/Linux
-venv\Scripts\activate.bat             # Windows
+### A. ハッカソン本案 (Phase A/B/C 品川シミュ) を回す
 
-# 基本実行
-python main.py
-
-# 可視化を有効化
-python main.py --visualize
-
-# フレームを保存
-python main.py --save-frames
-
-# カスタム設定を使用
-python main.py --config custom_config.yaml
-```
-
-動作確認用に 3 エージェント × 5 ステップの軽量設定（`config_opt1_test.yaml`）も同梱している。
+本案は **Phase A → Phase B → Phase C の 3 段** で動かします。各フェーズの出力を次フェーズの入力として渡します。
 
 ```bash
-python main.py --config config_opt1_test.yaml
+# === Phase A: 教室AB シミュ (高校生10人 / 30step / 60分) ===
+# config 生成
+python tools/build_classroom_ab_config.py --variant high --condition a
+# 実行
+python main.py --config config_classroom_ab_a.yaml
+
+# 出力: simulations/<日時>_<id>_classroom_ab_a/
+#   - fw_handoff.jsonl   (Phase B への引継ぎ: future_image / intent)
+#   - field_questions.jsonl (Phase B での確かめたいこと)
+#   - memory_reasoning.jsonl, messages.jsonl 他
+
+# === Phase B: 品川FW シミュ (高校生10人 / 50step / 100分) ===
+# Phase A の run_dir を渡して config 生成
+python tools/build_shinagawa_field_config.py \
+    --variant high \
+    --classroom-run simulations/<Phase A の run_dir>
+# 実行
+python main.py --config config_shinagawa_field_high.yaml
+
+# === Phase C: シミュ後アンケート ===
+python tools/run_survey.py \
+    --run-a simulations/<Phase A run_dir> \
+    --run-b simulations/<Phase B run_dir>
+
+# === 統合レポート (HTML + PDF) ===
+python tools/render_v3_report.py \
+    --run-a simulations/<Phase A run_dir> \
+    --run-b simulations/<Phase B run_dir> \
+    --suffix _v1
+python tools/html_to_pdf.py simulations/<Phase B run_dir>/v3_report_<NN>_v1.html
 ```
 
-## 設定ファイル（config.yaml）
+社会人 / 小学生 variant も同じ流れで `--variant adult` / `--variant elementary` で起動可能 (本案 = 高校生)。
 
-主要なパラメータ:
+### B. Phase 0 (派生元の火事避難シミュ) を回す
 
-- **simulation**: シミュレーション設定
-  - `duration`: シミュレーションステップ数
-  - `half_space_size`: 空間の半分のサイズ（例: 25 → 座標範囲は -25 〜 +25）
-  - `half_place_size`: 場所の半分のサイズのデフォルト（各場所の `half_size` が優先）
+```bash
+python main.py --config config.yaml                # デフォルト
+python main.py --config config_smoke.yaml          # 軽量 smoke
+python main.py --config config_jr_disruption.yaml  # JR 運休イベント版
+```
 
-- **agents**: エージェント設定
-  - `num_agents`: エージェント数
-  - `communication_radius`: 通信半径
-  - `memory_limit`: 保存する最大メモリ数（デフォルト: 20）
-  - `memory_size`: LLM 推論に使用するメモリ数（デフォルト: 5）
-  - `message_history_limit`: 保存する最大メッセージ数（デフォルト: 10）
-  - `message_context_size`: LLM 推論に使用するメッセージ数（デフォルト: 3）
-  - `skip_probability`: 各フェーズで LLM 呼び出しをランダムにスキップする確率（デフォルト: 0.2）
-  - `parallel_workers`: 1 フェーズあたりの同時 LLM 呼び出し数（1 = 逐次実行、上限は Anthropic Tier 依存）
-  - `personas`: オプショナルな明示ペルソナのリスト（未定義 ID はランダム生成）
+詳細パラメータは元コードの設計どおり (`config.yaml` 内のコメント参照)。
 
-- **places**: 場所設定（複数場所対応）
-  各場所は以下の必須フィールドを持つ:
-  - `name`: 場所名（例: `"left_bar"`, `"cafe"`）
-  - `type`: 場所の種類（例: `"bar"`, `"cafe"`, `"library"`）
-  - `center_x`, `center_y`: 場所の中心座標
-  - `half_size`: 中心からの半サイズ（±half_size が場所範囲）
-  - `capacity`: 収容上限（占有率の計算に使用、ハードリミットではない）
-
-- **fires**: 火事イベント設定（複数火事対応）
-  - `name`: 火事名
-  - `start_step`: 発生ステップ
-  - `intensity`: 強度（0.0〜1.0、定量値としてのみ伝達）
-  - `radius`: 知覚半径
-  - `center_x`, `center_y`: 位置（省略でランダム）
-
-- **llm**: LLM 設定
-  - `model`: Claude モデル名（デフォルト: `claude-haiku-4-5-20251001`）
-  - `base_url`: Anthropic API エンドポイント
-  - `temperature`: サンプリング温度
-  - `max_tokens`: 最大出力トークン数（デフォルト: 600、truncation 検出時は 1500 に自動拡張して 1 回だけリトライ）
-
-- **visualization / logging**: 出力設定
-
-### 座標系
-
-- **フィールド**: 原点 (0, 0) を中心に、`-half_space_size` 〜 `+half_space_size` の範囲
-- **場所**: 各場所は独立した中心位置（`center_x`, `center_y`）を持ち、そこから `±half_size`（両端を含む）
-
-**エージェントの知識**:
-- エージェントは **すべての場所の位置情報** を知っている（プロンプトに含まれる）
-- 場所の占有状況（エージェント数・収容上限・占有率）は、その場所内にいるエージェントのみが直接受け取る
+---
 
 ## 出力
 
-- `output/`: 可視化フレームと統計グラフ
-  - 可視化では、エージェントの **性別を色**（男=青、女=赤）、**場所内/外をマーカー形状**（場所内=★、場所外=●）で表現
-  - 火事発生後は **火事中心（赤三角）** と **知覚半径（破線円）** が描画される。`intensity` に応じた YlOrRd カラーマップで塗られ、カラーバー（0.0〜1.0, "Intensity of Fire"）も表示される
-  - 統計グラフには「火事半径内エージェント数の時系列」サブプロットが追加される
-- `output/messages.jsonl`: エージェント間メッセージ履歴
-- `output/memory_reasoning.jsonl`: 各エージェントの記憶と推論ログ
-- `output/report.html`: HTML レポート
-- `output/animation.gif`: GIF アニメーション
-- `simulation.log`: シミュレーションログ
+- **`simulations/<日時>_<NN>_<name>/`** — 各 run の出力ディレクトリ (gitignore 済、ローカルにのみ生成):
+  - `simulation_data.json` (各 step の position / state)
+  - `messages.jsonl` (エージェント間メッセージ)
+  - `memory_reasoning.jsonl` (各エージェントの memory + reasoning)
+  - `actions.jsonl` (行動ログ)
+  - `survey_responses.jsonl` (Phase C アンケート)
+  - `config.yaml` (実行時の config スナップショット)
+  - `sim.log` (LLM call 統計、cache hit 率等)
+  - 生成した HTML レポート / PDF / 3D viewer (`tools/render_v3_report.py` / `html_to_pdf.py` 経由)
+- **`FINAL_REPORT/`** — 本案 (run #157) の最終成果物を repo に同梱 (本ドキュメント冒頭参照)
 
-## シミュレーション結果の可視化ツール
+---
 
-`visualization/` ディレクトリにビューアと動画生成スクリプトが含まれる。
+## 主要な可視化ツール
 
-### ブラウザビューア（viewer.html）
-
-`visualization/viewer.html` をブラウザで開き、`output/` ディレクトリを選択するとインタラクティブに再生・閲覧できる。
-
-| 操作 | 方法 |
+| ファイル | 用途 |
 |---|---|
-| 再生 / 停止 | 「▶ 再生」 / `Space` |
-| 前のステップ | 「⏮ 前へ」 / `←` |
-| 次のステップ | 「⏭ 次へ」 / `→` |
-| ステップジャンプ | スライダー |
-| 再生速度調整 | 速度スライダー（0.5x〜3.0x） |
+| `visualization/viewer_3d.html` | **3D ビューア (本案メイン)**。品川駅周辺の屋外 3D シーンと全エージェントの軌跡・発話を step スライダーで再生 |
+| `visualization/viewer_v2.html` | 2D ビューア (Phase 0 / 教室シミュ用)。場所・通信範囲・火事を 2D で表示 |
+| `tools/bundle_viewer.py` | 上記 viewer + 全データを 1 ファイルの自己完結 HTML にバンドル (`viewer_3d_bundled_NNN.html`) |
+| `tools/render_v3_report.py` | 統合レポート (HTML + 印刷対応 CSS)。本案の主要成果物 |
+| `tools/html_to_pdf.py` | Playwright 経由で HTML → PDF (16:9 スライドサイズ、`@media print` でフォント縮小) |
 
-### 動画生成（generate_video.py）
+---
 
-`viewer.html` と同レイアウトで MP4 を生成するスクリプト。FFmpeg 必須。
+## 主要な設計判断
 
-```bash
-# macOS
-brew install ffmpeg
+- **Gemini 2.5 flash-lite を採用** (Phase A〜C): Haiku 比でコスト 1/15、品質同等を 30 agents × 60 steps の比較で実測検証。詳細は `FINAL_REPORT/` 配下の最終レポート内「やまちゃそ考察」セクションを参照
+- **Phase A 固定 → B, C 独立** のアーキテクチャ方針: Phase A 出力を YAML として凍結することで、Phase B/C を独立に試行錯誤できるよう設計 (フルチェーンを毎回回すと A の LLM call が無駄に積み重なるため)
+- **観察者 LLM 経由のアンケート (Phase C)**: 各 agent の memory を観察者 LLM に渡して「この人物がアンケートにどう答えるか」 を推測。本人に直接答えさせると忖度バイアスが入るため
+- **属性マッピング厳守**: 多様ペルソナの属性 (学校不適応/車いす/外国籍) を考察 LLM プロンプト先頭で明示し、人物の取り違えを構造的に防ぐ
+- **派生元 Phase 0 由来のコア (双方向同時発話排除 / Jaccard 4-gram 類似フィルタ / プロンプトキャッシング / 並列化)** を継承。Phase 0 の最適化詳細は [`OPTIMIZATION_REPORT.md`](OPTIMIZATION_REPORT.md) (元コード由来) 参照
 
-# Ubuntu/Debian
-sudo apt install ffmpeg
-```
-
-```bash
-python visualization/generate_video.py output/
-python visualization/generate_video.py output/ -o result.mp4 --fps 20
-```
-
-| オプション | デフォルト | 説明 |
-|---|---|---|
-| `data_dir`（必須） | — | シミュレーション結果ディレクトリ |
-| `-o`, `--output` | `simulation.mp4` | 出力 MP4 ファイル名 |
-| `--fps` | `10` | フレームレート |
-| `--dpi` | `150` | 画像解像度 |
-
-## LLM エージェント設計
-
-### 基本設計
-
-- 各エージェントは毎ステップ、**Message / Memory / Action** を LLM から生成し、同期的に行動
-- 同一の LLM クライアントを全エージェントで共有し、差分は各自のペルソナ・Memory・相互作用履歴のみ
-- プロンプトは「最適化タスク」を明示せず、状況説明 + 数値データ + 近傍メッセージ + 自己状態 + ペルソナを与える構成
-
-### Action（行動）
-
-4 方向の離散選択 + 滞在:
-- `up` / `down` / `left` / `right`（±1 セル）
-- `stay`（現在位置に滞在）
-
-### Memory（記憶）
-
-- LLM が出力した `memory` フィールドが次ステップの「Previous Memory」として自己フィードバック
-- 内部状態が履歴依存で進化し、個性が創発する
-- `memory_limit`: 保存する最大メモリ数（古いものから削除）
-- `memory_size`: LLM 推論時に参照する直近のメモリ数
-
-### 場所内限定情報
-
-**各場所内のエージェントのみ** が以下の数値データを直接受け取る:
-- 現在のエージェント数（Number of agents here）
-- 収容上限（Capacity）
-- 占有率（Occupancy rate = エージェント数 / 収容上限）
-
-定性的な評価（快適・不快等）は一切含まれず、数値の解釈はエージェント自身に委ねられる。場所外のエージェントはこれらの情報を受け取らない（会話や推論で間接的に学ぶ）。
-
-### コミュニケーション
-
-- 通信半径内（デフォルト: 5 セル）のエージェント間でメッセージ交換が可能
-- **同一領域条件**:
-  - ✅ 同じ場所内のエージェント同士: 通信可能
-  - ✅ 両方とも場所外のエージェント同士: 通信可能
-  - ❌ 場所内のエージェント ↔ 場所外のエージェント: 通信不可
-  - ❌ 異なる場所内のエージェント同士: 通信不可
-- メッセージは **ブロードキャスト**（通信範囲内の全員に同じ内容が届く）
-- `message_history_limit` / `message_context_size` で保存・参照数を調整
-
-### シミュレーションステップの実行順序
-
-各ステップは以下の順序で実行される:
-
-0. **火事活性化チェック** — 各火事について `step >= start_step` なら発生
-1. **Phase 1: メッセージ決定** — 全エージェントが LLM でメッセージを決定（並列実行）
-2. **Phase 2: メッセージ送信** — 意思決定時点での近傍エージェントにメッセージを送信
-3. **Phase 3: 行動決定** — 全エージェントが LLM で行動（move/stay）を決定（並列実行）
-4. **Phase 4: 移動実行** — エージェントが決定した方向に移動
-
-この順序により、メッセージは移動前の位置関係に基づいて送信される。
-
-### LLM 出力形式
-
-**メッセージ決定（Phase 1）**:
-```json
-{
-    "message": "近傍エージェントへのメッセージ（任意、最大200語）",
-    "reasoning": "メッセージ送信の理由"
-}
-```
-
-**行動決定（Phase 3）**:
-```json
-{
-    "action": "move" or "stay",
-    "direction": "up" | "down" | "left" | "right",
-    "memory": "次ステップのために記憶したいこと",
-    "reasoning": "決定理由"
-}
-```
-
-## 実装されている最適化
-
-Anthropic Claude API を安定的かつ低コストで運用するため、以下 5 つの最適化を段階的に実装している。詳細は [`OPTIMIZATION_REPORT.md`](OPTIMIZATION_REPORT.md) を参照。
-
-1. **プロンプトキャッシング** — system prompt に `cache_control: ephemeral` を付与
-2. **`max_tokens` 削減 + truncation 検知リトライ** — デフォルト 600、JSON 不完全検出時は 1500 で 1 回だけリトライ
-3. **ランダムスキップ** — 各フェーズで `skip_probability` の確率で呼び出しを省略
-4. **ThreadPoolExecutor 並列化** — `parallel_workers` 個まで同時に LLM 呼び出し
-5. **最小ペルソナと口調指示** — 名前・年齢・職業・背景・話し方を各エージェントに付与し、会話を名前ベースに
-
-本番ラン（20 エージェント × 50 ステップ）における実測:
-- コスト削減率: **61.5%**（キャッシュ無効と比較）
-- 会話リアリティ: 座標報告中心 → 名前ベースの自然な対話
-- 統計（占有率等）は最適化前と同系の傾向を維持
+---
 
 ## ライセンス
 
-GNU General Public License v3.0
-
-詳細は [LICENSE.txt](LICENSE.txt) を参照。
+[GNU General Public License v3.0](LICENSE.txt) (派生元 Phase 0 を継承)。
 
 ## 謝辞
 
-本リポジトリは上流のシミュレーション設計思想をベースに、LLM バックエンドを Anthropic Claude API に置き換え、コスト・実行時間・会話品質の最適化を加えたものである。
+本リポジトリは **シンギュラボ所属の兵頭博士による LLM マルチエージェント 2D シミュレーション** を派生・発展させたものです。元コードの提供および設計思想に深く感謝します。詳細は [`CREDITS.md`](CREDITS.md) を参照。
